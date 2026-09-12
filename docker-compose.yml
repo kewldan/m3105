@@ -1,0 +1,109 @@
+# Production stack. TLS is terminated by the server-wide Traefik that lives on
+# the external `virtual-hosts` network (cert resolver `myresolver`), the same
+# way ControlPanel is deployed. nginx splits /api/* → Go, the rest → Next.js.
+
+services:
+  proxy:
+    image: nginx:alpine
+    restart: unless-stopped
+    expose:
+      - 80
+    networks:
+      - backends
+      - virtual-hosts
+    depends_on:
+      - web
+      - api
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.edu3105.rule=Host(`${DOMAIN:-m3105.ru}`)
+      - traefik.http.routers.edu3105.tls=true
+      - traefik.http.routers.edu3105.tls.certresolver=myresolver
+      - traefik.http.services.edu3105.loadbalancer.server.port=80
+    volumes:
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: https://${DOMAIN:-m3105.ru}
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8080
+      NEXT_PUBLIC_SITE_URL: https://${DOMAIN:-m3105.ru}
+      TZ: ${TZ:-Europe/Moscow}
+    expose:
+      - 3000
+    depends_on:
+      - api
+    networks:
+      - backends
+
+  api:
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      ADDR: ":8080"
+      DATABASE_URL: postgres://${POSTGRES_USER:-edu}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-edu}?sslmode=disable
+      VALKEY_ADDR: valkey:6379
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      PUBLIC_URL: https://${DOMAIN:-m3105.ru}
+      COOKIE_SECURE: "true"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      BOT_DIGEST_HOUR: ${BOT_DIGEST_HOUR:-10}
+      TZ: ${TZ:-Europe/Moscow}
+    expose:
+      - 8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    networks:
+      - backends
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-edu}
+      POSTGRES_USER: ${POSTGRES_USER:-edu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-edu} -d ${POSTGRES_DB:-edu}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - backends
+
+  valkey:
+    image: valkey/valkey:9-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "60", "1", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - backends
+
+networks:
+  backends:
+  virtual-hosts:
+    external: true
+
+volumes:
+  postgres-data:
+  valkey-data:

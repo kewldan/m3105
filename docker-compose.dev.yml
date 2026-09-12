@@ -1,0 +1,23 @@
+# Local infrastructure only: `docker compose -f docker-compose.dev.yml up -d`
+# then run the API with `make api` and the web app with `bun dev`.
+name: edu3105-dev
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: edu
+      POSTGRES_USER: edu
+      POSTGRES_PASSWORD: edu
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dev:/var/lib/postgresql
+
+  valkey:
+    image: valkey/valkey:9-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres-dev:

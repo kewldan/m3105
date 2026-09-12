@@ -1,0 +1,859 @@
+openapi: 3.1.0
+info:
+  title: М3105 API
+  version: "1.0"
+  summary: Публичное API сайта группы М3105
+  description: |
+    Публичные эндпоинты сайта группы: предметы, лабораторные с дедлайнами, календарь и ICS-фид,
+    конспекты, квизы, ЧаВо, статические страницы, поиск и расписание сдач.
+
+    Все ответы в JSON (кроме `/calendar.ics`), время в RFC 3339 с таймзоной, даты без времени в формате `YYYY-MM-DD`.
+    Возвращаются только опубликованные материалы. Авторизация для этих эндпоинтов не нужна.
+
+    Эндпоинты админки (`/admin/*`) и аккаунтов студентов (`/auth/*`, `/me/*`, запись на сдачи)
+    работают по HttpOnly-кукам и описаны в `docs/api.md` репозитория.
+  contact:
+    url: https://m3105.ru
+security: []  # публичные эндпоинты без авторизации
+servers:
+  - url: https://m3105.ru/api/v1
+    description: Продакшен
+  - url: http://localhost:8080/api/v1
+    description: Локальный API
+tags:
+  - name: site
+    description: Настройки, сводка для главной, здоровье сервиса
+  - name: subjects
+    description: Предметы семестра
+  - name: labs
+    description: Лабораторные работы
+  - name: calendar
+    description: Дедлайны лаб и ICS-подписка
+  - name: notes
+    description: Конспекты лекций
+  - name: quizzes
+    description: Квизы для самопроверки
+  - name: content
+    description: ЧаВо и статические страницы
+  - name: search
+    description: Поиск по опубликованному
+  - name: practice
+    description: Занятия, на которых принимают лабы
+
+paths:
+  /healthz:
+    get:
+      tags: [site]
+      summary: Проверка живости
+      operationId: healthz
+      responses:
+        "200":
+          description: Сервис работает
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, const: ok }
+                required: [status]
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /settings:
+    get:
+      tags: [site]
+      summary: Настройки сайта, текущая неделя и навигация
+      operationId: getSettings
+      responses:
+        "200":
+          description: Настройки
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SettingsResponse" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /home:
+    get:
+      tags: [site]
+      summary: Сводка для главной страницы
+      description: Ближайшие и просроченные дедлайны лаб, события и сдачи, свежие конспекты, предметы.
+      operationId: getHome
+      responses:
+        "200":
+          description: Сводка
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HomeResponse" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /subjects:
+    get:
+      tags: [subjects]
+      summary: Список предметов
+      description: Предметы в порядке `position` со счётчиками опубликованных лаб, конспектов и квизов.
+      operationId: listSubjects
+      responses:
+        "200":
+          description: Предметы
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SubjectWithCounts" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /subjects/{slug}:
+    get:
+      tags: [subjects]
+      summary: Предмет с его лабами, конспектами и квизами
+      operationId: getSubject
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Предмет
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubjectResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /labs:
+    get:
+      tags: [labs]
+      summary: Список лабораторных
+      description: Опубликованные лабы всех предметов или одного предмета. Длинные MDX-поля (`content`, `requirements`, `submission`, `variants`) в списке пустые.
+      operationId: listLabs
+      parameters:
+        - $ref: "#/components/parameters/SubjectFilter"
+      responses:
+        "200":
+          description: Лабы
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Lab" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /labs/{subject}/{slug}:
+    get:
+      tags: [labs]
+      summary: Лабораторная целиком
+      operationId: getLab
+      parameters:
+        - $ref: "#/components/parameters/SubjectSlug"
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Лаба
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lab" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /calendar:
+    get:
+      tags: [calendar]
+      summary: Дедлайны лаб за период
+      description: |
+        Только дедлайны лабораторных. Без параметров возвращает окно от месяца назад до полугода вперёд.
+        `from` и `to` принимают RFC 3339 или дату `YYYY-MM-DD` (дата в `to` включает весь день).
+        Некорректное значение молча заменяется значением по умолчанию.
+      operationId: getCalendar
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, examples: ["2026-09-01", "2026-09-01T00:00:00+03:00"] }
+          description: Начало периода
+        - name: to
+          in: query
+          schema: { type: string, examples: ["2026-12-31"] }
+          description: Конец периода
+        - $ref: "#/components/parameters/SubjectFilter"
+      responses:
+        "200":
+          description: Дедлайны
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CalendarResponse" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /calendar.ics:
+    get:
+      tags: [calendar]
+      summary: iCalendar-фид дедлайнов
+      description: |
+        Подписка для Google Calendar, Apple Calendar и Outlook. Окно: два месяца назад и год вперёд.
+        У каждого события напоминание за сутки до дедлайна. Ответ кэшируется на 15 минут.
+      operationId: getCalendarICS
+      parameters:
+        - $ref: "#/components/parameters/SubjectFilter"
+      responses:
+        "200":
+          description: Файл календаря
+          headers:
+            Content-Disposition:
+              schema: { type: string, examples: ['inline; filename="m3105.ics"'] }
+            Cache-Control:
+              schema: { type: string, examples: ["public, max-age=900"] }
+          content:
+            text/calendar:
+              schema: { type: string }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /notes:
+    get:
+      tags: [notes]
+      summary: Список конспектов
+      description: Опубликованные конспекты, по всем предметам или по одному. Поле `content` в списке пустое.
+      operationId: listNotes
+      parameters:
+        - $ref: "#/components/parameters/SubjectFilter"
+      responses:
+        "200":
+          description: Конспекты
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Note" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /notes/{subject}/{slug}:
+    get:
+      tags: [notes]
+      summary: Конспект целиком
+      description: Вместе с привязанными квизами и соседними конспектами предмета для навигации.
+      operationId: getNote
+      parameters:
+        - $ref: "#/components/parameters/SubjectSlug"
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Конспект
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NoteResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /quizzes:
+    get:
+      tags: [quizzes]
+      summary: Список квизов
+      operationId: listQuizzes
+      parameters:
+        - $ref: "#/components/parameters/SubjectFilter"
+      responses:
+        "200":
+          description: Квизы
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/QuizSummary" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /quizzes/{slug}:
+    get:
+      tags: [quizzes]
+      summary: Квиз с вопросами
+      description: Формат вопросов описан в `docs/quiz-format.md`. Правильные ответы включены, проверка выполняется на клиенте.
+      operationId: getQuiz
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Квиз
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quiz" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /faq:
+    get:
+      tags: [content]
+      summary: Частые вопросы
+      operationId: listFAQ
+      responses:
+        "200":
+          description: Вопросы в порядке `position`
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FAQItem" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /pages:
+    get:
+      tags: [content]
+      summary: Статические страницы
+      operationId: listPages
+      responses:
+        "200":
+          description: Опубликованные страницы, `content` в списке пустой
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Page" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /pages/{slug}:
+    get:
+      tags: [content]
+      summary: Статическая страница
+      operationId: getPage
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Страница
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /search:
+    get:
+      tags: [search]
+      summary: Поиск по опубликованному
+      description: Ищет по лабам, конспектам, квизам, ЧаВо, страницам и предметам. Пустой запрос даёт пустой список.
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, examples: ["указатели"] }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+          description: Значения вне диапазона заменяются на 20
+      responses:
+        "200":
+          description: Результаты
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SearchResult" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /practice:
+    get:
+      tags: [practice]
+      summary: Занятия для сдачи лаб
+      description: |
+        По умолчанию только будущие. Для анонимных запросов `participants`, `myLabIds` и `availableLabs` пустые,
+        `signedIn` равно `false`; вошедшие студенты видят участников и могут записаться (см. `docs/api.md`).
+      operationId: listPractice
+      parameters:
+        - $ref: "#/components/parameters/SubjectFilter"
+        - name: past
+          in: query
+          schema: { type: string, examples: ["1"] }
+          description: Любое непустое значение включает прошедшие занятия
+      responses:
+        "200":
+          description: Занятия
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PracticeListResponse" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /practice/{id}:
+    get:
+      tags: [practice]
+      summary: Одно занятие
+      operationId: getPractice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Занятие
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PracticeSessionView" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[a-z0-9-]+$" }
+      description: Слаг, сгенерированный из названия транслитерацией
+    SubjectSlug:
+      name: subject
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[a-z0-9-]+$" }
+      description: Слаг предмета
+    SubjectFilter:
+      name: subject
+      in: query
+      schema: { type: string }
+      description: Слаг предмета для фильтрации
+
+  responses:
+    ClientError:
+      description: Некорректный запрос или превышен лимит; формат ошибки одинаковый для всех кодов
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Не найдено или не опубликовано
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: "Не найдено", code: not_found }
+
+  schemas:
+    Error:
+      type: object
+      description: Формат всех ошибок API
+      properties:
+        error: { type: string, description: "Сообщение для пользователя" }
+        code:
+          type: string
+          enum: [validation, not_found, conflict, unauthorized, bad_password, rate_limited, internal]
+        fields:
+          type: object
+          additionalProperties: { type: string }
+          description: Ошибки валидации по полям (только для `validation`)
+      required: [error, code]
+
+    DateTime:
+      type: string
+      format: date-time
+      description: RFC 3339 с таймзоной
+    Date:
+      type: string
+      format: date
+      description: "`YYYY-MM-DD`"
+    Parity:
+      type: string
+      enum: [odd, even]
+    Status:
+      type: string
+      enum: [draft, published]
+      description: В публичных ответах всегда `published`
+    SubjectColor:
+      type: string
+      enum: [blue, indigo, violet, cyan, teal, emerald, amber, orange, rose, slate]
+    Link:
+      type: object
+      properties:
+        title: { type: string }
+        url: { type: string, format: uri }
+      required: [title, url]
+
+    Settings:
+      type: object
+      properties:
+        siteTitle: { type: string }
+        groupName: { type: string }
+        description: { type: string }
+        semesterStart: { oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }] }
+        semesterEnd: { oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }] }
+        firstWeekParity: { $ref: "#/components/schemas/Parity" }
+        timezone: { type: string, examples: [Europe/Moscow] }
+        links:
+          type: array
+          items: { $ref: "#/components/schemas/Link" }
+        inviteCode: { type: string, description: "В публичных ответах всегда пустая строка" }
+        updatedAt: { $ref: "#/components/schemas/DateTime" }
+      required: [siteTitle, groupName, description, semesterStart, semesterEnd, firstWeekParity, timezone, links, inviteCode, updatedAt]
+
+    Week:
+      type: object
+      description: Текущая учебная неделя, считается от начала семестра
+      properties:
+        number: { type: integer, description: "Номер недели; 0, если семестр не настроен" }
+        parity: { $ref: "#/components/schemas/Parity" }
+        start: { $ref: "#/components/schemas/DateTime" }
+        inRange: { type: boolean, description: "Сейчас идёт семестр" }
+        configured: { type: boolean, description: "Дата начала семестра задана" }
+      required: [number, parity, start, inRange, configured]
+
+    AuthInfo:
+      type: object
+      properties:
+        telegramBot: { type: string, description: "Username бота; пусто, если вход через Telegram не настроен" }
+        telegramBotId: { type: string }
+        devLogin: { type: boolean, description: "Доступен вход по имени (только вне production)" }
+        inviteRequired: { type: boolean, description: "Для первого входа нужен код доступа" }
+      required: [telegramBot, telegramBotId, devLogin, inviteRequired]
+
+    SubjectRef:
+      type: object
+      properties:
+        id: { type: integer }
+        slug: { type: string }
+        name: { type: string }
+        shortName: { type: string }
+        color: { $ref: "#/components/schemas/SubjectColor" }
+        icon: { type: string, description: "Ключ иконки; пусто = иконка по умолчанию" }
+      required: [id, slug, name, shortName, color, icon]
+
+    Subject:
+      allOf:
+        - $ref: "#/components/schemas/SubjectRef"
+        - type: object
+          properties:
+            teacher: { type: string }
+            description: { type: string, description: "MDX" }
+            links:
+              type: array
+              items: { $ref: "#/components/schemas/Link" }
+            position: { type: integer }
+            createdAt: { $ref: "#/components/schemas/DateTime" }
+            updatedAt: { $ref: "#/components/schemas/DateTime" }
+          required: [teacher, description, links, position, createdAt, updatedAt]
+
+    SubjectWithCounts:
+      allOf:
+        - $ref: "#/components/schemas/Subject"
+        - type: object
+          properties:
+            labsCount: { type: integer }
+            notesCount: { type: integer }
+            quizzesCount: { type: integer }
+          required: [labsCount, notesCount, quizzesCount]
+
+    SubjectJoin:
+      type: object
+      description: Денормализованные поля предмета у дочерних сущностей
+      properties:
+        subjectSlug: { type: string }
+        subjectName: { type: string }
+        subjectShortName: { type: string }
+        subjectColor:
+          oneOf:
+            - $ref: "#/components/schemas/SubjectColor"
+            - type: string
+              const: ""
+        subjectIcon: { type: string }
+      required: [subjectSlug, subjectName, subjectShortName, subjectColor, subjectIcon]
+
+    Lab:
+      allOf:
+        - $ref: "#/components/schemas/SubjectJoin"
+        - type: object
+          properties:
+            id: { type: integer }
+            subjectId: { type: integer }
+            number: { type: integer, minimum: 0, description: "Ноль допустим для необязательной вводной лабы" }
+            slug: { type: string }
+            title: { type: string }
+            summary: { type: string }
+            content: { type: string, description: "Задание, MDX" }
+            requirements: { type: string, description: "Требования, MDX" }
+            submission: { type: string, description: "Как сдавать, MDX" }
+            variants: { type: string, description: "Варианты, MDX" }
+            materials:
+              type: array
+              items: { $ref: "#/components/schemas/Link" }
+            deadlineAt: { oneOf: [{ $ref: "#/components/schemas/DateTime" }, { type: "null" }] }
+            deadlineNote: { type: string }
+            maxScore: { oneOf: [{ type: integer }, { type: "null" }] }
+            teacher: { type: string }
+            status: { $ref: "#/components/schemas/Status" }
+            createdAt: { $ref: "#/components/schemas/DateTime" }
+            updatedAt: { $ref: "#/components/schemas/DateTime" }
+          required: [id, subjectId, number, slug, title, summary, content, requirements, submission, variants, materials, deadlineAt, deadlineNote, maxScore, teacher, status, createdAt, updatedAt]
+
+    Note:
+      allOf:
+        - $ref: "#/components/schemas/SubjectJoin"
+        - type: object
+          properties:
+            id: { type: integer }
+            subjectId: { type: integer }
+            number: { type: integer, minimum: 1 }
+            slug: { type: string }
+            title: { type: string }
+            summary: { type: string }
+            content: { type: string, description: "MDX с формулами и кодом" }
+            lectureDate: { oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }] }
+            status: { $ref: "#/components/schemas/Status" }
+            createdAt: { $ref: "#/components/schemas/DateTime" }
+            updatedAt: { $ref: "#/components/schemas/DateTime" }
+            quizzesCount: { type: integer, description: "Опубликованные квизы, привязанные к конспекту" }
+          required: [id, subjectId, number, slug, title, summary, content, lectureDate, status, createdAt, updatedAt, quizzesCount]
+
+    NoteResponse:
+      allOf:
+        - $ref: "#/components/schemas/Note"
+        - type: object
+          properties:
+            quizzes:
+              type: array
+              items: { $ref: "#/components/schemas/QuizSummary" }
+            prev: { oneOf: [{ $ref: "#/components/schemas/Note" }, { type: "null" }] }
+            next: { oneOf: [{ $ref: "#/components/schemas/Note" }, { type: "null" }] }
+          required: [quizzes, prev, next]
+
+    QuizOption:
+      type: object
+      properties:
+        id: { type: string }
+        text: { type: string, description: "Markdown" }
+        correct: { type: boolean }
+      required: [id, text, correct]
+
+    QuizQuestion:
+      type: object
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [single, multiple, text]
+        prompt: { type: string, description: "Markdown с формулами" }
+        options:
+          type: array
+          items: { $ref: "#/components/schemas/QuizOption" }
+          description: Для `single` и `multiple`
+        answers:
+          type: array
+          items: { type: string }
+          description: Принимаемые ответы для `text`, сравнение без учёта регистра, пробелов и ё/е
+        explanation: { type: string, description: "Показывается после ответа" }
+        points: { type: integer, default: 1 }
+        tags:
+          type: array
+          items: { type: string }
+      required: [id, type, prompt]
+
+    Quiz:
+      allOf:
+        - $ref: "#/components/schemas/SubjectJoin"
+        - type: object
+          properties:
+            id: { type: integer }
+            subjectId: { oneOf: [{ type: integer }, { type: "null" }] }
+            noteId: { oneOf: [{ type: integer }, { type: "null" }] }
+            slug: { type: string }
+            title: { type: string }
+            description: { type: string }
+            questions:
+              type: array
+              items: { $ref: "#/components/schemas/QuizQuestion" }
+            shuffleQuestions: { type: boolean }
+            shuffleOptions: { type: boolean }
+            status: { $ref: "#/components/schemas/Status" }
+            createdAt: { $ref: "#/components/schemas/DateTime" }
+            updatedAt: { $ref: "#/components/schemas/DateTime" }
+            noteSlug: { type: string }
+            noteTitle: { type: string }
+          required: [id, subjectId, noteId, slug, title, description, questions, shuffleQuestions, shuffleOptions, status, createdAt, updatedAt, noteSlug, noteTitle]
+
+    QuizSummary:
+      allOf:
+        - $ref: "#/components/schemas/Quiz"
+        - type: object
+          properties:
+            questionsCount: { type: integer }
+          required: [questionsCount]
+
+    FAQItem:
+      type: object
+      properties:
+        id: { type: integer }
+        question: { type: string }
+        answer: { type: string, description: "MDX" }
+        category: { type: string }
+        position: { type: integer }
+        createdAt: { $ref: "#/components/schemas/DateTime" }
+        updatedAt: { $ref: "#/components/schemas/DateTime" }
+      required: [id, question, answer, category, position, createdAt, updatedAt]
+
+    Page:
+      type: object
+      properties:
+        id: { type: integer }
+        slug: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        content: { type: string, description: "MDX" }
+        position: { type: integer }
+        showInNav: { type: boolean, description: "Показывать в меню сайта" }
+        status: { $ref: "#/components/schemas/Status" }
+        createdAt: { $ref: "#/components/schemas/DateTime" }
+        updatedAt: { $ref: "#/components/schemas/DateTime" }
+      required: [id, slug, title, summary, content, position, showInNav, status, createdAt, updatedAt]
+
+    CalendarItem:
+      type: object
+      properties:
+        id: { type: string, examples: ["lab-12", "event-3", "practice-7"] }
+        source:
+          type: string
+          enum: [lab, event, practice]
+        kind:
+          type: string
+          enum: [deadline, test, exam, consultation, other, practice]
+        title: { type: string }
+        startsAt: { $ref: "#/components/schemas/DateTime" }
+        endsAt: { oneOf: [{ $ref: "#/components/schemas/DateTime" }, { type: "null" }] }
+        allDay: { type: boolean }
+        location: { type: string }
+        description: { type: string }
+        path: { type: string, description: "Путь на сайте, например `/labs/prog/lab-1`" }
+        url: { type: string, description: "Внешняя ссылка события, если есть" }
+        subject: { oneOf: [{ $ref: "#/components/schemas/SubjectRef" }, { type: "null" }] }
+        labNumber: { type: integer, description: "Только для `source: lab`" }
+        labId: { type: integer, description: "Только для `source: lab`" }
+      required: [id, source, kind, title, startsAt, endsAt, allDay, location, description, path, url, subject]
+
+    SearchResult:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [lab, note, quiz, faq, page, subject]
+        title: { type: string }
+        subtitle: { type: string }
+        path: { type: string, description: "Путь на сайте" }
+      required: [kind, title, subtitle, path]
+
+    SettingsResponse:
+      type: object
+      properties:
+        settings: { $ref: "#/components/schemas/Settings" }
+        week: { $ref: "#/components/schemas/Week" }
+        now: { $ref: "#/components/schemas/DateTime" }
+        navPages:
+          type: array
+          items: { $ref: "#/components/schemas/Page" }
+          description: Страницы с `showInNav`, без `content`
+        auth: { $ref: "#/components/schemas/AuthInfo" }
+      required: [settings, week, now, navPages, auth]
+
+    HomeResponse:
+      type: object
+      properties:
+        settings: { $ref: "#/components/schemas/Settings" }
+        week: { $ref: "#/components/schemas/Week" }
+        now: { $ref: "#/components/schemas/DateTime" }
+        upcomingDeadlines:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarItem" }
+          description: Только дедлайны лаб
+        overdueDeadlines:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarItem" }
+        upcomingEvents:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarItem" }
+          description: Контрольные, экзамены, консультации и сдачи
+        recentNotes:
+          type: array
+          items: { $ref: "#/components/schemas/Note" }
+        subjects:
+          type: array
+          items: { $ref: "#/components/schemas/SubjectWithCounts" }
+      required: [settings, week, now, upcomingDeadlines, overdueDeadlines, upcomingEvents, recentNotes, subjects]
+
+    SubjectResponse:
+      type: object
+      properties:
+        subject: { $ref: "#/components/schemas/Subject" }
+        labs:
+          type: array
+          items: { $ref: "#/components/schemas/Lab" }
+        notes:
+          type: array
+          items: { $ref: "#/components/schemas/Note" }
+        quizzes:
+          type: array
+          items: { $ref: "#/components/schemas/QuizSummary" }
+      required: [subject, labs, notes, quizzes]
+
+    CalendarResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarItem" }
+        from: { $ref: "#/components/schemas/DateTime" }
+        to: { $ref: "#/components/schemas/DateTime" }
+        now: { $ref: "#/components/schemas/DateTime" }
+      required: [items, from, to, now]
+
+    PublicUser:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        photoUrl: { type: string }
+      required: [id, name, photoUrl]
+
+    LabRef:
+      type: object
+      properties:
+        id: { type: integer }
+        number: { type: integer }
+        title: { type: string }
+        slug: { type: string }
+        subjectSlug: { type: string }
+      required: [id, number, title, slug, subjectSlug]
+
+    Participant:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/PublicUser" }
+        labs:
+          type: array
+          items: { $ref: "#/components/schemas/LabRef" }
+      required: [user, labs]
+
+    PracticeSession:
+      allOf:
+        - $ref: "#/components/schemas/SubjectJoin"
+        - type: object
+          properties:
+            id: { type: integer }
+            subjectId: { type: integer }
+            startsAt: { $ref: "#/components/schemas/DateTime" }
+            endsAt: { oneOf: [{ $ref: "#/components/schemas/DateTime" }, { type: "null" }] }
+            location: { type: string }
+            capacity: { oneOf: [{ type: integer }, { type: "null" }], description: "`null` = без ограничения" }
+            note: { type: string }
+            createdAt: { $ref: "#/components/schemas/DateTime" }
+            updatedAt: { $ref: "#/components/schemas/DateTime" }
+            signupsCount: { type: integer, description: "Число записавшихся студентов" }
+          required: [id, subjectId, startsAt, endsAt, location, capacity, note, createdAt, updatedAt, signupsCount]
+
+    PracticeSessionView:
+      allOf:
+        - $ref: "#/components/schemas/PracticeSession"
+        - type: object
+          properties:
+            participants:
+              type: array
+              items: { $ref: "#/components/schemas/Participant" }
+              description: Только для вошедших студентов, иначе пусто
+            myLabIds:
+              type: array
+              items: { type: integer }
+            full: { type: boolean, description: "Мест нет" }
+            past: { type: boolean, description: "Занятие уже прошло" }
+            availableLabs:
+              type: array
+              items: { $ref: "#/components/schemas/LabRef" }
+              description: Опубликованные лабы предмета, только для вошедших
+          required: [participants, myLabIds, full, past, availableLabs]
+
+    PracticeListResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items: { $ref: "#/components/schemas/PracticeSessionView" }
+        now: { $ref: "#/components/schemas/DateTime" }
+        signedIn: { type: boolean }
+      required: [sessions, now, signedIn]

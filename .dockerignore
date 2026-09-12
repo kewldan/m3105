@@ -1,0 +1,10 @@
+.git
+.idea
+node_modules
+**/node_modules
+**/.next
+apps/api
+.env
+.env.*
+!.env.example
+*.log

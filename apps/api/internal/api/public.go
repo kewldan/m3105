@@ -189,7 +189,7 @@ func (h *Handler) getCalendar(w http.ResponseWriter, r *http.Request) {
 	if len(q.Get("to")) == 10 { // date-only "to" should include the whole day
 		to = to.Add(24*time.Hour - time.Nanosecond)
 	}
-	items, err := h.calendarItems(r.Context(), from, to, q.Get("subject"), scopeLabs)
+	items, err := h.calendarItems(r.Context(), from, to, q.Get("subject"), scopeAll)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -203,7 +203,7 @@ func (h *Handler) getCalendarICS(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	items, err := h.calendarItems(r.Context(), sc.Now.AddDate(0, -2, 0), sc.Now.AddDate(1, 0, 0), r.URL.Query().Get("subject"), scopeLabs)
+	items, err := h.calendarItems(r.Context(), sc.Now.AddDate(0, -2, 0), sc.Now.AddDate(1, 0, 0), r.URL.Query().Get("subject"), scopeAll)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -219,7 +219,7 @@ func (h *Handler) getCalendarICS(w http.ResponseWriter, r *http.Request) {
 			end = *it.EndsAt
 		}
 		title := it.Title
-		if it.Subject != nil {
+		if it.Subject != nil && it.Source != "practice" { // practice titles already name the subject
 			name := it.Subject.ShortName
 			if name == "" {
 				name = it.Subject.Name

@@ -7,9 +7,9 @@ import { inTz, toYmd } from "@/lib/format";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Календарь дедлайнов",
+  title: "Календарь",
   description:
-    "Дедлайны лабораторных по всем предметам в одном календаре и ICS-подписка для Google, Apple и Outlook с напоминанием за сутки.",
+    "Дедлайны лабораторных, контрольные, экзамены и сдачи по всем предметам в одном календаре и ICS-подписка для Google, Apple и Outlook с напоминанием за сутки.",
   path: "/calendar",
 });
 
@@ -26,9 +26,9 @@ export default async function CalendarPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Дедлайны лаб"
+        eyebrow="Дедлайны и события"
         title="Календарь"
-        description="Только мягкие дедлайны лабораторных. Подпишитесь, чтобы напоминания приходили в ваш календарь."
+        description="Дедлайны лабораторных, контрольные, экзамены и сдачи. Подпишитесь, чтобы напоминания приходили в ваш календарь."
       />
       <CalendarView items={calendar.items} now={calendar.now} tz={tz} />
     </div>

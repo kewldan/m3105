@@ -52,10 +52,10 @@ export function SubscribeDialog({ subject }: { subject?: string }) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Подписка на дедлайны</DialogTitle>
+          <DialogTitle>Подписка на календарь</DialogTitle>
           <DialogDescription>
             Подпишитесь по ссылке — календарь будет обновляться сам, а за сутки
-            до каждого дедлайна придёт напоминание.
+            до дедлайна, контрольной или экзамена придёт напоминание.
           </DialogDescription>
         </DialogHeader>
         <div className="flex gap-2">

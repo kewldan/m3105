@@ -153,9 +153,10 @@ paths:
   /calendar:
     get:
       tags: [calendar]
-      summary: Дедлайны лаб за период
+      summary: Календарь за период
       description: |
-        Только дедлайны лабораторных. Без параметров возвращает окно от месяца назад до полугода вперёд.
+        Дедлайны лабораторных, события (контрольные, экзамены, консультации) и сдачи.
+        Поле `source` различает `lab`, `event` и `practice`. Без параметров возвращает окно от месяца назад до полугода вперёд.
         `from` и `to` принимают RFC 3339 или дату `YYYY-MM-DD` (дата в `to` включает весь день).
         Некорректное значение молча заменяется значением по умолчанию.
       operationId: getCalendar
@@ -171,7 +172,7 @@ paths:
         - $ref: "#/components/parameters/SubjectFilter"
       responses:
         "200":
-          description: Дедлайны
+          description: Элементы календаря
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CalendarResponse" }
@@ -180,10 +181,10 @@ paths:
   /calendar.ics:
     get:
       tags: [calendar]
-      summary: iCalendar-фид дедлайнов
+      summary: iCalendar-фид календаря
       description: |
-        Подписка для Google Calendar, Apple Calendar и Outlook. Окно: два месяца назад и год вперёд.
-        У каждого события напоминание за сутки до дедлайна. Ответ кэшируется на 15 минут.
+        Подписка для Google Calendar, Apple Calendar и Outlook: дедлайны лаб, события и сдачи. Окно: два месяца назад и год вперёд.
+        У дедлайнов, контрольных и экзаменов напоминание за сутки. Ответ кэшируется на 15 минут.
       operationId: getCalendarICS
       parameters:
         - $ref: "#/components/parameters/SubjectFilter"

@@ -227,8 +227,12 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatalf("expected quiz in subject page: %v", subjPage["quizzes"])
 	}
 	cal := pub.do("GET", "/api/v1/calendar", nil, 200)
-	if items := cal["items"].([]any); len(items) != 1 || items[0].(map[string]any)["source"] != "lab" {
-		t.Fatalf("calendar must contain lab deadlines only, got %v", items)
+	calSources := map[string]bool{}
+	for _, it := range cal["items"].([]any) {
+		calSources[it.(map[string]any)["source"].(string)] = true
+	}
+	if !calSources["lab"] || !calSources["event"] {
+		t.Fatalf("calendar must contain the lab deadline and the event, got %v", cal["items"])
 	}
 	res, err := pub.hc.Get(srvURL + "/api/v1/calendar.ics")
 	if err != nil {
@@ -367,7 +371,7 @@ func TestStudentAccounts(t *testing.T) {
 	if len(meNow["signups"].([]any)) != 1 {
 		t.Fatalf("expected one signup in profile: %v", meNow["signups"])
 	}
-	// Practice sessions are listed as events on the home page but never in the calendar.
+	// Practice sessions are listed as events on the home page and in the calendar.
 	homeNow := anon.do("GET", "/api/v1/home", nil, 200)
 	found := false
 	for _, it := range homeNow["upcomingEvents"].([]any) {
@@ -379,10 +383,14 @@ func TestStudentAccounts(t *testing.T) {
 		t.Fatalf("practice session missing from upcomingEvents: %v", homeNow["upcomingEvents"])
 	}
 	cal := anon.do("GET", "/api/v1/calendar", nil, 200)
+	inCal := false
 	for _, it := range cal["items"].([]any) {
-		if it.(map[string]any)["source"] != "lab" {
-			t.Fatalf("calendar must contain lab deadlines only: %v", it)
+		if it.(map[string]any)["source"] == "practice" {
+			inCal = true
 		}
+	}
+	if !inCal {
+		t.Fatalf("practice session missing from calendar: %v", cal["items"])
 	}
 	// Admin sees who is coming, then cancels; user cancels own signup.
 	who := admin.do("GET", fmt.Sprintf("/api/v1/admin/practice/%d/signups", sessID), nil, 200)

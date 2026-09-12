@@ -241,9 +241,9 @@ func practiceToItem(p models.PracticeSession) models.CalendarItem {
 type calendarScope int
 
 const (
-	scopeLabs   calendarScope = iota // lab deadlines only (public calendar and ICS)
-	scopeEvents                      // events and practice sessions only
-	scopeAll                         // everything (admin overview)
+	scopeLabs   calendarScope = iota // lab deadlines only (home page deadline blocks)
+	scopeEvents                      // events and practice sessions only (home page "События")
+	scopeAll                         // everything (public calendar, ICS feed, admin overview)
 )
 
 // calendarItems merges lab deadlines, events and practice sessions inside [from, to]

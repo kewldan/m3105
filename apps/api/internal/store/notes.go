@@ -97,5 +97,8 @@ func (s *Store) UpdateNote(ctx context.Context, id int64, in *models.NoteInput) 
 
 // DeleteNote removes a note.
 func (s *Store) DeleteNote(ctx context.Context, id int64) error {
+	if err := s.DeleteCommentsOf(ctx, models.TargetNote, id); err != nil {
+		return err
+	}
 	return s.exec(ctx, `DELETE FROM notes WHERE id = $1`, id)
 }

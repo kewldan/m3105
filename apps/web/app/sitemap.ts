@@ -11,6 +11,8 @@ const STATIC: { path: string; priority: number; freq: "daily" | "weekly" }[] = [
   { path: "/subjects", priority: 0.7, freq: "weekly" },
   { path: "/practice", priority: 0.6, freq: "daily" },
   { path: "/faq", priority: 0.5, freq: "weekly" },
+  { path: "/shawarma", priority: 0.5, freq: "daily" },
+  { path: "/jokes", priority: 0.5, freq: "daily" },
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

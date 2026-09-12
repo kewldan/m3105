@@ -401,6 +401,82 @@ func TestStudentAccounts(t *testing.T) {
 	if got := u.do("GET", "/api/v1/me/", nil, 200); len(got["signups"].([]any)) != 0 {
 		t.Fatalf("cancel failed: %v", got["signups"])
 	}
+	// Comments on a published lab: anyone reads, students write, only the author deletes.
+	anon.do("POST", fmt.Sprintf("/api/v1/comments/lab/%d", lab1ID), map[string]string{"body": "x"}, 401)
+	u.do("POST", fmt.Sprintf("/api/v1/comments/lab/%d", draftID), map[string]string{"body": "x"}, 404)
+	u.do("POST", fmt.Sprintf("/api/v1/comments/lab/%d", lab1ID), map[string]string{"body": "   "}, 422)
+	u.do("POST", "/api/v1/comments/bogus/1", map[string]string{"body": "x"}, 404)
+	cm := u.do("POST", fmt.Sprintf("/api/v1/comments/lab/%d", lab1ID), map[string]string{"body": "Где брать вариант?"}, 201)
+	cmID := int64(cm["id"].(float64))
+	if cm["mine"] != true || cm["authorName"] != "Пётр Сидоров" {
+		t.Fatalf("bad comment: %v", cm)
+	}
+	if cl := anon.list(fmt.Sprintf("/api/v1/comments/lab/%d", lab1ID), 200); len(cl) != 1 || cl[0]["mine"] != false {
+		t.Fatalf("anonymous comment list wrong: %v", cl)
+	}
+	other := newClient(t)
+	other.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Вася Пупкин"}, 200)
+	other.do("DELETE", fmt.Sprintf("/api/v1/comments/%d", cmID), nil, 403)
+
+	// Posts: shawarma reviews need a rating, jokes are plain text; likes toggle; the author edits, the admin moderates.
+	u.do("POST", "/api/v1/posts", map[string]any{"kind": "shawarma", "title": "Шаверма у метро", "body": "Норм"}, 422)
+	u.do("POST", "/api/v1/posts", map[string]any{"kind": "meme", "body": "x"}, 422)
+	sh := u.do("POST", "/api/v1/posts", map[string]any{"kind": "shawarma", "title": "Шаверма у метро", "body": "Норм", "rating": 4, "price": 250, "address": "Кронверкский 49"}, 201)
+	shID := int64(sh["id"].(float64))
+	joke := u.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Заходит студент в бар...", "rating": 5}, 201)
+	jokeID := int64(joke["id"].(float64))
+	if joke["rating"] != nil || joke["mine"] != true {
+		t.Fatalf("joke should drop rating and be mine: %v", joke)
+	}
+	anon.do("GET", "/api/v1/posts", nil, 422)
+	if feed := anon.list("/api/v1/posts?kind=shawarma", 200); len(feed) != 1 || feed[0]["likesCount"] != 0.0 || feed[0]["mine"] != false {
+		t.Fatalf("shawarma feed wrong: %v", feed)
+	}
+	anon.do("PUT", fmt.Sprintf("/api/v1/posts/%d/like", shID), nil, 401)
+	if liked := other.do("PUT", fmt.Sprintf("/api/v1/posts/%d/like", shID), nil, 200); liked["likesCount"] != 1.0 || liked["liked"] != true {
+		t.Fatalf("like failed: %v", liked)
+	}
+	if again := other.do("PUT", fmt.Sprintf("/api/v1/posts/%d/like", shID), nil, 200); again["likesCount"] != 1.0 {
+		t.Fatalf("like must be idempotent: %v", again)
+	}
+	if unliked := other.do("DELETE", fmt.Sprintf("/api/v1/posts/%d/like", shID), nil, 200); unliked["likesCount"] != 0.0 || unliked["liked"] != false {
+		t.Fatalf("unlike failed: %v", unliked)
+	}
+	other.do("PUT", fmt.Sprintf("/api/v1/posts/%d", shID), map[string]any{"title": "Чужая", "body": "x", "rating": 1}, 403)
+	other.do("DELETE", fmt.Sprintf("/api/v1/posts/%d", shID), nil, 403)
+	if edited := u.do("PUT", fmt.Sprintf("/api/v1/posts/%d", shID), map[string]any{"kind": "joke", "title": "Шаверма у метро 2", "body": "Стало лучше", "rating": 5}, 200); edited["title"] != "Шаверма у метро 2" || edited["kind"] != "shawarma" {
+		t.Fatalf("edit failed or kind changed: %v", edited)
+	}
+	other.do("POST", fmt.Sprintf("/api/v1/comments/post/%d", shID), map[string]string{"body": "Согласен"}, 201)
+	if top := anon.list("/api/v1/posts?kind=shawarma&sort=top", 200); top[0]["commentsCount"] != 1.0 {
+		t.Fatalf("comments count wrong: %v", top)
+	}
+	if ac := admin.list("/api/v1/admin/comments", 200); len(ac) != 2 || ac[0]["targetPath"] == nil {
+		t.Fatalf("admin comments wrong: %v", ac)
+	}
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/comments/%d", cmID), nil, 200)
+	if got := admin.do("PUT", fmt.Sprintf("/api/v1/admin/posts/%d", jokeID), map[string]any{"body": "Отредактировано админом"}, 200); got["body"] != "Отредактировано админом" {
+		t.Fatalf("admin edit failed: %v", got)
+	}
+	if all := admin.list("/api/v1/admin/posts", 200); len(all) != 2 {
+		t.Fatalf("admin posts wrong: %v", all)
+	}
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/posts/%d", shID), nil, 200)
+	if left := anon.list("/api/v1/posts?kind=shawarma", 200); len(left) != 0 {
+		t.Fatalf("post not deleted: %v", left)
+	}
+	anon.do("GET", fmt.Sprintf("/api/v1/comments/post/%d", shID), nil, 404)
+	u.do("DELETE", fmt.Sprintf("/api/v1/posts/%d", jokeID), nil, 200)
+
+	// Anti-spam: comments and posts share one per-user limit inside the window.
+	prevLimit := api.SetSocialWriteLimit(2)
+	other.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Второй"}, 201) // other's earlier comment died with the deleted post
+	other.do("POST", fmt.Sprintf("/api/v1/comments/lab/%d", lab1ID), map[string]string{"body": "Третий"}, 201)
+	other.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Лишний"}, 429)
+	other.do("POST", fmt.Sprintf("/api/v1/comments/lab/%d", lab1ID), map[string]string{"body": "Лишний"}, 429)
+	other.do("PUT", fmt.Sprintf("/api/v1/posts/%d", shID), nil, 404) // limit does not affect other actions; post is gone
+	api.SetSocialWriteLimit(prevLimit)
+
 	// Passkey ceremonies produce options; a garbage credential is rejected.
 	begin := u.do("POST", "/api/v1/auth/passkey/register/begin", map[string]any{}, 200)
 	if begin["challengeId"] == nil || begin["options"].(map[string]any)["challenge"] == nil {
@@ -430,8 +506,8 @@ func TestStudentAccounts(t *testing.T) {
 
 	// Admin user management.
 	users := admin.list("/api/v1/admin/users", 200)
-	if len(users) != 3 {
-		t.Fatalf("expected 3 users, got %d", len(users))
+	if len(users) != 4 {
+		t.Fatalf("expected 4 users, got %d", len(users))
 	}
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/users/%v", users[0]["id"]), nil, 200)
 	u.do("POST", "/api/v1/auth/user/logout", nil, 200)

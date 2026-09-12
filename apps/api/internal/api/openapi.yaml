@@ -39,6 +39,8 @@ tags:
     description: Поиск по опубликованному
   - name: practice
     description: Занятия, на которых принимают лабы
+  - name: social
+    description: Комментарии студентов к конспектам, лабам и постам; ленты «Шаверма» и «Анекдоты»
 
 paths:
   /healthz:
@@ -378,6 +380,61 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PracticeSessionView" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /comments/{target}/{id}:
+    get:
+      tags: [social]
+      summary: Комментарии к конспекту, лабе или посту
+      description: |
+        Читать может кто угодно. `POST` с тем же путём и телом `{ body }` требует студенческую куку `edu_user`,
+        `DELETE /comments/{id}` удаляет свой комментарий. Конспект или лаба должны быть опубликованы.
+      operationId: listComments
+      parameters:
+        - name: target
+          in: path
+          required: true
+          schema: { type: string, enum: [note, lab, post] }
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Комментарии, старые первыми
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Comment" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /posts:
+    get:
+      tags: [social]
+      summary: Лента постов
+      description: |
+        Пользовательские посты одной ленты. `POST /posts` с `PostInput` создаёт пост от имени студента,
+        `PUT`/`DELETE /posts/{id}` меняют и удаляют свой пост, `PUT`/`DELETE /posts/{id}/like` ставят и снимают лайк.
+        Поля `liked` и `mine` считаются для студента, если передана кука `edu_user`.
+      operationId: listPosts
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema: { type: string, enum: [shawarma, joke] }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [new, top], default: new }
+          description: "`top` — сначала посты с наибольшим числом лайков"
+      responses:
+        "200":
+          description: Посты
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Post" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
 
 components:
   parameters:
@@ -858,3 +915,50 @@ components:
         now: { $ref: "#/components/schemas/DateTime" }
         signedIn: { type: boolean }
       required: [sessions, now, signedIn]
+
+    Comment:
+      type: object
+      properties:
+        id: { type: integer }
+        targetType: { type: string, enum: [note, lab, post] }
+        targetId: { type: integer }
+        body: { type: string, maxLength: 2000 }
+        createdAt: { $ref: "#/components/schemas/DateTime" }
+        updatedAt: { $ref: "#/components/schemas/DateTime" }
+        authorId: { type: integer }
+        authorName: { type: string }
+        authorPhotoUrl: { type: string }
+        mine: { type: boolean, description: Комментарий текущего студента }
+      required: [id, targetType, targetId, body, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, mine]
+
+    Post:
+      type: object
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [shawarma, joke] }
+        title: { type: string, description: Название точки для шавермы, необязательный заголовок для анекдота }
+        body: { type: string, maxLength: 4000 }
+        address: { type: string }
+        price: { type: [integer, "null"], description: Цена в рублях }
+        rating: { type: [integer, "null"], minimum: 1, maximum: 5 }
+        createdAt: { $ref: "#/components/schemas/DateTime" }
+        updatedAt: { $ref: "#/components/schemas/DateTime" }
+        authorId: { type: integer }
+        authorName: { type: string }
+        authorPhotoUrl: { type: string }
+        likesCount: { type: integer }
+        commentsCount: { type: integer }
+        liked: { type: boolean }
+        mine: { type: boolean }
+      required: [id, kind, title, body, address, price, rating, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, likesCount, commentsCount, liked, mine]
+
+    PostInput:
+      type: object
+      properties:
+        kind: { type: string, enum: [shawarma, joke], description: Задаётся при создании, при обновлении игнорируется }
+        title: { type: string, maxLength: 120 }
+        body: { type: string, maxLength: 4000 }
+        address: { type: string, maxLength: 200 }
+        price: { type: [integer, "null"] }
+        rating: { type: [integer, "null"], minimum: 1, maximum: 5, description: Обязательна для шавермы }
+      required: [kind, body]

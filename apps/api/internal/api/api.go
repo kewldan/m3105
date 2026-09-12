@@ -77,6 +77,16 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/practice/{id}", h.getPractice)
 		r.With(userauth.Require).Put("/practice/{id}/signups", h.setPracticeSignup)
 		r.With(userauth.Require).Delete("/practice/{id}/signups", h.setPracticeSignup)
+		// Comments and posts: reading is public, writing needs a student session.
+		r.Get("/comments/{target}/{id}", h.listComments)
+		r.With(userauth.Require).Post("/comments/{target}/{id}", h.createComment)
+		r.With(userauth.Require).Delete("/comments/{id}", h.deleteComment)
+		r.Get("/posts", h.listPosts)
+		r.With(userauth.Require).Post("/posts", h.createPost)
+		r.With(userauth.Require).Put("/posts/{id}", h.updatePost)
+		r.With(userauth.Require).Delete("/posts/{id}", h.deletePost)
+		r.With(userauth.Require).Put("/posts/{id}/like", h.setLike(true))
+		r.With(userauth.Require).Delete("/posts/{id}/like", h.setLike(false))
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", h.login)

@@ -8,6 +8,8 @@ import {
   LayoutDashboardIcon,
   ListChecksIcon,
   type LucideIcon,
+  MessageCircleIcon,
+  NewspaperIcon,
   NotebookPenIcon,
   SettingsIcon,
   UsersIcon,
@@ -35,6 +37,8 @@ export const ADMIN_NAV: NavItem[] = [
   { title: "ЧаВо", href: "/admin/faq", icon: CircleQuestionMarkIcon },
   { title: "Страницы", href: "/admin/pages", icon: FileTextIcon },
   { title: "Студенты", href: "/admin/users", icon: UsersIcon },
+  { title: "Посты", href: "/admin/posts", icon: NewspaperIcon },
+  { title: "Комментарии", href: "/admin/comments", icon: MessageCircleIcon },
   { title: "Настройки", href: "/admin/settings", icon: SettingsIcon },
 ];
 

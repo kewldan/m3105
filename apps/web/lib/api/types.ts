@@ -479,3 +479,58 @@ export type ApiErrorBody = {
   code: string;
   fields?: Record<string, string>;
 };
+
+// ---- social: comments and posts ----
+
+export type CommentTarget = "note" | "lab" | "post";
+
+export type Comment = {
+  id: number;
+  targetType: CommentTarget;
+  targetId: number;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  authorId: number;
+  authorName: string;
+  authorPhotoUrl: string;
+  /** True for the signed-in viewer's own comment. */
+  mine: boolean;
+};
+
+export type AdminComment = Comment & {
+  targetTitle: string | null;
+  targetPath: string | null;
+};
+
+export type PostKind = "shawarma" | "joke";
+
+export type Post = {
+  id: number;
+  kind: PostKind;
+  title: string;
+  body: string;
+  address: string;
+  price: number | null;
+  rating: number | null;
+  createdAt: string;
+  updatedAt: string;
+  authorId: number;
+  authorName: string;
+  authorPhotoUrl: string;
+  likesCount: number;
+  commentsCount: number;
+  liked: boolean;
+  mine: boolean;
+};
+
+export type PostInput = {
+  kind: PostKind;
+  title: string;
+  body: string;
+  address: string;
+  price: number | null;
+  rating: number | null;
+};
+
+export type PostSort = "new" | "top";

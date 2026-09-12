@@ -2,6 +2,7 @@
 
 import { apiClient } from "./client";
 import type {
+  AdminComment,
   AdminUser,
   Event,
   EventInput,
@@ -15,6 +16,9 @@ import type {
   Page,
   PageInput,
   Participant,
+  Post,
+  PostInput,
+  PostKind,
   PracticeSession,
   PracticeSessionInput,
   Quiz,
@@ -64,6 +68,19 @@ export const adminApi = {
     list: () => apiClient<AdminUser[]>("/admin/users"),
     remove: (id: number) =>
       apiClient<{ ok: true }>(`/admin/users/${id}`, { method: "DELETE" }),
+  },
+  comments: {
+    list: () => apiClient<AdminComment[]>("/admin/comments"),
+    remove: (id: number) =>
+      apiClient<{ ok: true }>(`/admin/comments/${id}`, { method: "DELETE" }),
+  },
+  posts: {
+    list: (kind?: PostKind) =>
+      apiClient<Post[]>(`/admin/posts${kind ? `?kind=${kind}` : ""}`),
+    update: (id: number, input: PostInput) =>
+      apiClient<Post>(`/admin/posts/${id}`, { method: "PUT", body: input }),
+    remove: (id: number) =>
+      apiClient<{ ok: true }>(`/admin/posts/${id}`, { method: "DELETE" }),
   },
   practice: {
     ...resource<PracticeSession, PracticeSessionInput>("/admin/practice"),

@@ -18,9 +18,11 @@ import { breadcrumbs, JsonLd } from "@/components/site/json-ld";
 import { DeadlineCard } from "@/components/site/labs/deadline-card";
 import { MdxContent } from "@/components/site/mdx-content";
 import { FadeIn } from "@/components/site/motion";
+import { CommentsSection } from "@/components/site/social/comments-section";
 import { SubjectBadge } from "@/components/site/subject-badge";
 import { isNotFound } from "@/lib/api/client";
-import { getLab, getSettings } from "@/lib/api/public";
+import { cookieHeader } from "@/lib/api/cookies";
+import { getComments, getLab, getSettings } from "@/lib/api/public";
 import type { Lab } from "@/lib/api/types";
 import { plural } from "@/lib/format";
 import { absoluteUrl, metaText, pageMetadata, SITE_NAME } from "@/lib/seo";
@@ -78,6 +80,7 @@ const SECTIONS: {
 export default async function LabPage({ params }: Params) {
   const { subject, slug } = await params;
   const [lab, site] = await Promise.all([load(subject, slug), getSettings()]);
+  const comments = await getComments("lab", lab.id, await cookieHeader());
   const tz = site.settings.timezone;
   const sections = SECTIONS.filter((s) => lab[s.key]?.trim());
   const hasMaterials = lab.materials.length > 0;
@@ -219,6 +222,14 @@ export default async function LabPage({ params }: Params) {
               </section>
             </FadeIn>
           ) : null}
+          <FadeIn delay={0.15 + sections.length * 0.05}>
+            <CommentsSection
+              target="lab"
+              targetId={lab.id}
+              initial={comments}
+              className="border-t pt-8"
+            />
+          </FadeIn>
         </div>
 
         {sections.length + (hasMaterials ? 1 : 0) > 1 ? (

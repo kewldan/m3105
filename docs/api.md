@@ -74,7 +74,19 @@
 | GET | `/practice/{id}` | одна сдача |
 | PUT | `/practice/{id}/signups` | `{ labIds }` — записаться с выбранными лабами (пустой список = отменить); 409 `full`, если мест нет |
 | DELETE | `/practice/{id}/signups` | отменить запись |
+| GET | `/comments/{target}/{id}` | комментарии к `note`, `lab` или `post` (публично); `mine` для своих |
+| POST | `/comments/{target}/{id}` | `{ body }` — до 2000 символов; конспект или лаба должны быть опубликованы |
+| DELETE | `/comments/{id}` | только свой комментарий, иначе 403 |
+| GET | `/posts?kind=shawarma\|joke&sort=new\|top` | лента постов (публично); `liked` и `mine` для вошедших |
+| POST | `/posts` | `{ kind, title, body, address, price, rating }` — для `shawarma` нужны название точки и оценка 1–5, у `joke` только текст |
+| PUT / DELETE | `/posts/{id}` | свой пост; `kind` не меняется |
+| PUT / DELETE | `/posts/{id}/like` | поставить или снять лайк, ответ — обновлённый пост |
+
+Антиспам: один аккаунт может создать не больше 10 комментариев и постов за 12 часов, дальше 429 `rate_limited` (константы `socialWriteLimit` и `socialWriteWindow` в `api/social.go`).
 
 Админка: `GET /admin/users`, `DELETE /admin/users/{id}`, CRUD `/admin/practice`
 (сдачи: предмет, дата, аудитория, вместимость, заметка), `GET /admin/practice/{id}/signups`.
+Модерация: `GET /admin/comments` (последние 200 с `targetTitle` и `targetPath`), `DELETE /admin/comments/{id}`,
+`GET /admin/posts?kind=`, `PUT /admin/posts/{id}`, `DELETE /admin/posts/{id}` — админ правит и удаляет любые посты и комментарии.
+При удалении конспекта, лабы или поста их комментарии удаляются вместе с ними.
 Сдачи и события попадают в календарь и ICS вместе с дедлайнами лаб (поле `source`: `lab`, `event`, `practice`), а ещё показываются на главной в блоке «События» и на странице «Сдачи».

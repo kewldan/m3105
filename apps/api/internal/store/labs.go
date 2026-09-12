@@ -97,6 +97,9 @@ func (s *Store) UpdateLab(ctx context.Context, id int64, in *models.LabInput) (m
 
 // DeleteLab removes a lab.
 func (s *Store) DeleteLab(ctx context.Context, id int64) error {
+	if err := s.DeleteCommentsOf(ctx, models.TargetLab, id); err != nil {
+		return err
+	}
 	return s.exec(ctx, `DELETE FROM labs WHERE id = $1`, id)
 }
 

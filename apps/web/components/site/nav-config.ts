@@ -7,6 +7,8 @@ export const PRIMARY_LINKS: NavLink[] = [
   { href: "/practice", label: "Сдачи" },
   { href: "/notes", label: "Конспекты" },
   { href: "/faq", label: "ЧаВо" },
+  { href: "/shawarma", label: "Шаверма" },
+  { href: "/jokes", label: "Анекдоты" },
 ];
 
 export function isActivePath(pathname: string, link: NavLink): boolean {

@@ -11,10 +11,12 @@ import { NoteNav } from "@/components/site/notes/note-nav";
 import { ReadingProgress } from "@/components/site/notes/reading-progress";
 import { RememberNote } from "@/components/site/notes/remember-note";
 import { NoteQuizzes } from "@/components/site/quiz/note-quizzes";
+import { CommentsSection } from "@/components/site/social/comments-section";
 import { SubjectBadge } from "@/components/site/subject-badge";
 import { Toc } from "@/components/site/toc";
 import { isNotFound } from "@/lib/api/client";
-import { getNote, getNotes } from "@/lib/api/public";
+import { cookieHeader } from "@/lib/api/cookies";
+import { getComments, getNote, getNotes } from "@/lib/api/public";
 import type { NoteResponse } from "@/lib/api/types";
 import { fmtDateOnly } from "@/lib/format";
 import { renderMdx } from "@/lib/mdx/render";
@@ -62,7 +64,10 @@ export default async function NotePage({ params }: { params: Params }) {
     getNotes(subject).catch(() => []),
   ]);
   if (!note) notFound();
-  const rendered = await renderMdx(note.content);
+  const [rendered, comments] = await Promise.all([
+    renderMdx(note.content),
+    getComments("note", note.id, await cookieHeader()),
+  ]);
   const outlineSubject = {
     slug: note.subjectSlug,
     name: note.subjectName,
@@ -182,6 +187,12 @@ export default async function NotePage({ params }: { params: Params }) {
             </div>
             <NoteQuizzes quizzes={note.quizzes} />
             <NoteNav prev={note.prev} next={note.next} />
+            <CommentsSection
+              target="note"
+              targetId={note.id}
+              initial={comments}
+              className="border-t pt-8"
+            />
           </div>
           <aside
             className={

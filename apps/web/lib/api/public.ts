@@ -3,6 +3,8 @@ import "server-only";
 import { ApiError, apiServer } from "./client";
 import type {
   CalendarResponse,
+  Comment,
+  CommentTarget,
   FAQItem,
   HomeResponse,
   Lab,
@@ -10,6 +12,9 @@ import type {
   Note,
   NoteResponse,
   Page,
+  Post,
+  PostKind,
+  PostSort,
   PracticeListResponse,
   PracticeSessionView,
   Quiz,
@@ -98,5 +103,23 @@ export const getPractice = (
 export const getPracticeSession = (id: number, cookie?: string) =>
   apiServer<PracticeSessionView>(
     `/practice/${id}`,
+    cookie ? { headers: { cookie } } : {},
+  );
+
+/** Comments of a note, lab or post; pass the Cookie header to mark the viewer's own. */
+export const getComments = (
+  target: CommentTarget,
+  id: number,
+  cookie?: string,
+) =>
+  apiServer<Comment[]>(
+    `/comments/${target}/${id}`,
+    cookie ? { headers: { cookie } } : {},
+  );
+
+/** One feed of user posts; the cookie fills `liked` and `mine`. */
+export const getPosts = (kind: PostKind, sort: PostSort, cookie?: string) =>
+  apiServer<Post[]>(
+    `/posts?kind=${kind}&sort=${sort}`,
     cookie ? { headers: { cookie } } : {},
   );

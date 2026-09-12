@@ -741,7 +741,7 @@ function Review({
                 </span>
               </AccordionTrigger>
               <AccordionContent className="space-y-3">
-                <div className="grid gap-2 text-sm sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                   <div
                     className={cn(
                       "rounded-lg border px-3 py-2",

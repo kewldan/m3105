@@ -29,7 +29,7 @@ export default async function SubjectsPage() {
           description="Список появится, как только его заполнят в админке."
         />
       ) : (
-        <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {subjects.map((s) => (
             <StaggerItem key={s.id} className="h-full">
               <SubjectCard subject={s} />

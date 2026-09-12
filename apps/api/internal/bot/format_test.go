@@ -99,3 +99,23 @@ func TestSplitMessage(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCommand(t *testing.T) {
+	cases := map[string]string{
+		"/start":              "/start",
+		"  /labs  ":           "/labs",
+		"/deadlines@edu_bot":  "/deadlines",
+		"/notify@edu_bot off": "/notify",
+		"/help\nтекст":        "/help",
+		btnDeadlines:          btnDeadlines,
+		" " + btnLabs + " ":   btnLabs,
+		btnNotify:             btnNotify,
+		btnSite:               btnSite,
+		"привет бот":          "привет бот",
+	}
+	for in, want := range cases {
+		if got := parseCommand(in); got != want {
+			t.Errorf("parseCommand(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -164,7 +164,7 @@ export function CalendarView({
         <SubscribeDialog subject={subject === ALL ? undefined : subject} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-3 lg:col-span-2">
           <div className="flex items-center justify-between">
             <Button

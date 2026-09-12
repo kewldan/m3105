@@ -46,7 +46,7 @@ export function NotFoundContent() {
       </motion.div>
       <motion.h1
         {...fade(0.08)}
-        className="mt-4 text-2xl font-bold tracking-tight text-balance sm:text-3xl"
+        className="mt-4 text-2xl font-bold tracking-tight text-balance break-words sm:text-3xl"
       >
         Такой страницы нет
       </motion.h1>

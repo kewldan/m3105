@@ -45,7 +45,7 @@ export default async function HomePage() {
     <div className="space-y-10 sm:space-y-12">
       <Hero settings={home.settings} week={home.week} now={home.now} />
 
-      <div className="grid gap-8 lg:grid-cols-3 lg:gap-6">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-6">
         <div className="space-y-8 lg:col-span-2">
           <FadeIn delay={0.1}>
             <Section
@@ -177,7 +177,7 @@ export default async function HomePage() {
             description="Список появится, как только его заполнят в админке."
           />
         ) : (
-          <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {home.subjects.map((s) => (
               <StaggerItem key={s.id} className="h-full">
                 <SubjectCard subject={s} />

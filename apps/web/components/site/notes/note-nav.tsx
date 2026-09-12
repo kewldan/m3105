@@ -50,7 +50,10 @@ export function NoteNav({
 }) {
   if (!prev && !next) return null;
   return (
-    <nav aria-label="Соседние лекции" className="grid gap-3 sm:grid-cols-2">
+    <nav
+      aria-label="Соседние лекции"
+      className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+    >
       <NavCard note={prev} direction="prev" />
       <NavCard note={next} direction="next" />
     </nav>

@@ -54,7 +54,7 @@ export function NotesOverview({
           description="Они появятся здесь, как только будут опубликованы."
         />
       ) : (
-        <Stagger className="grid gap-3 sm:grid-cols-2">
+        <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {items.map(({ subject, count, updatedAt, latest }) => (
             <StaggerItem key={subject.id} className="h-full">
               <Link

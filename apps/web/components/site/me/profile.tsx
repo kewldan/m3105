@@ -198,7 +198,7 @@ export function Profile({
   };
 
   return (
-    <Stagger className="grid gap-4 lg:grid-cols-3">
+    <Stagger className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <StaggerItem className="lg:col-span-3">
         <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5 sm:flex-row sm:items-center sm:p-6">
           <UserAvatar
@@ -508,7 +508,7 @@ export function Profile({
               Отмечайте сданные лабы кружком в списке — здесь появится история.
             </p>
           ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {completed.map((lab) => (
                 <li
                   key={lab.id}

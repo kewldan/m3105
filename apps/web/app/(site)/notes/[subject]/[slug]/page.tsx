@@ -144,7 +144,7 @@ export default async function NotePage({ params }: { params: Params }) {
               </span>
             ) : null}
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+          <h1 className="text-3xl font-bold tracking-tight text-balance break-words sm:text-4xl">
             {note.title}
           </h1>
           {note.summary ? (
@@ -154,7 +154,7 @@ export default async function NotePage({ params }: { params: Params }) {
           ) : null}
         </header>
 
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-10 xl:grid-cols-[15rem_minmax(0,1fr)_15rem]">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-10 xl:grid-cols-[15rem_minmax(0,1fr)_15rem]">
           {hasOutline ? (
             <aside className="hidden xl:block">
               <div className="sticky top-24">

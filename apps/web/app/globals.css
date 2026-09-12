@@ -231,6 +231,10 @@
   --tw-prose-invert-bullets: var(--muted-foreground);
   --tw-prose-invert-captions: var(--muted-foreground);
 }
+.prose {
+  /* Long URLs, paths and identifiers must not widen the page on phones. */
+  overflow-wrap: anywhere;
+}
 .prose :where(h2, h3, h4) {
   scroll-margin-top: 5.5rem;
 }

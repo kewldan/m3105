@@ -47,7 +47,7 @@ export function DatePicker({
               variant="outline"
               disabled={disabled}
               aria-invalid={invalid || undefined}
-              className="w-full justify-start font-normal"
+              className="min-w-0 flex-1 justify-start font-normal"
             />
           }
         >

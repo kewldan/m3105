@@ -136,7 +136,7 @@ export default async function LabPage({ params }: Params) {
               Лаба {lab.number}
             </span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+          <h1 className="text-3xl font-bold tracking-tight text-balance break-words sm:text-4xl">
             {lab.title}
           </h1>
           {lab.summary ? (
@@ -173,7 +173,7 @@ export default async function LabPage({ params }: Params) {
         />
       </FadeIn>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-10">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-10">
         <div className="min-w-0 space-y-10">
           {sections.length === 0 && !hasMaterials ? (
             <p className="text-muted-foreground">
@@ -198,7 +198,7 @@ export default async function LabPage({ params }: Params) {
                   <PaperclipIcon className="size-5 text-primary" aria-hidden />
                   Материалы
                 </h2>
-                <ul className="grid gap-2 sm:grid-cols-2">
+                <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {lab.materials.map((m) => (
                     <li key={m.url}>
                       <a

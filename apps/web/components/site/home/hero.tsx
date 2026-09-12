@@ -48,7 +48,7 @@ export function Hero({
           {fmtWeekdayDate(now, tz)}
         </span>
       ),
-      cls: "font-heading text-3xl font-bold tracking-tight text-balance sm:text-4xl lg:text-5xl",
+      cls: "font-heading text-3xl font-bold tracking-tight text-balance break-words sm:text-4xl lg:text-5xl",
     },
   ];
   return (

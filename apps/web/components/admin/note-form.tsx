@@ -202,7 +202,7 @@ export function NoteForm({
         </FormGrid>
       </FormSection>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <FormSection
           title="Конспект"
           description="Заголовки ## и ### попадают в оглавление на сайте."

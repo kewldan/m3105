@@ -104,15 +104,25 @@ func (b *Bot) Run(ctx context.Context) {
 	}
 }
 
-func (b *Bot) handle(ctx context.Context, m *Message) {
-	text := strings.TrimSpace(m.Text)
-	cmd := text
+// parseCommand returns the dispatch key for an incoming message: for slash
+// commands it is the bare command without arguments and bot mention, for
+// everything else (reply-keyboard buttons) the trimmed text as is.
+func parseCommand(text string) string {
+	cmd := strings.TrimSpace(text)
+	if !strings.HasPrefix(cmd, "/") {
+		return cmd
+	}
 	if i := strings.IndexAny(cmd, " \n"); i > 0 {
 		cmd = cmd[:i]
 	}
-	if at := strings.Index(cmd, "@"); strings.HasPrefix(cmd, "/") && at > 0 {
+	if at := strings.Index(cmd, "@"); at > 0 {
 		cmd = cmd[:at]
 	}
+	return cmd
+}
+
+func (b *Bot) handle(ctx context.Context, m *Message) {
+	cmd := parseCommand(m.Text)
 	var err error
 	switch cmd {
 	case "/start":

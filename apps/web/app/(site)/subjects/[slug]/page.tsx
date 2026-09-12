@@ -114,7 +114,7 @@ export default async function SubjectPage({ params }: Params) {
             <div className="text-sm font-medium text-primary">
               Предмет{subject.shortName ? ` · ${subject.shortName}` : ""}
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+            <h1 className="text-2xl font-bold tracking-tight text-balance break-words sm:text-3xl md:text-4xl">
               {subject.name}
             </h1>
             {subject.teacher ? (

@@ -56,7 +56,7 @@ export default async function StaticPage({ params }: { params: Params }) {
         ])}
       />
       <PageHeader title={page.title} description={page.summary || undefined} />
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_15rem]">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_15rem]">
         <div className="min-w-0 space-y-8">
           <Toc items={rendered.toc} variant="inline" className="lg:hidden" />
           <div className="animate-fade-in">

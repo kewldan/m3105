@@ -13,6 +13,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  isPending,
+  PendingNotice,
+} from "@/components/site/auth/pending-notice";
 import { signupErrorMessage } from "@/components/site/practice/signup-dialog";
 import { loginHref } from "@/components/site/user-menu";
 import { useUser } from "@/components/site/user-provider";
@@ -74,6 +78,10 @@ export function SignupButton({
         Войти, чтобы записаться на сдачу
       </Button>
     );
+  }
+
+  if (isPending(me)) {
+    return <PendingNotice compact className={className} />;
   }
 
   const choose = async (session: PracticeSessionView) => {

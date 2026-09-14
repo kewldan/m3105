@@ -80,7 +80,14 @@ const STATS: Stat[] = [
     icon: CircleQuestionMarkIcon,
   },
   { key: "pages", label: "Страницы", href: "/admin/pages", icon: FileTextIcon },
-  { key: "users", label: "Студенты", href: "/admin/users", icon: UsersIcon },
+  {
+    key: "users",
+    label: "Студенты",
+    href: "/admin/users",
+    icon: UsersIcon,
+    hint: (o) =>
+      o.pendingUsers > 0 ? `ждут подтверждения: ${o.pendingUsers}` : null,
+  },
 ];
 
 const QUICK = [

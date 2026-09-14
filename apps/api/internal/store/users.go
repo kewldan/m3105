@@ -7,7 +7,11 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/models"
 )
 
-const userCols = `u.id, u.webauthn_id, u.name, u.telegram_id, u.telegram_username, u.photo_url, u.created_at, u.last_login_at`
+// userNameExpr is the name shown on the site: the admin override when set, else the Telegram name.
+const userNameExpr = `COALESCE(NULLIF(u.display_name, ''), u.name)`
+
+const userCols = `u.id, u.webauthn_id, ` + userNameExpr + ` AS name, u.name AS telegram_name, u.display_name, u.group_name,
+	(u.approved_at IS NOT NULL) AS approved, u.approved_at, u.telegram_id, u.telegram_username, u.photo_url, u.created_at, u.last_login_at`
 
 // GetUser fetches a user by id.
 func (s *Store) GetUser(ctx context.Context, id int64) (models.User, error) {
@@ -31,22 +35,26 @@ type NewUser struct {
 	TelegramID       *int64
 	TelegramUsername string
 	PhotoURL         string
+	GroupName        string
+	// Approved marks the account confirmed right away (correct invite code).
+	Approved bool
 }
 
 // CreateUser inserts an account.
 func (s *Store) CreateUser(ctx context.Context, in NewUser) (models.User, error) {
 	var id int64
-	err := s.db.QueryRow(ctx, `INSERT INTO users (webauthn_id, name, telegram_id, telegram_username, photo_url)
-		VALUES ($1,$2,$3,$4,$5) RETURNING id`, in.WebauthnID, in.Name, in.TelegramID, in.TelegramUsername, in.PhotoURL).Scan(&id)
+	err := s.db.QueryRow(ctx, `INSERT INTO users (webauthn_id, name, telegram_id, telegram_username, photo_url, group_name, approved_at)
+		VALUES ($1,$2,$3,$4,$5,$6, CASE WHEN $7 THEN now() END) RETURNING id`,
+		in.WebauthnID, in.Name, in.TelegramID, in.TelegramUsername, in.PhotoURL, in.GroupName, in.Approved).Scan(&id)
 	if err != nil {
 		return models.User{}, wrap(err)
 	}
 	return s.GetUser(ctx, id)
 }
 
-// TouchTelegramLogin refreshes profile fields from Telegram and the login time.
-func (s *Store) TouchTelegramLogin(ctx context.Context, id int64, username, photo string) error {
-	return s.exec(ctx, `UPDATE users SET telegram_username = $2, photo_url = $3, last_login_at = now() WHERE id = $1`, id, username, photo)
+// TouchTelegramLogin refreshes the Telegram name, username, photo and the login time.
+func (s *Store) TouchTelegramLogin(ctx context.Context, id int64, name, username, photo string) error {
+	return s.exec(ctx, `UPDATE users SET name = $2, telegram_username = $3, photo_url = $4, last_login_at = now() WHERE id = $1`, id, name, username, photo)
 }
 
 // TouchLogin refreshes the login time.
@@ -54,9 +62,12 @@ func (s *Store) TouchLogin(ctx context.Context, id int64) error {
 	return s.exec(ctx, `UPDATE users SET last_login_at = now() WHERE id = $1`, id)
 }
 
-// UpdateUserName renames the account.
-func (s *Store) UpdateUserName(ctx context.Context, id int64, name string) (models.User, error) {
-	if err := s.exec(ctx, `UPDATE users SET name = $2 WHERE id = $1`, id, name); err != nil {
+// UpdateUserProfile applies the admin's overrides: display name, group and confirmation.
+// The confirmation time is kept when the account is already approved.
+func (s *Store) UpdateUserProfile(ctx context.Context, id int64, in models.AdminUserInput) (models.User, error) {
+	if err := s.exec(ctx, `UPDATE users SET display_name = $2, group_name = $3,
+		approved_at = CASE WHEN $4 THEN COALESCE(approved_at, now()) END WHERE id = $1`,
+		id, in.DisplayName, in.GroupName, in.Approved); err != nil {
 		return models.User{}, err
 	}
 	return s.GetUser(ctx, id)

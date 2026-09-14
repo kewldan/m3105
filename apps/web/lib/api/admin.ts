@@ -4,6 +4,7 @@ import { apiClient } from "./client";
 import type {
   AdminComment,
   AdminUser,
+  AdminUserInput,
   Event,
   EventInput,
   FAQInput,
@@ -29,6 +30,7 @@ import type {
   Subject,
   SubjectInput,
   SubjectWithCounts,
+  User,
 } from "./types";
 
 // Browser-side client for the password-protected admin API.
@@ -66,6 +68,8 @@ export const adminApi = {
   overview: () => apiClient<OverviewResponse>("/admin/overview"),
   users: {
     list: () => apiClient<AdminUser[]>("/admin/users"),
+    update: (id: number, input: AdminUserInput) =>
+      apiClient<User>(`/admin/users/${id}`, { method: "PUT", body: input }),
     remove: (id: number) =>
       apiClient<{ ok: true }>(`/admin/users/${id}`, { method: "DELETE" }),
   },

@@ -7,6 +7,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
+import {
+  isPending,
+  PendingNotice,
+} from "@/components/site/auth/pending-notice";
 import { EmptyState } from "@/components/site/empty-state";
 import { socialErrorMessage } from "@/components/site/social/comments-section";
 import { PostCard } from "@/components/site/social/post-card";
@@ -88,7 +92,9 @@ export function PostFeed({
     }
   };
 
-  const addButton = me ? (
+  const addButton = isPending(me) ? (
+    <PendingNotice compact />
+  ) : me ? (
     <Button onClick={() => setDialog({ open: true, post: null })}>
       <PlusIcon data-icon="inline-start" />
       {copy.add}

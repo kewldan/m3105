@@ -60,8 +60,13 @@ export function LoginPanel({
 
   const finish = (me: MeResponse) => {
     setMe(me);
-    toast.success(`Привет, ${me.user.name}!`);
-    router.push(next);
+    if (me.user.approved) {
+      toast.success(`Привет, ${me.user.name}!`);
+      router.push(next);
+    } else {
+      toast.info("Аккаунт создан и ждёт подтверждения администратора");
+      router.push("/me");
+    }
     router.refresh();
   };
 
@@ -78,9 +83,7 @@ export function LoginPanel({
       if (err instanceof ApiError && err.code === "invite_required") {
         setPending(action);
         setError(
-          inviteCode
-            ? "Код доступа не подошёл"
-            : "Для первого входа нужен код доступа группы",
+          "Код доступа не подошёл. Исправьте его или оставьте поле пустым",
         );
       } else {
         setError(errorMessage(err) || null);
@@ -159,25 +162,33 @@ export function LoginPanel({
         </Button>
       ) : null}
 
-      {pending ? (
+      {auth.inviteRequired || pending ? (
         <form
-          className="flex gap-2 pt-1"
+          className="space-y-1.5 pt-1"
           onSubmit={(e) => {
             e.preventDefault();
             void retry();
           }}
         >
-          <Input
-            value={inviteCode}
-            onChange={(e) => setInviteCode(e.target.value)}
-            placeholder="Код доступа группы"
-            autoComplete="one-time-code"
-            aria-label="Код доступа группы"
-            autoFocus
-          />
-          <Button type="submit" disabled={busy !== null || !inviteCode.trim()}>
-            Войти
-          </Button>
+          <div className="flex gap-2">
+            <Input
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder="Код группы, если есть"
+              autoComplete="one-time-code"
+              aria-label="Код группы"
+              autoFocus={pending !== null}
+            />
+            {pending ? (
+              <Button type="submit" disabled={busy !== null}>
+                Войти
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            С кодом аккаунт подтверждается сразу, без него его подтвердит
+            администратор.
+          </p>
         </form>
       ) : null}
 

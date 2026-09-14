@@ -21,8 +21,6 @@ export const userApi = {
   me: () => apiClient<MeResponse>("/auth/user/me"),
   logout: () =>
     apiClient<{ ok: true }>("/auth/user/logout", { method: "POST" }),
-  updateName: (name: string) =>
-    apiClient<MeResponse>("/me/", { method: "PUT", body: { name } }),
 
   telegramLogin: (data: TelegramAuthData, inviteCode?: string) =>
     apiClient<MeResponse>("/auth/telegram", {

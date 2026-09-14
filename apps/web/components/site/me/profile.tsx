@@ -1,25 +1,25 @@
 "use client";
 
 import {
+  BadgeCheckIcon,
   CalendarClockIcon,
-  CheckIcon,
   ClipboardCheckIcon,
   FingerprintIcon,
   FlaskConicalIcon,
   KeyRoundIcon,
   LogOutIcon,
   MapPinIcon,
-  PencilIcon,
   PlusIcon,
   SendIcon,
   Trash2Icon,
-  XIcon,
+  UsersRoundIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { PendingNotice } from "@/components/site/auth/pending-notice";
 import { EmptyState } from "@/components/site/empty-state";
 import { DoneToggle } from "@/components/site/labs/done-toggle";
 import { Stagger, StaggerItem } from "@/components/site/motion";
@@ -112,9 +112,6 @@ export function Profile({
   const { me: ctxMe, setMe, refresh, logout, setDone } = useUser();
   const me = ctxMe ?? initial;
 
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(me.user.name);
-  const [saving, setSaving] = useState(false);
   const [webauthn, setWebauthn] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [label, setLabel] = useState("");
@@ -127,26 +124,6 @@ export function Profile({
   const completed = me.completedLabIds
     .map((id) => labsById.get(id))
     .filter((l): l is Lab => !!l);
-
-  const saveName = async () => {
-    const trimmed = name.trim();
-    if (trimmed.length < 2) {
-      toast.error("Имя от 2 символов");
-      return;
-    }
-    setSaving(true);
-    try {
-      const next = await userApi.updateName(trimmed);
-      setMe(next);
-      setEditing(false);
-      toast.success("Имя обновлено");
-      router.refresh();
-    } catch (err) {
-      toast.error(message(err));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const addPasskey = async () => {
     setAdding(true);
@@ -208,59 +185,25 @@ export function Profile({
             className="size-16 text-lg sm:size-20"
           />
           <div className="min-w-0 flex-1 space-y-1">
-            {editing ? (
-              <form
-                className="flex flex-wrap items-center gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void saveName();
-                }}
-              >
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  aria-label="Имя"
-                  maxLength={80}
-                  className="max-w-xs text-base"
-                  autoFocus
-                />
-                <Button type="submit" size="sm" disabled={saving}>
-                  {saving ? (
-                    <Spinner />
-                  ) : (
-                    <CheckIcon data-icon="inline-start" />
-                  )}
-                  Сохранить
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditing(false);
-                    setName(me.user.name);
-                  }}
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                {me.user.name}
+              </h1>
+              {me.user.approved ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300"
+                  title="Аккаунт подтверждён администратором"
                 >
-                  <XIcon data-icon="inline-start" />
-                  Отмена
-                </Button>
-              </form>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                  {me.user.name}
-                </h1>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Изменить имя"
-                  onClick={() => setEditing(true)}
-                >
-                  <PencilIcon />
-                </Button>
-              </div>
-            )}
+                  <BadgeCheckIcon className="size-3" aria-hidden />
+                  {me.user.groupName || "подтверждён"}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/12 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                  <UsersRoundIcon className="size-3" aria-hidden />
+                  ждёт подтверждения
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {me.user.telegramUsername ? (
                 <a
@@ -275,6 +218,11 @@ export function Profile({
               ) : null}
               <span>С нами с {fmtDateYear(me.user.createdAt, tz)}</span>
             </div>
+            <p className="text-xs text-muted-foreground">
+              {me.user.displayName
+                ? "Имя задано администратором."
+                : "Имя берётся из Telegram. Поменять на имя и фамилию может администратор."}
+            </p>
           </div>
           <Button
             type="button"
@@ -287,6 +235,12 @@ export function Profile({
           </Button>
         </section>
       </StaggerItem>
+
+      {me.user.approved ? null : (
+        <StaggerItem className="lg:col-span-3">
+          <PendingNotice />
+        </StaggerItem>
+      )}
 
       <StaggerItem className="lg:col-span-2">
         <Card

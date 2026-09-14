@@ -146,6 +146,7 @@ func (h *Handler) mountAdmin(r chi.Router) {
 	r.Get("/overview", h.adminOverview)
 
 	r.Get("/users", h.adminListUsers)
+	r.Put("/users/{id}", h.adminUpdateUser)
 	r.Delete("/users/{id}", h.adminDeleteUser)
 	r.Get("/comments", h.adminListComments)
 	r.Delete("/comments/{id}", h.adminDeleteComment)
@@ -252,17 +253,19 @@ func (h *Handler) mountAdmin(r chi.Router) {
 }
 
 type overviewResponse struct {
-	Subjects  int                   `json:"subjects"`
-	Labs      int                   `json:"labs"`
-	LabsDraft int                   `json:"labsDraft"`
-	Notes     int                   `json:"notes"`
-	Quizzes   int                   `json:"quizzes"`
-	FAQ       int                   `json:"faq"`
-	Pages     int                   `json:"pages"`
-	Events    int                   `json:"events"`
-	Users     int                   `json:"users"`
-	Practice  int                   `json:"practice"`
-	Upcoming  []models.CalendarItem `json:"upcoming"`
+	Subjects  int `json:"subjects"`
+	Labs      int `json:"labs"`
+	LabsDraft int `json:"labsDraft"`
+	Notes     int `json:"notes"`
+	Quizzes   int `json:"quizzes"`
+	FAQ       int `json:"faq"`
+	Pages     int `json:"pages"`
+	Events    int `json:"events"`
+	Users     int `json:"users"`
+	// PendingUsers are accounts waiting for an admin to confirm their group.
+	PendingUsers int                   `json:"pendingUsers"`
+	Practice     int                   `json:"practice"`
+	Upcoming     []models.CalendarItem `json:"upcoming"`
 }
 
 func (h *Handler) adminOverview(w http.ResponseWriter, r *http.Request) {
@@ -326,6 +329,11 @@ func (h *Handler) adminOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp.Users = len(users)
+	for _, u := range users {
+		if !u.Approved {
+			resp.PendingUsers++
+		}
+	}
 	now := sc.Now
 	practice, err := h.store.ListPracticeSessions(ctx, store.PracticeFilter{From: &now})
 	if err != nil {

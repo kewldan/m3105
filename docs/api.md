@@ -53,8 +53,11 @@
 ## Аккаунты студентов
 
 Без паролей: аккаунт создаётся при первом входе через Telegram Login Widget;
-пасскей (WebAuthn) добавляется в профиле и затем работает как второй способ входа. Если в настройках задан код доступа,
-первый вход требует его (`inviteCode` в теле запроса, иначе 403 `invite_required`).
+пасскей (WebAuthn) добавляется в профиле и затем работает как второй способ входа.
+Новый аккаунт получает `groupName` из настроек и ждёт подтверждения администратором (`approved: false`):
+профиль и чтение доступны, а запись на сдачи, отметки лаб, комментарии, посты и лайки отвечают 403 `not_approved`.
+Если в настройках задан код доступа и он передан в `inviteCode`, аккаунт подтверждается сразу; неверный код — 403 `invite_required`.
+Имя (`name`) — это `displayName`, выставленное админом, иначе `telegramName`, который обновляется при каждом входе через Telegram.
 Сессия — HttpOnly-кука `edu_user`, 30 дней в Valkey.
 
 | Метод | Путь | Описание |
@@ -67,7 +70,6 @@
 | POST | `/auth/passkey/login/finish` | `{ challengeId, credential }` |
 | GET | `/auth/user/me` | `{ user, completedLabIds, signups, passkeys }` |
 | POST | `/auth/user/logout` | |
-| PUT | `/me/` | `{ name }` |
 | PUT / DELETE | `/me/labs/{labId}/done` | отметить лабу сделанной / снять отметку |
 | DELETE | `/me/passkeys/{id}` | |
 | GET | `/practice?subject=&past=1` | `{ sessions, now, signedIn }`; участники и `availableLabs` только для вошедших |
@@ -84,7 +86,7 @@
 
 Антиспам: один аккаунт может создать не больше 10 комментариев и постов за 12 часов, дальше 429 `rate_limited` (константы `socialWriteLimit` и `socialWriteWindow` в `api/social.go`).
 
-Админка: `GET /admin/users`, `DELETE /admin/users/{id}`, CRUD `/admin/practice`
+Админка: `GET /admin/users`, `PUT /admin/users/{id}` (`{ displayName, groupName, approved }` — имя и фамилия, группа, подтверждение), `DELETE /admin/users/{id}`, CRUD `/admin/practice`
 (сдачи: предмет, дата, аудитория, вместимость, заметка), `GET /admin/practice/{id}/signups`.
 Модерация: `GET /admin/comments` (последние 200 с `targetTitle` и `targetPath`), `DELETE /admin/comments/{id}`,
 `GET /admin/posts?kind=`, `PUT /admin/posts/{id}`, `DELETE /admin/posts/{id}` — админ правит и удаляет любые посты и комментарии.

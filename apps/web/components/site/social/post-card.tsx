@@ -44,6 +44,10 @@ export function PostCard({
       toast.error("Войдите, чтобы ставить лайки");
       return;
     }
+    if (!me.user.approved) {
+      toast.error("Лайки откроются после подтверждения аккаунта");
+      return;
+    }
     if (liking) return;
     setLiking(true);
     const optimistic: Post = {

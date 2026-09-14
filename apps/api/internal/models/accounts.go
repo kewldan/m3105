@@ -9,14 +9,49 @@ import (
 
 // User is a student account created on first Telegram or passkey login.
 type User struct {
-	ID               int64     `db:"id" json:"id"`
-	WebauthnID       []byte    `db:"webauthn_id" json:"-"`
-	Name             string    `db:"name" json:"name"`
-	TelegramID       *int64    `db:"telegram_id" json:"telegramId"`
-	TelegramUsername string    `db:"telegram_username" json:"telegramUsername"`
-	PhotoURL         string    `db:"photo_url" json:"photoUrl"`
-	CreatedAt        time.Time `db:"created_at" json:"createdAt"`
-	LastLoginAt      time.Time `db:"last_login_at" json:"lastLoginAt"`
+	ID         int64  `db:"id" json:"id"`
+	WebauthnID []byte `db:"webauthn_id" json:"-"`
+	// Name is what the site shows: the admin's DisplayName when set, otherwise TelegramName.
+	Name string `db:"name" json:"name"`
+	// TelegramName is refreshed from Telegram on every login.
+	TelegramName string `db:"telegram_name" json:"telegramName"`
+	// DisplayName is the permanent override set by an admin (e.g. "Имя Фамилия").
+	DisplayName string `db:"display_name" json:"displayName"`
+	// GroupName is the study group the account belongs to; confirmed by an admin.
+	GroupName        string     `db:"group_name" json:"groupName"`
+	Approved         bool       `db:"approved" json:"approved"`
+	ApprovedAt       *time.Time `db:"approved_at" json:"approvedAt"`
+	TelegramID       *int64     `db:"telegram_id" json:"telegramId"`
+	TelegramUsername string     `db:"telegram_username" json:"telegramUsername"`
+	PhotoURL         string     `db:"photo_url" json:"photoUrl"`
+	CreatedAt        time.Time  `db:"created_at" json:"createdAt"`
+	LastLoginAt      time.Time  `db:"last_login_at" json:"lastLoginAt"`
+}
+
+// AdminUserInput is what an admin can change about an account.
+type AdminUserInput struct {
+	DisplayName string `json:"displayName"`
+	GroupName   string `json:"groupName"`
+	Approved    bool   `json:"approved"`
+}
+
+// Validate normalises and checks the payload.
+func (in *AdminUserInput) Validate() error {
+	ve := httpx.NewValidation()
+	in.DisplayName = strings.Join(strings.Fields(in.DisplayName), " ")
+	in.GroupName = strings.TrimSpace(in.GroupName)
+	if n := len([]rune(in.DisplayName)); n > 80 {
+		ve.Add("displayName", "Не длиннее 80 символов")
+	} else if n == 1 {
+		ve.Add("displayName", "Слишком короткое имя")
+	}
+	if len([]rune(in.GroupName)) > 40 {
+		ve.Add("groupName", "Не длиннее 40 символов")
+	}
+	if !ve.Empty() {
+		return ve
+	}
+	return nil
 }
 
 // PublicUser is the minimal shape shown to other students.

@@ -1,6 +1,12 @@
 "use client";
 
-import { ExternalLinkIcon, KeyRoundIcon, UsersIcon } from "lucide-react";
+import {
+  BadgeCheckIcon,
+  ExternalLinkIcon,
+  HourglassIcon,
+  KeyRoundIcon,
+  UsersIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -9,7 +15,9 @@ import { type Column, DataTable } from "@/components/admin/data-table";
 import { PageTitle } from "@/components/admin/page-title";
 import { RowActions } from "@/components/admin/row-actions";
 import { UserAvatar } from "@/components/admin/user-avatar";
+import { UserDialog } from "@/components/admin/user-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { handleApiError } from "@/lib/admin/errors";
 import { useQuery } from "@/lib/admin/use-query";
 import { adminApi } from "@/lib/api/admin";
@@ -18,8 +26,31 @@ import { fmtDateShort, fmtRelative } from "@/lib/format";
 
 export default function UsersPage() {
   const { data, loading, reload } = useQuery(() => adminApi.users.list());
+  const { data: settings } = useQuery(() => adminApi.settings.get());
+  const [editing, setEditing] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [approving, setApproving] = useState<number | null>(null);
+
+  const pending = data?.filter((u) => !u.approved).length ?? 0;
+  const defaultGroup = settings?.groupName ?? "";
+
+  async function approve(user: AdminUser) {
+    setApproving(user.id);
+    try {
+      await adminApi.users.update(user.id, {
+        displayName: user.displayName,
+        groupName: user.groupName || defaultGroup,
+        approved: true,
+      });
+      toast.success(`${user.name}: доступ открыт`);
+      reload();
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setApproving(null);
+    }
+  }
 
   async function confirmDelete() {
     if (!deleting) return;
@@ -44,9 +75,49 @@ export default function UsersPage() {
       cell: (r) => (
         <div className="flex min-w-0 items-center gap-2.5">
           <UserAvatar name={r.name} photoUrl={r.photoUrl} size="sm" />
-          <span className="truncate font-medium">{r.name}</span>
+          <div className="min-w-0">
+            <div className="truncate font-medium">{r.name}</div>
+            {r.displayName && r.telegramName !== r.displayName ? (
+              <div className="truncate text-xs text-muted-foreground">
+                в Telegram: {r.telegramName}
+              </div>
+            ) : null}
+          </div>
         </div>
       ),
+    },
+    {
+      id: "status",
+      header: "Доступ",
+      sort: (r) => (r.approved ? 1 : 0),
+      cell: (r) =>
+        r.approved ? (
+          <Badge
+            variant="outline"
+            className="gap-1 border-emerald-500/40 font-normal text-emerald-700 dark:text-emerald-300"
+          >
+            <BadgeCheckIcon className="size-3" aria-hidden />
+            {r.groupName || "подтверждён"}
+          </Badge>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant="outline"
+              className="gap-1 border-amber-500/40 font-normal text-amber-700 dark:text-amber-300"
+            >
+              <HourglassIcon className="size-3" aria-hidden />
+              ждёт
+            </Badge>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={approving === r.id}
+              onClick={() => approve(r)}
+            >
+              Подтвердить
+            </Button>
+          </div>
+        ),
     },
     {
       id: "telegram",
@@ -111,7 +182,12 @@ export default function UsersPage() {
       id: "actions",
       header: <span className="sr-only">Действия</span>,
       className: "w-px",
-      cell: (r) => <RowActions onDelete={() => setDeleting(r)} />,
+      cell: (r) => (
+        <RowActions
+          onEdit={() => setEditing(r)}
+          onDelete={() => setDeleting(r)}
+        />
+      ),
     },
   ];
 
@@ -119,13 +195,24 @@ export default function UsersPage() {
     <>
       <PageTitle
         title="Студенты"
-        description="Аккаунты появляются сами после первого входа через Telegram или по пасскею. Паролей нет, редактировать нечего — только удалить."
+        description="Аккаунты появляются после первого входа через Telegram и ждут подтверждения. Имя берётся из Telegram, здесь его можно заменить на имя и фамилию."
         actions={
           data ? (
-            <Badge variant="secondary" className="gap-1.5">
-              <UsersIcon className="size-3.5" aria-hidden />
-              Всего: {data.length}
-            </Badge>
+            <>
+              {pending > 0 ? (
+                <Badge
+                  variant="outline"
+                  className="gap-1.5 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                >
+                  <HourglassIcon className="size-3.5" aria-hidden />
+                  Ждут: {pending}
+                </Badge>
+              ) : null}
+              <Badge variant="secondary" className="gap-1.5">
+                <UsersIcon className="size-3.5" aria-hidden />
+                Всего: {data.length}
+              </Badge>
+            </>
           ) : null
         }
       />
@@ -134,9 +221,18 @@ export default function UsersPage() {
         loading={loading}
         columns={columns}
         rowKey={(r) => r.id}
-        defaultSort={{ id: "created", dir: "desc" }}
+        defaultSort={{ id: "status", dir: "asc" }}
         emptyTitle="Пока никто не входил"
-        emptyDescription="Аккаунт создаётся автоматически, когда студент впервые входит на сайт через Telegram или создаёт пасскей. Код доступа задаётся в настройках."
+        emptyDescription="Аккаунт создаётся автоматически, когда студент впервые входит на сайт через Telegram. Код доступа для мгновенного подтверждения задаётся в настройках."
+      />
+      <UserDialog
+        open={editing !== null}
+        onOpenChange={(o) => {
+          if (!o) setEditing(null);
+        }}
+        user={editing}
+        defaultGroup={defaultGroup}
+        onSaved={reload}
       />
       <ConfirmDialog
         open={deleting !== null}
@@ -144,7 +240,7 @@ export default function UsersPage() {
           if (!o) setDeleting(null);
         }}
         title={`Удалить аккаунт «${deleting?.name ?? ""}»?`}
-        description="Вместе с аккаунтом удалятся его пасскеи, отметки о сданных лабах и записи на сдачи. Студент сможет войти заново, но начнёт с чистого листа."
+        description="Вместе с аккаунтом удалятся его пасскеи, отметки о сданных лабах и записи на сдачи. Студент сможет войти заново, но начнёт с чистого листа и снова будет ждать подтверждения."
         onConfirm={confirmDelete}
         loading={deleteLoading}
       />

@@ -30,20 +30,26 @@ func randomHandle() ([]byte, error) {
 	return b, nil
 }
 
-// inviteOK checks the optional invite code for first-time sign-ins.
-func (h *Handler) inviteOK(r *http.Request, code string) (bool, error) {
-	st, err := h.store.GetSettings(r.Context())
-	if err != nil {
-		return false, err
-	}
-	if st.InviteCode == "" {
-		return true, nil
-	}
-	return strings.TrimSpace(code) == st.InviteCode, nil
-}
-
-func inviteRequired(w http.ResponseWriter) {
-	httpx.Error(w, http.StatusForbidden, "invite_required", "Нужен код доступа группы")
+// requireApproved gates student write actions until an admin has confirmed the
+// account's group membership. Reading and the profile itself stay available.
+func (h *Handler) requireApproved(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id, ok := userauth.UserID(r.Context())
+		if !ok {
+			httpx.Error(w, http.StatusUnauthorized, "unauthorized", "Войдите, чтобы продолжить")
+			return
+		}
+		user, err := h.store.GetUser(r.Context(), id)
+		if err != nil {
+			httpx.Fail(w, err)
+			return
+		}
+		if !user.Approved {
+			httpx.Error(w, http.StatusForbidden, "not_approved", "Аккаунт ещё не подтверждён администратором")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // meBundle assembles the profile response.
@@ -102,27 +108,6 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	h.respondMe(w, r, id)
 }
 
-func (h *Handler) updateMe(w http.ResponseWriter, r *http.Request) {
-	id, _ := userauth.UserID(r.Context())
-	var in struct {
-		Name string `json:"name"`
-	}
-	if err := httpx.Decode(r, &in); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	in.Name = strings.TrimSpace(in.Name)
-	if len([]rune(in.Name)) < 2 || len([]rune(in.Name)) > 80 {
-		httpx.Fail(w, &httpx.ValidationError{Fields: map[string]string{"name": "Имя от 2 до 80 символов"}})
-		return
-	}
-	if _, err := h.store.UpdateUserName(r.Context(), id, in.Name); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	h.respondMe(w, r, id)
-}
-
 func (h *Handler) userLogout(w http.ResponseWriter, r *http.Request) {
 	h.users.Clear(r.Context(), w, r)
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -155,18 +140,24 @@ func (h *Handler) telegramLogin(w http.ResponseWriter, r *http.Request) {
 	h.finishTelegram(w, r, in.TelegramData, in.InviteCode)
 }
 
+// finishTelegram opens or creates the account for verified Telegram data.
+// New accounts join the site's group and wait for an admin to confirm them;
+// a correct invite code confirms right away, a wrong one is rejected so the
+// student can retry instead of ending up with a pending account.
 func (h *Handler) finishTelegram(w http.ResponseWriter, r *http.Request, d userauth.TelegramData, invite string) {
 	ctx := r.Context()
 	user, err := h.store.GetUserByTelegramID(ctx, d.ID)
 	switch {
 	case errors.Is(err, httpx.ErrNotFound):
-		ok, err := h.inviteOK(r, invite)
+		st, err := h.store.GetSettings(ctx)
 		if err != nil {
 			httpx.Fail(w, err)
 			return
 		}
-		if !ok {
-			inviteRequired(w)
+		invite = strings.TrimSpace(invite)
+		approved := st.InviteCode != "" && invite == st.InviteCode
+		if invite != "" && !approved {
+			httpx.Error(w, http.StatusForbidden, "invite_required", "Код доступа не подошёл")
 			return
 		}
 		handle, err := randomHandle()
@@ -175,7 +166,10 @@ func (h *Handler) finishTelegram(w http.ResponseWriter, r *http.Request, d usera
 			return
 		}
 		tgID := d.ID
-		user, err = h.store.CreateUser(ctx, store.NewUser{WebauthnID: handle, Name: d.DisplayName(), TelegramID: &tgID, TelegramUsername: d.Username, PhotoURL: d.PhotoURL})
+		user, err = h.store.CreateUser(ctx, store.NewUser{
+			WebauthnID: handle, Name: d.DisplayName(), TelegramID: &tgID, TelegramUsername: d.Username, PhotoURL: d.PhotoURL,
+			GroupName: st.GroupName, Approved: approved,
+		})
 		if err != nil {
 			httpx.Fail(w, err)
 			return
@@ -184,7 +178,7 @@ func (h *Handler) finishTelegram(w http.ResponseWriter, r *http.Request, d usera
 		httpx.Fail(w, err)
 		return
 	default:
-		_ = h.store.TouchTelegramLogin(ctx, user.ID, d.Username, d.PhotoURL)
+		_ = h.store.TouchTelegramLogin(ctx, user.ID, d.DisplayName(), d.Username, d.PhotoURL)
 	}
 	if err := h.users.Issue(ctx, w, user.ID); err != nil {
 		httpx.Fail(w, err)
@@ -609,6 +603,30 @@ func (h *Handler) adminListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, users)
+}
+
+// adminUpdateUser sets the display name and group and confirms or revokes the account.
+func (h *Handler) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
+	id, err := httpx.IDParam(r)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	var in models.AdminUserInput
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := in.Validate(); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	user, err := h.store.UpdateUserProfile(r.Context(), id, in)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, user)
 }
 
 func (h *Handler) adminDeleteUser(w http.ResponseWriter, r *http.Request) {

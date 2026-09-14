@@ -297,6 +297,18 @@ func TestEndToEnd(t *testing.T) {
 
 }
 
+// userIDByName finds an account in the admin list by its shown name.
+func userIDByName(t *testing.T, admin *client, name string) int64 {
+	t.Helper()
+	for _, u := range admin.list("/api/v1/admin/users", 200) {
+		if u["name"] == name {
+			return int64(u["id"].(float64))
+		}
+	}
+	t.Fatalf("user %q not found", name)
+	return 0
+}
+
 func TestStudentAccounts(t *testing.T) {
 	admin := newClient(t)
 	admin.do("POST", "/api/v1/auth/login", map[string]string{"password": testPassword}, 200)
@@ -313,7 +325,7 @@ func TestStudentAccounts(t *testing.T) {
 	data.Hash = userauth.SignTelegram(testBotToken, data)
 	me := tg.do("POST", "/api/v1/auth/telegram", map[string]any{"id": data.ID, "first_name": data.FirstName, "last_name": data.LastName,
 		"username": data.Username, "auth_date": data.AuthDate, "hash": data.Hash}, 200)
-	if me["user"].(map[string]any)["name"] != "Маша Иванова" {
+	if me["user"].(map[string]any)["name"] != "Маша Иванова" || me["user"].(map[string]any)["approved"] != false {
 		t.Fatalf("unexpected user: %v", me["user"])
 	}
 	data.Hash = "deadbeef"
@@ -325,6 +337,15 @@ func TestStudentAccounts(t *testing.T) {
 	u.do("GET", "/api/v1/auth/user/me", nil, 401)
 	u.do("PUT", fmt.Sprintf("/api/v1/me/labs/%d/done", lab1ID), nil, 401)
 	u.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Петя Сидоров"}, 200)
+	// New accounts wait for an admin to confirm the group: student actions are refused until then.
+	u.do("PUT", fmt.Sprintf("/api/v1/me/labs/%d/done", lab1ID), nil, 403)
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, "Петя Сидоров")),
+		map[string]any{"displayName": strings.Repeat("я", 81), "approved": true}, 422)
+	approved := admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, "Петя Сидоров")),
+		map[string]any{"displayName": "Пётр Сидоров", "groupName": "М3105", "approved": true}, 200)
+	if approved["approved"] != true || approved["name"] != "Пётр Сидоров" || approved["telegramName"] != "Петя Сидоров" {
+		t.Fatalf("approve failed: %v", approved)
+	}
 	res := u.do("PUT", fmt.Sprintf("/api/v1/me/labs/%d/done", lab1ID), nil, 200)
 	if ids := res["completedLabIds"].([]any); len(ids) != 1 || int64(ids[0].(float64)) != lab1ID {
 		t.Fatalf("unexpected completions: %v", ids)
@@ -332,9 +353,10 @@ func TestStudentAccounts(t *testing.T) {
 	u.do("PUT", fmt.Sprintf("/api/v1/me/labs/%d/done", draftID), nil, 404)
 	u.do("DELETE", fmt.Sprintf("/api/v1/me/labs/%d/done", lab1ID), nil, 200)
 	u.do("PUT", fmt.Sprintf("/api/v1/me/labs/%d/done", lab1ID), nil, 200)
-	u.do("PUT", "/api/v1/me/", map[string]string{"name": "Пётр Сидоров"}, 200)
+	// The admin's display name overrides Telegram and survives the next login.
+	u.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Петя Сидоров"}, 200)
 	if got := u.do("GET", "/api/v1/me/", nil, 200)["user"].(map[string]any)["name"]; got != "Пётр Сидоров" {
-		t.Fatalf("rename failed: %v", got)
+		t.Fatalf("display name lost: %v", got)
 	}
 
 	// Practice session with capacity 1.
@@ -361,7 +383,8 @@ func TestStudentAccounts(t *testing.T) {
 	if len(view["myLabIds"].([]any)) != 1 {
 		t.Fatalf("replace failed: %v", view["myLabIds"])
 	}
-	// Second student hits the capacity limit.
+	// Second student (confirmed by the admin) hits the capacity limit.
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, "Маша Иванова")), map[string]any{"approved": true}, 200)
 	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab1ID}}, 409)
 	full := tg.do("GET", fmt.Sprintf("/api/v1/practice/%d", sessID), nil, 200)
 	if full["full"] != true || len(full["participants"].([]any)) != 1 {
@@ -417,6 +440,7 @@ func TestStudentAccounts(t *testing.T) {
 	other := newClient(t)
 	other.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Вася Пупкин"}, 200)
 	other.do("DELETE", fmt.Sprintf("/api/v1/comments/%d", cmID), nil, 403)
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, "Вася Пупкин")), map[string]any{"approved": true}, 200)
 
 	// Posts: shawarma reviews need a rating, jokes are plain text; likes toggle; the author edits, the admin moderates.
 	u.do("POST", "/api/v1/posts", map[string]any{"kind": "shawarma", "title": "Шаверма у метро", "body": "Норм"}, 422)
@@ -491,7 +515,8 @@ func TestStudentAccounts(t *testing.T) {
 	}
 	anon.do("POST", "/api/v1/auth/passkey/login/finish", map[string]any{"challengeId": "nope", "credential": map[string]any{}}, 400)
 
-	// Invite code gates new accounts only.
+	// Invite code: a correct one confirms a new account right away, a wrong one is
+	// rejected, none at all creates a pending account for the admin to confirm.
 	settings := admin.do("GET", "/api/v1/admin/settings", nil, 200)
 	settings["inviteCode"] = "secret"
 	admin.do("PUT", "/api/v1/admin/settings", settings, 200)
@@ -500,14 +525,23 @@ func TestStudentAccounts(t *testing.T) {
 		t.Fatalf("invite exposure wrong: %v", pub)
 	}
 	newbie := newClient(t)
-	newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость"}, 403)
-	newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость", "inviteCode": "secret"}, 200)
+	newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость", "inviteCode": "wrong"}, 403)
+	if got := newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость"}, 200)["user"].(map[string]any); got["approved"] != false || got["groupName"] != "М3105" {
+		t.Fatalf("pending account wrong: %v", got)
+	}
+	invited := newClient(t)
+	if got := invited.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гостья", "inviteCode": "secret"}, 200)["user"].(map[string]any); got["approved"] != true {
+		t.Fatalf("invited account not approved: %v", got)
+	}
 	u.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Петя Сидоров"}, 200) // existing account, no code needed
 
 	// Admin user management.
 	users := admin.list("/api/v1/admin/users", 200)
-	if len(users) != 4 {
-		t.Fatalf("expected 4 users, got %d", len(users))
+	if len(users) != 5 {
+		t.Fatalf("expected 5 users, got %d", len(users))
+	}
+	if ov := admin.do("GET", "/api/v1/admin/overview", nil, 200); ov["pendingUsers"] != float64(1) {
+		t.Fatalf("expected 1 pending user, got %v", ov["pendingUsers"])
 	}
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/users/%v", users[0]["id"]), nil, 200)
 	u.do("POST", "/api/v1/auth/user/logout", nil, 200)

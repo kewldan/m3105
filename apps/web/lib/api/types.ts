@@ -42,7 +42,10 @@ export type Settings = {
   firstWeekParity: Parity;
   timezone: string;
   links: Link[];
-  /** Optional access code for first-time sign-in. Always empty in public responses. */
+  /**
+   * Optional access code: a new account that enters it is confirmed at once,
+   * everyone else waits for an admin. Always empty in public responses.
+   */
   inviteCode: string;
   updatedAt: string;
 };
@@ -373,6 +376,8 @@ export type OverviewResponse = {
   pages: number;
   events: number;
   users: number;
+  /** Accounts waiting for an admin to confirm their group. */
+  pendingUsers: number;
   practice: number;
   upcoming: CalendarItem[];
 };
@@ -381,7 +386,17 @@ export type OverviewResponse = {
 
 export type User = {
   id: number;
+  /** Shown name: the admin's displayName when set, otherwise telegramName. */
   name: string;
+  /** Refreshed from Telegram on every login. */
+  telegramName: string;
+  /** Permanent override set by an admin ("Имя Фамилия"); empty when not set. */
+  displayName: string;
+  /** Study group the account belongs to; confirmed by an admin. */
+  groupName: string;
+  /** False until an admin confirms the account: student actions are locked. */
+  approved: boolean;
+  approvedAt: string | null;
   telegramId: number | null;
   telegramUsername: string;
   photoUrl: string;
@@ -395,6 +410,12 @@ export type AdminUser = User & {
   passkeysCount: number;
   completionsCount: number;
   signupsCount: number;
+};
+
+export type AdminUserInput = {
+  displayName: string;
+  groupName: string;
+  approved: boolean;
 };
 
 export type Passkey = {

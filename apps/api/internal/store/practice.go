@@ -74,7 +74,7 @@ func (s *Store) DeletePracticeSession(ctx context.Context, id int64) error {
 	return s.exec(ctx, `DELETE FROM practice_sessions WHERE id = $1`, id)
 }
 
-const signupCols = `g.session_id, g.user_id, u.name AS user_name, u.photo_url, g.lab_id, l.number AS lab_number, l.title AS lab_title,
+const signupCols = `g.session_id, g.user_id, ` + userNameExpr + ` AS user_name, u.photo_url, g.lab_id, l.number AS lab_number, l.title AS lab_title,
 	l.slug AS lab_slug, s.slug AS subject_slug, g.created_at`
 
 const signupFrom = ` FROM practice_signups g JOIN users u ON u.id = g.user_id JOIN labs l ON l.id = g.lab_id JOIN subjects s ON s.id = l.subject_id`

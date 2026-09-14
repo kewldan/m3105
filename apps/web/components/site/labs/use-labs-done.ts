@@ -18,7 +18,11 @@ export function useLabsDone() {
 
   const toggle = useCallback(
     async (id: number) => {
-      if (!signedIn) return;
+      if (!me) return;
+      if (!me.user.approved) {
+        toast.error("Отметки откроются после подтверждения аккаунта");
+        return;
+      }
       const next = !done.has(id);
       try {
         await setDone(id, next);
@@ -27,7 +31,7 @@ export function useLabsDone() {
         toast.error("Не удалось сохранить отметку");
       }
     },
-    [done, setDone, signedIn],
+    [done, me, setDone],
   );
 
   return { done, isDone, toggle, signedIn, hydrated: true };

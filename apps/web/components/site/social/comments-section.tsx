@@ -5,7 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-
+import {
+  isPending,
+  PendingNotice,
+} from "@/components/site/auth/pending-notice";
 import { UserAvatar } from "@/components/site/user-avatar";
 import { useUser } from "@/components/site/user-provider";
 import { Button } from "@/components/ui/button";
@@ -208,7 +211,9 @@ export function CommentsSection({
         </ul>
       )}
 
-      {me ? (
+      {isPending(me) ? (
+        <PendingNotice compact />
+      ) : me ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();

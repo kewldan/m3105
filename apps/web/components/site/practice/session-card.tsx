@@ -11,6 +11,10 @@ import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 
+import {
+  isPending,
+  PendingNotice,
+} from "@/components/site/auth/pending-notice";
 import { SignupDialog } from "@/components/site/practice/signup-dialog";
 import { SubjectBadge } from "@/components/site/subject-badge";
 import { UserAvatar } from "@/components/site/user-avatar";
@@ -116,7 +120,9 @@ export function SessionCard({
         </div>
         {!session.past ? (
           <div className="flex shrink-0 items-center gap-2">
-            {me ? (
+            {isPending(me) ? (
+              <PendingNotice compact />
+            ) : me ? (
               <Button
                 type="button"
                 variant={mine ? "outline" : "default"}

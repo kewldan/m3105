@@ -167,17 +167,17 @@ export function PostDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-hidden p-0 sm:max-w-lg">
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="contents"
+          className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col"
           noValidate
         >
-          <DialogHeader>
+          <DialogHeader className="border-b px-4 py-3">
             <DialogTitle>{post ? copy.edit : copy.create}</DialogTitle>
             <DialogDescription>{copy.hint}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-4">
             {kind === "shawarma" ? (
               <>
                 <FormField
@@ -262,6 +262,7 @@ export function PostDialog({
               <Textarea
                 id="post-body"
                 rows={kind === "joke" ? 6 : 4}
+                className="max-h-60"
                 placeholder={copy.bodyPlaceholder}
                 autoFocus={kind === "joke"}
                 {...form.register("body")}
@@ -269,7 +270,7 @@ export function PostDialog({
               />
             </FormField>
           </div>
-          <DialogFooter>
+          <DialogFooter className="m-0 rounded-none">
             <DialogClose
               render={<Button type="button" variant="outline" />}
               disabled={saving}

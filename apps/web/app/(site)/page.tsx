@@ -127,7 +127,7 @@ export default async function HomePage() {
                   className="py-8"
                 />
               ) : (
-                <ul className="divide-y rounded-xl border bg-card">
+                <ul className="divide-y overflow-hidden rounded-xl border bg-card">
                   {home.recentNotes.map((n) => (
                     <li key={n.id}>
                       <Link

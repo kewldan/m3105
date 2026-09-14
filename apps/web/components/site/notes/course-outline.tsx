@@ -248,7 +248,7 @@ export function CourseOutline({
         currentId={currentId}
         query={query}
         layoutId="outline-aside"
-        className="max-h-[calc(100vh-16rem)]"
+        className="max-h-72"
       />
       <Link
         href={`/notes?subject=${encodeURIComponent(subject.slug)}`}

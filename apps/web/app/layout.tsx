@@ -9,6 +9,7 @@ import { getSettings } from "@/lib/api/public";
 import {
   absoluteUrl,
   DEFAULT_DESCRIPTION,
+  DEFAULT_OG_IMAGE,
   LOCALE,
   SITE_NAME,
   SITE_URL,
@@ -44,6 +45,14 @@ export async function generateMetadata(): Promise<Metadata> {
   } catch {
     // API unreachable: keep static defaults so the shell still renders.
   }
+  const images = [
+    {
+      url: absoluteUrl(DEFAULT_OG_IMAGE),
+      width: 1200,
+      height: 630,
+      alt: siteTitle,
+    },
+  ];
   return {
     metadataBase: new URL(SITE_URL),
     applicationName: siteTitle,
@@ -72,8 +81,14 @@ export async function generateMetadata(): Promise<Metadata> {
       url: absoluteUrl("/"),
       title: siteTitle,
       description,
+      images,
     },
-    twitter: { card: "summary_large_image", title: siteTitle, description },
+    twitter: {
+      card: "summary_large_image",
+      title: siteTitle,
+      description,
+      images,
+    },
     icons: { icon: "/icon.svg", apple: "/icon.svg" },
     formatDetection: { telephone: false, email: false, address: false },
   };

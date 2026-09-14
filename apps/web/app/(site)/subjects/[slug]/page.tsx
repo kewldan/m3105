@@ -58,6 +58,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
           ? bits.join(", ")
           : `${subject.name}: лабораторные, конспекты и квизы.`),
       path: `/subjects/${subject.slug}`,
+      image: `/og/subject/${subject.slug}`,
     });
   } catch {
     return { title: "Предмет", robots: { index: false } };
@@ -166,7 +167,7 @@ export default async function SubjectPage({ params }: Params) {
             className="py-8"
           />
         ) : (
-          <ul className="divide-y rounded-xl border bg-card">
+          <ul className="divide-y overflow-hidden rounded-xl border bg-card">
             {labs.map((lab) => (
               <li key={lab.id}>
                 <Link
@@ -226,7 +227,7 @@ export default async function SubjectPage({ params }: Params) {
               className="py-8"
             />
           ) : (
-            <ul className="divide-y rounded-xl border bg-card">
+            <ul className="divide-y overflow-hidden rounded-xl border bg-card">
               {recentNotes.map((n) => (
                 <li key={n.id}>
                   <Link

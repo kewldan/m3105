@@ -39,6 +39,7 @@ export async function generateMetadata({
     type: "article",
     publishedTime: page.createdAt,
     modifiedTime: page.updatedAt,
+    image: `/og/page/${page.slug}`,
   });
 }
 

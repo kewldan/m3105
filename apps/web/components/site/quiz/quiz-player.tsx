@@ -305,7 +305,7 @@ export function QuizPlayer({ quiz, rendered }: QuizPlayerProps) {
                   <HistoryIcon className="size-4" />
                   Прошлые попытки
                 </h2>
-                <ul className="divide-y rounded-xl border bg-card text-sm">
+                <ul className="divide-y overflow-hidden rounded-xl border bg-card text-sm">
                   {history.slice(0, 5).map((h) => (
                     <li
                       key={h.at}
@@ -661,7 +661,7 @@ function ResultCard({
             </span>
           ) : null}
         </p>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button onClick={onRetry}>
             <RotateCcwIcon data-icon="inline-start" />
             Пройти ещё раз

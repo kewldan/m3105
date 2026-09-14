@@ -34,7 +34,7 @@ export function MySignups({ tz, now }: { tz: string; now: string }) {
           </Link>
         </div>
       ) : (
-        <ul className="divide-y rounded-xl border bg-card">
+        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
           {upcoming.map((s) => (
             <li key={s.session.id}>
               <Link

@@ -28,20 +28,27 @@ type PageMeta = {
   tags?: string[];
   /** Hide from search engines (login, profile). */
   noindex?: boolean;
+  /**
+   * Path of the Open Graph image served by app/og (e.g. "/og/lab/{subject}/{slug}").
+   * Defaults to the generic site card. Next ignores a segment's file-based
+   * opengraph-image once that segment defines `openGraph`, so images are explicit.
+   */
+  image?: string;
+  imageAlt?: string;
 };
+
+export const DEFAULT_OG_IMAGE = "/og/site";
 
 export function pageMetadata(meta: PageMeta): Metadata {
   const description = meta.description?.trim() || DEFAULT_DESCRIPTION;
   const url = absoluteUrl(meta.path);
   const ogTitle = meta.absolute ? meta.title : `${meta.title} — ${SITE_NAME}`;
-  // Config-level openGraph replaces the parent's, so the root opengraph-image is not
-  // inherited. Point at it explicitly; segments with their own opengraph-image.tsx win.
   const images = [
     {
-      url: absoluteUrl("/opengraph-image"),
+      url: absoluteUrl(meta.image ?? DEFAULT_OG_IMAGE),
       width: 1200,
       height: 630,
-      alt: `${SITE_NAME} — сайт группы`,
+      alt: meta.imageAlt ?? ogTitle,
     },
   ];
   const openGraph: NonNullable<Metadata["openGraph"]> =

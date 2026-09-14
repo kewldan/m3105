@@ -282,7 +282,7 @@ export function SubjectNotes({
                   {g.label}
                 </h3>
               ) : null}
-              <ul className="divide-y rounded-xl border bg-card">
+              <ul className="divide-y overflow-hidden rounded-xl border bg-card">
                 {g.notes.map((n) => {
                   rowIndex += 1;
                   const i = rowIndex;

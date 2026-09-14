@@ -157,6 +157,8 @@
     @apply font-sans;
     scroll-behavior: smooth;
     scroll-padding-top: 5rem;
+    /* Reserve the scrollbar column so centred content doesn't jump between short and long pages. */
+    scrollbar-gutter: stable;
   }
   body {
     @apply bg-background text-foreground;
@@ -279,8 +281,18 @@ code[data-line-numbers] > [data-line]::before {
 [data-highlighted-line] {
   background: color-mix(in oklch, var(--primary) 12%, transparent);
 }
-[data-rehype-pretty-code-title] {
-  @apply mt-5 -mb-5 rounded-t-xl border border-b-0 bg-muted/60 px-4 py-1.5 font-mono text-xs text-muted-foreground;
+/* Code blocks with title="…": figure > figcaption + pre, drawn as one box. */
+figure[data-rehype-pretty-code-figure] {
+  @apply my-5;
+}
+figure[data-rehype-pretty-code-figure] > pre {
+  @apply my-0;
+}
+figure[data-rehype-pretty-code-figure] > [data-rehype-pretty-code-title] {
+  @apply m-0 rounded-t-xl border border-b-0 bg-muted/60 px-4 py-1.5 font-mono text-xs text-muted-foreground;
+}
+figure[data-rehype-pretty-code-figure] > [data-rehype-pretty-code-title] + pre {
+  @apply rounded-t-none;
 }
 
 .katex-display {

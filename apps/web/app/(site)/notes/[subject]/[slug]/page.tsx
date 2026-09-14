@@ -54,6 +54,7 @@ export async function generateMetadata({
     modifiedTime: note.updatedAt,
     section: note.subjectName,
     tags: [note.subjectName, "конспект"],
+    image: `/og/note/${note.subjectSlug}/${note.slug}`,
   });
 }
 
@@ -159,18 +160,7 @@ export default async function NotePage({ params }: { params: Params }) {
           ) : null}
         </header>
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-10 xl:grid-cols-[15rem_minmax(0,1fr)_15rem]">
-          {hasOutline ? (
-            <aside className="hidden xl:block">
-              <div className="sticky top-24">
-                <CourseOutline
-                  notes={siblings}
-                  currentId={note.id}
-                  subject={outlineSubject}
-                />
-              </div>
-            </aside>
-          ) : null}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-10">
           <div className="min-w-0 space-y-8">
             {hasOutline ? (
               <CourseOutline
@@ -178,7 +168,7 @@ export default async function NotePage({ params }: { params: Params }) {
                 currentId={note.id}
                 subject={outlineSubject}
                 variant="inline"
-                className="xl:hidden"
+                className="lg:hidden"
               />
             ) : null}
             <Toc items={rendered.toc} variant="inline" className="lg:hidden" />
@@ -194,12 +184,15 @@ export default async function NotePage({ params }: { params: Params }) {
               className="border-t pt-8"
             />
           </div>
-          <aside
-            className={
-              hasOutline ? "hidden lg:block" : "hidden lg:block xl:col-start-3"
-            }
-          >
-            <div className="sticky top-24 space-y-6">
+          <aside className="hidden lg:block">
+            <div className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-6 overflow-y-auto">
+              {hasOutline ? (
+                <CourseOutline
+                  notes={siblings}
+                  currentId={note.id}
+                  subject={outlineSubject}
+                />
+              ) : null}
               <Toc items={rendered.toc} />
               {note.quizzes.length > 0 ? (
                 <div className="border-t pt-4">

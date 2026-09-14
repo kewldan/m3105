@@ -54,6 +54,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       modifiedTime: lab.updatedAt,
       section: lab.subjectName,
       tags: [lab.subjectName, "лабораторная"],
+      image: `/og/lab/${lab.subjectSlug}/${lab.slug}`,
     });
   } catch {
     return { title: "Лабораторная", robots: { index: false } };

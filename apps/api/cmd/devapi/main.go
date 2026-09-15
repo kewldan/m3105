@@ -72,7 +72,7 @@ func main() {
 
 	sessions := session.NewMemory()
 	authSvc := auth.New(sessions, auth.Options{
-		Password: cfg.AdminPassword, CookieName: cfg.CookieName, CookieSecure: false,
+		Password: cfg.AdminPassword, APIToken: cfg.AdminAPIToken, CookieName: cfg.CookieName, CookieSecure: false,
 		TTL: cfg.SessionTTL, RateMax: 100, RateWindow: time.Minute,
 	})
 	userSvc, err := userauth.New(sessions, userauth.Options{

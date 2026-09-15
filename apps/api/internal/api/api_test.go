@@ -27,6 +27,7 @@ import (
 )
 
 const testPassword = "correct-horse-battery"
+const testAPIToken = "test-api-token-0123456789abcdef0123456789"
 const testBotToken = "123456:TEST-BOT-TOKEN"
 
 var srvURL string
@@ -69,7 +70,7 @@ func run(m *testing.M) int {
 	cfg := config.Config{PublicURL: "https://m3105.ru", CookieName: "edu_session", SessionTTL: time.Hour, LoginRateMax: 5, LoginRateWin: time.Minute,
 		UserCookieName: "edu_user", TelegramBotToken: testBotToken, TelegramBotUsername: "m3105_bot", RPID: "m3105.ru", RPOrigins: []string{"https://m3105.ru"}, DevLogin: true}
 	sessions := session.NewMemory()
-	au := auth.New(sessions, auth.Options{Password: testPassword, CookieName: cfg.CookieName, TTL: cfg.SessionTTL, RateMax: 5, RateWindow: time.Minute})
+	au := auth.New(sessions, auth.Options{Password: testPassword, APIToken: testAPIToken, CookieName: cfg.CookieName, TTL: cfg.SessionTTL, RateMax: 5, RateWindow: time.Minute})
 	us, err := userauth.New(sessions, userauth.Options{CookieName: cfg.UserCookieName, TTL: cfg.SessionTTL, RPID: cfg.RPID, RPDisplayName: "М3105", RPOrigins: cfg.RPOrigins})
 	if err != nil {
 		fmt.Println("userauth:", err)
@@ -601,5 +602,36 @@ func TestOpenAPISpec(t *testing.T) {
 	defer docs.Body.Close()
 	if docs.StatusCode != http.StatusOK || !strings.HasPrefix(docs.Header.Get("Content-Type"), "text/html") {
 		t.Fatalf("docs: status %d, content-type %q", docs.StatusCode, docs.Header.Get("Content-Type"))
+	}
+}
+
+func TestBearerToken(t *testing.T) {
+	get := func(header string) int {
+		t.Helper()
+		req, err := http.NewRequest("GET", srvURL+"/api/v1/admin/subjects", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if header != "" {
+			req.Header.Set("Authorization", header)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	if got := get("Bearer " + testAPIToken); got != 200 {
+		t.Fatalf("valid token: status %d, want 200", got)
+	}
+	if got := get("Bearer " + testAPIToken + "x"); got != 401 {
+		t.Fatalf("wrong token: status %d, want 401", got)
+	}
+	if got := get(testAPIToken); got != 401 {
+		t.Fatalf("token without Bearer prefix: status %d, want 401", got)
+	}
+	if got := get(""); got != 401 {
+		t.Fatalf("no header: status %d, want 401", got)
 	}
 }

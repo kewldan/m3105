@@ -65,6 +65,7 @@ func main() {
 
 	authSvc := auth.New(sessions, auth.Options{
 		Password:     cfg.AdminPassword,
+		APIToken:     cfg.AdminAPIToken,
 		CookieName:   cfg.CookieName,
 		CookieSecure: cfg.CookieSecure,
 		TTL:          cfg.SessionTTL,

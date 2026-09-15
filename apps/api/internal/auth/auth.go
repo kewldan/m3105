@@ -20,6 +20,10 @@ import (
 type Service struct {
 	store        session.Store
 	passwordHash [32]byte
+	// apiTokenHash is the hash of the optional bearer token; hasAPIToken is
+	// false when no token is configured and bearer auth is disabled.
+	apiTokenHash [32]byte
+	hasAPIToken  bool
 	cookieName   string
 	cookieSecure bool
 	ttl          time.Duration
@@ -29,7 +33,9 @@ type Service struct {
 
 // Options configures the auth service.
 type Options struct {
-	Password     string
+	Password string
+	// APIToken enables `Authorization: Bearer <token>` for admin routes; empty disables it.
+	APIToken     string
 	CookieName   string
 	CookieSecure bool
 	TTL          time.Duration
@@ -42,6 +48,8 @@ func New(store session.Store, o Options) *Service {
 	return &Service{
 		store:        store,
 		passwordHash: sha256.Sum256([]byte(o.Password)),
+		apiTokenHash: sha256.Sum256([]byte(o.APIToken)),
+		hasAPIToken:  o.APIToken != "",
 		cookieName:   o.CookieName,
 		cookieSecure: o.CookieSecure,
 		ttl:          o.TTL,
@@ -80,8 +88,26 @@ func (s *Service) Logout(ctx context.Context, r *http.Request) error {
 	return s.store.Delete(ctx, c.Value)
 }
 
-// Authenticated reports whether the request carries a valid session cookie.
+// BearerAuthenticated reports whether the request carries the configured API
+// token in the Authorization header.
+func (s *Service) BearerAuthenticated(r *http.Request) bool {
+	if !s.hasAPIToken {
+		return false
+	}
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok {
+		return false
+	}
+	got := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	return subtle.ConstantTimeCompare(got[:], s.apiTokenHash[:]) == 1
+}
+
+// Authenticated reports whether the request carries the API token or a valid
+// session cookie.
 func (s *Service) Authenticated(ctx context.Context, r *http.Request) bool {
+	if s.BearerAuthenticated(r) {
+		return true
+	}
 	c, err := r.Cookie(s.cookieName)
 	if err != nil || c.Value == "" {
 		return false

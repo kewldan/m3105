@@ -51,6 +51,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-edu}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-edu}?sslmode=disable
       VALKEY_ADDR: valkey:6379
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
       PUBLIC_URL: https://${DOMAIN:-m3105.ru}
       COOKIE_SECURE: "true"
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}

@@ -18,6 +18,9 @@ type Config struct {
 	ValkeyAddr    string
 	ValkeyPass    string
 	AdminPassword string
+	// AdminAPIToken, if set, authenticates admin requests via `Authorization: Bearer`
+	// without a login and session — for scripts and automation.
+	AdminAPIToken string
 	SessionTTL    time.Duration
 	CookieName    string
 	CookieSecure  bool
@@ -49,6 +52,7 @@ func Load() (Config, error) {
 		ValkeyAddr:    os.Getenv("VALKEY_ADDR"),
 		ValkeyPass:    os.Getenv("VALKEY_PASSWORD"),
 		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
+		AdminAPIToken: os.Getenv("ADMIN_API_TOKEN"),
 		CookieName:    getenv("SESSION_COOKIE", "edu_session"),
 		PublicURL:     getenv("PUBLIC_URL", "http://localhost:3000"),
 		Env:           getenv("APP_ENV", "development"),
@@ -85,6 +89,9 @@ func Load() (Config, error) {
 	}
 	if len(cfg.AdminPassword) < 8 {
 		return cfg, errors.New("ADMIN_PASSWORD must be at least 8 characters")
+	}
+	if cfg.AdminAPIToken != "" && len(cfg.AdminAPIToken) < 32 {
+		return cfg, errors.New("ADMIN_API_TOKEN must be at least 32 characters")
 	}
 	return cfg, nil
 }

@@ -2,7 +2,7 @@
 
 import { ListIcon } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   Collapsible,
@@ -63,20 +63,65 @@ function scrollTo(id: string) {
   window.history.replaceState(null, "", `#${id}`);
 }
 
+/** Nearest ancestor that scrolls vertically (the sticky rail on note pages). */
+function scrollParent(el: HTMLElement | null): HTMLElement | null {
+  for (let node = el; node; node = node.parentElement) {
+    const overflow = getComputedStyle(node).overflowY;
+    if (overflow === "auto" || overflow === "scroll") return node;
+  }
+  return null;
+}
+
+/**
+ * Keeps the active link visible inside the scrollable rail as the reader
+ * moves through the page: the list scrolls with the article, the window
+ * itself is never touched.
+ */
+function useFollowActive(
+  listRef: React.RefObject<HTMLUListElement | null>,
+  active: string | null,
+  enabled: boolean,
+) {
+  const reduce = useReducedMotion();
+  useEffect(() => {
+    if (!enabled || !active) return;
+    const list = listRef.current;
+    const box = scrollParent(list);
+    if (!list || !box) return;
+    const link = list.querySelector<HTMLElement>(
+      `a[href="#${CSS.escape(active)}"]`,
+    );
+    if (!link) return;
+    const pad = 56;
+    const boxRect = box.getBoundingClientRect();
+    const rect = link.getBoundingClientRect();
+    let delta = 0;
+    if (rect.top < boxRect.top + pad) delta = rect.top - boxRect.top - pad;
+    else if (rect.bottom > boxRect.bottom - pad)
+      delta = rect.bottom - boxRect.bottom + pad;
+    if (delta !== 0)
+      box.scrollBy({ top: delta, behavior: reduce ? "auto" : "smooth" });
+  }, [active, enabled, listRef, reduce]);
+}
+
 function TocLinks({
   items,
   active,
   onNavigate,
   layoutId,
+  followActive = false,
 }: {
   items: TocItem[];
   active: string | null;
   onNavigate?: () => void;
   layoutId: string;
+  followActive?: boolean;
 }) {
   const reduce = useReducedMotion();
+  const listRef = useRef<HTMLUListElement>(null);
+  useFollowActive(listRef, active, followActive);
   return (
-    <ul className="relative space-y-0.5 border-l text-sm">
+    <ul ref={listRef} className="relative space-y-0.5 border-l text-sm">
       {items.map((item) => {
         const isActive = item.id === active;
         return (
@@ -164,7 +209,12 @@ export function Toc({
         <ListIcon className="size-3.5" />
         {title}
       </div>
-      <TocLinks items={items} active={active} layoutId="toc-aside" />
+      <TocLinks
+        items={items}
+        active={active}
+        layoutId="toc-aside"
+        followActive
+      />
     </nav>
   );
 }

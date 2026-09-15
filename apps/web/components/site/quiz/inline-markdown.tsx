@@ -1,12 +1,13 @@
+import katex from "katex";
 import type { ReactNode } from "react";
 
 /**
  * Very small inline Markdown renderer for short option texts:
- * `code`, **bold**, *italic*. Anything else is printed as-is.
+ * `code`, **bold**, *italic* and $formulas$. Anything else is printed as-is.
  */
 export function InlineMarkdown({ text }: { text: string }) {
   const nodes: ReactNode[] = [];
-  const re = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  const re = /(`[^`]+`|\$[^$\n]+\$|\*\*[^*]+\*\*|\*[^*]+\*)/g;
   let last = 0;
   let key = 0;
   for (const m of text.matchAll(re)) {
@@ -21,6 +22,19 @@ export function InlineMarkdown({ text }: { text: string }) {
         >
           {tok.slice(1, -1)}
         </code>,
+      );
+    } else if (tok.startsWith("$")) {
+      nodes.push(
+        <span
+          key={key++}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX output is generated from trusted admin content.
+          dangerouslySetInnerHTML={{
+            __html: katex.renderToString(tok.slice(1, -1), {
+              throwOnError: false,
+              output: "htmlAndMathml",
+            }),
+          }}
+        />,
       );
     } else if (tok.startsWith("**")) {
       nodes.push(<strong key={key++}>{tok.slice(2, -2)}</strong>);

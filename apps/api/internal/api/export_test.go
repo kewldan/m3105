@@ -6,3 +6,6 @@ func SetSocialWriteLimit(n int) int {
 	socialWriteLimit = n
 	return prev
 }
+
+// TagsForPath exposes the cache-tag mapping to the contract test.
+var TagsForPath = tagsForPath

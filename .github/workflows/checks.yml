@@ -19,6 +19,11 @@ jobs:
         run: bun run lint
       - name: Типы
         run: bun run typecheck
+      - name: Типы из OpenAPI не разошлись со спекой
+        working-directory: apps/web
+        run: |
+          bun run codegen
+          git diff --exit-code lib/api/schema.d.ts
 
   api:
     name: API

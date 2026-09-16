@@ -86,6 +86,15 @@ func run(m *testing.M) int {
 type client struct {
 	t  *testing.T
 	hc *http.Client
+	// authz, если задан, уходит в Authorization вместо куки сессии.
+	authz string
+}
+
+// bearer переключает клиента на админский API-токен: так тест не тратит
+// лимит попыток входа, который отдельно проверяется в TestLoginRateLimit.
+func (c *client) bearer(token string) *client {
+	c.authz = "Bearer " + token
+	return c
 }
 
 func newClient(t *testing.T) *client {
@@ -103,6 +112,9 @@ func (c *client) do(method, path string, body any, want int) map[string]any {
 	req, _ := http.NewRequest(method, srvURL+path, rdr)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if c.authz != "" {
+		req.Header.Set("Authorization", c.authz)
 	}
 	res, err := c.hc.Do(req)
 	if err != nil {
@@ -122,7 +134,11 @@ func (c *client) do(method, path string, body any, want int) map[string]any {
 
 func (c *client) list(path string, want int) []map[string]any {
 	c.t.Helper()
-	res, err := c.hc.Get(srvURL + path)
+	req, _ := http.NewRequest("GET", srvURL+path, nil)
+	if c.authz != "" {
+		req.Header.Set("Authorization", c.authz)
+	}
+	res, err := c.hc.Do(req)
 	if err != nil {
 		c.t.Fatal(err)
 	}

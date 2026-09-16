@@ -3,44 +3,42 @@
 // Источник правды один: правится спека, а не этот файл; CI падает при расхождении.
 // Всё остальное — админские формы и личный кабинет — описано здесь руками:
 // эти эндпоинты в публичную спеку не входят.
-import type { components } from "./schema";
+import type * as Schema from "./schema";
 
-type Schemas = components["schemas"];
-
-export type AuthInfo = Schemas["AuthInfo"];
-export type CalendarItem = Schemas["CalendarItem"];
-export type CalendarResponse = Schemas["CalendarResponse"];
-export type Comment = Schemas["Comment"];
-export type FAQItem = Schemas["FAQItem"];
-export type HomeResponse = Schemas["HomeResponse"];
-export type Lab = Schemas["Lab"];
-export type LabRef = Schemas["LabRef"];
-export type Link = Schemas["Link"];
-export type Note = Schemas["Note"];
-export type NoteResponse = Schemas["NoteResponse"];
-export type Page = Schemas["Page"];
-export type Parity = Schemas["Parity"];
-export type Participant = Schemas["Participant"];
-export type Post = Schemas["Post"];
-export type PostInput = Schemas["PostInput"];
-export type PracticeListResponse = Schemas["PracticeListResponse"];
-export type PracticeSession = Schemas["PracticeSession"];
-export type PracticeSessionView = Schemas["PracticeSessionView"];
-export type PublicUser = Schemas["PublicUser"];
-export type Quiz = Schemas["Quiz"];
-export type QuizOption = Schemas["QuizOption"];
-export type QuizQuestion = Schemas["QuizQuestion"];
-export type QuizSummary = Schemas["QuizSummary"];
-export type SearchResult = Schemas["SearchResult"];
-export type Settings = Schemas["Settings"];
-export type SettingsResponse = Schemas["SettingsResponse"];
-export type Status = Schemas["Status"];
-export type Subject = Schemas["Subject"];
-export type SubjectColor = Schemas["SubjectColor"];
-export type SubjectRef = Schemas["SubjectRef"];
-export type SubjectResponse = Schemas["SubjectResponse"];
-export type SubjectWithCounts = Schemas["SubjectWithCounts"];
-export type Week = Schemas["Week"];
+export type AuthInfo = Schema.AuthInfo;
+export type CalendarItem = Schema.CalendarItem;
+export type CalendarResponse = Schema.CalendarResponse;
+export type Comment = Schema.Comment;
+export type FAQItem = Schema.FAQItem;
+export type HomeResponse = Schema.HomeResponse;
+export type Lab = Schema.Lab;
+export type LabRef = Schema.LabRef;
+export type Link = Schema.Link;
+export type Note = Schema.Note;
+export type NoteResponse = Schema.NoteResponse;
+export type Page = Schema.Page;
+export type Parity = Schema.Parity;
+export type Participant = Schema.Participant;
+export type Post = Schema.Post;
+export type PostInput = Schema.PostInput;
+export type PracticeListResponse = Schema.PracticeListResponse;
+export type PracticeSession = Schema.PracticeSession;
+export type PracticeSessionView = Schema.PracticeSessionView;
+export type PublicUser = Schema.PublicUser;
+export type Quiz = Schema.Quiz;
+export type QuizOption = Schema.QuizOption;
+export type QuizQuestion = Schema.QuizQuestion;
+export type QuizSummary = Schema.QuizSummary;
+export type SearchResult = Schema.SearchResult;
+export type Settings = Schema.Settings;
+export type SettingsResponse = Schema.SettingsResponse;
+export type Status = Schema.Status;
+export type Subject = Schema.Subject;
+export type SubjectColor = Schema.SubjectColor;
+export type SubjectRef = Schema.SubjectRef;
+export type SubjectResponse = Schema.SubjectResponse;
+export type SubjectWithCounts = Schema.SubjectWithCounts;
+export type Week = Schema.Week;
 
 // Mirrors the JSON shapes produced by apps/api (Go). Keep in sync with
 // apps/api/internal/models and apps/api/internal/store.

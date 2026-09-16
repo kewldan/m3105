@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "codegen": "openapi-typescript ../api/internal/api/openapi.yaml -o lib/api/schema.d.ts && biome format --write lib/api/schema.d.ts"
+    "codegen": "bun ../../scripts/openapi-types.ts && biome format --write lib/api/schema.d.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -49,7 +49,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "^1.0.0",
-    "openapi-typescript": "6",
     "tailwindcss": "^4",
     "typescript": "^7"
   }

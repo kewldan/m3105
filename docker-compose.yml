@@ -100,6 +100,32 @@ services:
     networks:
       - backends
 
+  # Ежедневный бэкап: pg_dump + конфиги одним архивом в Telegram админу (deploy/backup).
+  backup:
+    build: ./deploy/backup
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB:-edu}
+      PGUSER: ${POSTGRES_USER:-edu}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      BACKUP_CHAT_ID: ${BACKUP_CHAT_ID:-}
+      BACKUP_HOUR: ${BACKUP_HOUR:-4}
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+      DOMAIN: ${DOMAIN:-m3105.ru}
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - ./.env:/project/.env:ro
+      - ./docker-compose.yml:/project/docker-compose.yml:ro
+      - ./deploy:/project/deploy:ro
+      - backup-data:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backends
+
 networks:
   backends:
   virtual-hosts:
@@ -108,3 +134,4 @@ networks:
 volumes:
   postgres-data:
   valkey-data:
+  backup-data:

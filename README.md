@@ -68,10 +68,20 @@ docker compose up -d --build
 | --- | --- |
 | Обновить | `docker compose up -d --build` (или `--build web` / `--build api`) |
 | Логи | `make logs` |
-| Бэкап базы | `docker compose exec postgres pg_dump -U edu edu > backup.sql` |
+| Бэкап вручную | `docker compose run --rm backup once` (архив в Telegram и в томе `backup-data`) |
+| Только дамп базы | `docker compose exec postgres pg_dump -U edu edu > backup.sql` |
 
 > [!IMPORTANT]
 > Данные лежат в томах `postgres-data` и `valkey-data`. Не удаляйте их вместе со стеком (`docker compose down -v`), если не хотите потерять контент.
+
+### 💾 Ежедневные бэкапы
+
+Сервис `backup` (`deploy/backup/`) раз в сутки в `BACKUP_HOUR` по `TZ` делает `pg_dump` всей базы, кладёт рядом `.env`, `docker-compose.yml` и `deploy/`, собирает `edu3105-<дата>.tar.gz` и отправляет его документом в Telegram на `BACKUP_CHAT_ID`. Последние `BACKUP_KEEP` архивов остаются на сервере в томе `backup-data`, так что бэкап есть даже если Telegram недоступен. Если архив не влезает в лимит Bot API (50 МБ), вместо файла приходит предупреждение с путём на сервере.
+
+Внутри архива лежит `MANIFEST.txt` с порядком восстановления: распаковать, вернуть `config/.env` и `config/docker-compose.yml` в каталог проекта на сервере, поднять `postgres`, залить `db.sql` через `psql` и пересобрать стек.
+
+> [!CAUTION]
+> В архив входит `.env` с паролем админки, токеном бота и паролем Postgres. Он уходит в личный чат с ботом — не пересылайте его в группы.
 
 ## 🔐 Аккаунты студентов
 

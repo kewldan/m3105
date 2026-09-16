@@ -646,7 +646,14 @@ const students: [string, string[], Record<number, number[]>][] = [
 for (const [name, done, signups] of students) {
   cookie = "";
   try {
-    await call("POST", "/auth/dev-login", { name });
+    const me = await call<{ user: { id: number } }>("POST", "/auth/dev-login", {
+      name,
+    });
+    // Новый аккаунт ждёт подтверждения админом, без него отметки и записи под запретом.
+    const studentCookie = cookie;
+    cookie = adminCookie;
+    await call("PUT", `/admin/users/${me.user.id}`, { approved: true });
+    cookie = studentCookie;
   } catch {
     console.log("  dev-login недоступен, студенты пропущены");
     break;

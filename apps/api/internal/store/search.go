@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/kewldan/edu3105/apps/api/internal/search"
 )
@@ -87,4 +89,64 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchRe
 		ts_headline('russian', ` + mdxText("top.body") + `, q.tsq, '` + headlineOpts + `') AS snippet
 	FROM top, q ORDER BY top.rank DESC, top.title`
 	return many[SearchResult](ctx, s.db, q, tsq, query, limit)
+}
+
+// SearchStat is one aggregated query in the admin analytics.
+type SearchStat struct {
+	Query string `db:"query" json:"query"`
+	// Count — сколько раз искали, Empty — сколько раз без результатов.
+	Count   int       `db:"count" json:"count"`
+	Empty   int       `db:"empty" json:"empty"`
+	Results int       `db:"results" json:"results"`
+	LastAt  time.Time `db:"last_at" json:"lastAt"`
+}
+
+const maxLoggedQueryLen = 100
+
+// LogSearch records a query for the admin analytics. Слишком длинные запросы
+// не пишем: это не поиск, а мусор.
+func (s *Store) LogSearch(ctx context.Context, query string, results int) error {
+	query = strings.TrimSpace(query)
+	if query == "" || utf8.RuneCountInString(query) > maxLoggedQueryLen {
+		return nil
+	}
+	_, err := s.db.Exec(ctx, `INSERT INTO search_queries (query, results) VALUES ($1, $2)`, query, results)
+	return wrap(err)
+}
+
+// SearchStats aggregates queries for the last `days` days.
+//
+// Поиск срабатывает на каждую букву, поэтому «пре», «пред» и «предел» попадают
+// в таблицу все три раза. Показываем только те запросы, на которых человек
+// остановился: запрос отбрасывается, если через минуту после него из того же
+// набора есть более длинный запрос, начинающийся с него.
+func (s *Store) SearchStats(ctx context.Context, days, limit int) ([]SearchStat, error) {
+	if days <= 0 || days > 365 {
+		days = 30
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	return many[SearchStat](ctx, s.db, `
+		WITH settled AS (
+			SELECT s.query, s.results, s.created_at
+			FROM search_queries s
+			WHERE s.created_at >= now() - make_interval(days => $1)
+				AND NOT EXISTS (
+					SELECT 1 FROM search_queries s2
+					WHERE s2.created_at >= s.created_at
+						AND s2.created_at < s.created_at + interval '1 minute'
+						AND s2.query <> s.query
+						AND s2.query LIKE s.query || '%'
+				)
+		)
+		SELECT query,
+			count(*)::int AS count,
+			count(*) FILTER (WHERE results = 0)::int AS empty,
+			(array_agg(results ORDER BY created_at DESC))[1] AS results,
+			max(created_at) AS last_at
+		FROM settled
+		GROUP BY query
+		ORDER BY count(*) DESC, max(created_at) DESC
+		LIMIT $2`, days, limit)
 }

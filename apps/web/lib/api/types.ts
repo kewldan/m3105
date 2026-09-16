@@ -279,3 +279,15 @@ export type PostKind = "shawarma" | "joke";
 export type PostVisibility = "public" | "members";
 
 export type PostSort = "new" | "top";
+
+/** Агрегированный поисковый запрос для админской аналитики. */
+export type SearchStat = {
+  query: string;
+  /** Сколько раз искали за период. */
+  count: number;
+  /** Из них — сколько раз выдача была пустой. */
+  empty: number;
+  /** Сколько нашлось в последний раз. */
+  results: number;
+  lastAt: string;
+};

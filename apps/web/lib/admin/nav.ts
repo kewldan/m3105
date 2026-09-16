@@ -11,6 +11,7 @@ import {
   MessageCircleIcon,
   NewspaperIcon,
   NotebookPenIcon,
+  SearchIcon,
   SettingsIcon,
   UsersIcon,
 } from "lucide-react";
@@ -39,6 +40,7 @@ export const ADMIN_NAV: NavItem[] = [
   { title: "Студенты", href: "/admin/users", icon: UsersIcon },
   { title: "Посты", href: "/admin/posts", icon: NewspaperIcon },
   { title: "Комментарии", href: "/admin/comments", icon: MessageCircleIcon },
+  { title: "Поиск", href: "/admin/search", icon: SearchIcon },
   { title: "Настройки", href: "/admin/settings", icon: SettingsIcon },
 ];
 

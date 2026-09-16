@@ -149,6 +149,7 @@ func (h *Handler) mountAdmin(r chi.Router) {
 	r.Put("/users/{id}", h.adminUpdateUser)
 	r.Delete("/users/{id}", h.adminDeleteUser)
 	r.Get("/comments", h.adminListComments)
+	r.Get("/search-queries", h.adminSearchStats)
 	r.Delete("/comments/{id}", h.adminDeleteComment)
 	r.Get("/posts", h.adminListPosts)
 	r.Put("/posts/{id}", h.adminUpdatePost)

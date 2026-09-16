@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -340,10 +342,24 @@ func (h *Handler) getQuiz(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	items, err := h.store.Search(r.Context(), r.URL.Query().Get("q"), limit)
+	query := r.URL.Query().Get("q")
+	items, err := h.store.Search(r.Context(), query, limit)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
+	h.logSearch(query, len(items))
 	httpx.JSON(w, http.StatusOK, items)
+}
+
+// logSearch пишет запрос в аналитику в фоне: поиск не должен ждать вставку,
+// а её падение не должно ломать выдачу.
+func (h *Handler) logSearch(query string, results int) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := h.store.LogSearch(ctx, query, results); err != nil {
+			slog.Warn("log search", "err", err)
+		}
+	}()
 }

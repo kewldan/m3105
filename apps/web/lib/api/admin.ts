@@ -26,6 +26,7 @@ import type {
   QuizInput,
   QuizQuestion,
   QuizSummary,
+  SearchStat,
   Settings,
   Subject,
   SubjectInput,
@@ -73,6 +74,9 @@ export const adminApi = {
     remove: (id: number) =>
       apiClient<{ ok: true }>(`/admin/users/${id}`, { method: "DELETE" }),
   },
+  /** Что студенты искали и что не нашли за последние `days` дней. */
+  searchQueries: (days = 30) =>
+    apiClient<SearchStat[]>(`/admin/search-queries?days=${days}`),
   comments: {
     list: () => apiClient<AdminComment[]>("/admin/comments"),
     remove: (id: number) =>

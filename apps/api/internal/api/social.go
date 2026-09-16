@@ -369,3 +369,15 @@ func (h *Handler) adminDeletePost(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
+
+// adminSearchStats returns what students search for and what they fail to find.
+func (h *Handler) adminSearchStats(w http.ResponseWriter, r *http.Request) {
+	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	items, err := h.store.SearchStats(r.Context(), days, limit)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}

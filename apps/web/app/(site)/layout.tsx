@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { JsonLd } from "@/components/site/json-ld";
+import { ServiceWorker } from "@/components/site/service-worker";
 import { SiteShell } from "@/components/site/site-shell";
 import { DEFAULT_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 
@@ -18,6 +19,7 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
         }}
       />
       {children}
+      <ServiceWorker />
     </SiteShell>
   );
 }

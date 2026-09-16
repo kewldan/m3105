@@ -90,6 +90,8 @@ export async function generateMetadata(): Promise<Metadata> {
       images,
     },
     icons: { icon: "/icon.svg", apple: "/icon.svg" },
+    // Домой на iOS: запуск без адресной строки и с нормальным заголовком.
+    appleWebApp: { capable: true, title: siteTitle, statusBarStyle: "default" },
     formatDetection: { telephone: false, email: false, address: false },
   };
 }

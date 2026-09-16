@@ -416,6 +416,8 @@ paths:
         Пользовательские посты одной ленты. `POST /posts` с `PostInput` создаёт пост от имени студента,
         `PUT`/`DELETE /posts/{id}` меняют и удаляют свой пост, `PUT`/`DELETE /posts/{id}/like` ставят и снимают лайк.
         Поля `liked` и `mine` считаются для студента, если передана кука `edu_user`.
+        Без куки отдаются только посты с `visibility: public`: `members` видят лишь вошедшие студенты,
+        и посты с `nsfw: true` всегда `members`. Комментарии к скрытому посту анонимам тоже недоступны (404).
       operationId: listPosts
       parameters:
         - name: kind
@@ -941,6 +943,8 @@ components:
         address: { type: string }
         price: { type: [integer, "null"], description: Цена в рублях }
         rating: { type: [integer, "null"], minimum: 1, maximum: 5 }
+        visibility: { type: string, enum: [public, members], description: "`members` — только для вошедших студентов" }
+        nsfw: { type: boolean, description: Пометка 18+; сайт размывает текст до подтверждения возраста }
         createdAt: { $ref: "#/components/schemas/DateTime" }
         updatedAt: { $ref: "#/components/schemas/DateTime" }
         authorId: { type: integer }
@@ -950,7 +954,7 @@ components:
         commentsCount: { type: integer }
         liked: { type: boolean }
         mine: { type: boolean }
-      required: [id, kind, title, body, address, price, rating, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, likesCount, commentsCount, liked, mine]
+      required: [id, kind, title, body, address, price, rating, visibility, nsfw, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, likesCount, commentsCount, liked, mine]
 
     PostInput:
       type: object
@@ -961,4 +965,6 @@ components:
         address: { type: string, maxLength: 200 }
         price: { type: [integer, "null"] }
         rating: { type: [integer, "null"], minimum: 1, maximum: 5, description: Обязательна для шавермы }
+        visibility: { type: string, enum: [public, members], default: public }
+        nsfw: { type: boolean, default: false, description: При true видимость принудительно становится members }
       required: [kind, body]

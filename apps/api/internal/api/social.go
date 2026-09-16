@@ -67,6 +67,20 @@ func (h *Handler) commentTarget(w http.ResponseWriter, r *http.Request) (models.
 		httpx.Fail(w, httpx.ErrNotFound)
 		return "", 0, false
 	}
+	// Комментарии к посту «только для своих» не видны анонимам, как и сам пост.
+	if target == models.TargetPost {
+		if viewer, _ := userauth.UserID(r.Context()); viewer == 0 {
+			visibility, err := h.store.PostVisibility(r.Context(), id)
+			if err != nil {
+				httpx.Fail(w, err)
+				return "", 0, false
+			}
+			if visibility != models.VisiblePublic {
+				httpx.Fail(w, httpx.ErrNotFound)
+				return "", 0, false
+			}
+		}
+	}
 	return target, id, true
 }
 
@@ -167,6 +181,8 @@ func (h *Handler) listPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	viewer, _ := userauth.UserID(r.Context())
+	// Посты «только для своих» видит лишь вошедший студент.
+	f.IncludeMembers = viewer != 0
 	items, err := h.store.ListPosts(r.Context(), viewer, f)
 	if err != nil {
 		httpx.Fail(w, err)
@@ -318,6 +334,7 @@ func (h *Handler) adminListPosts(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, &httpx.ValidationError{Fields: map[string]string{"kind": "Неизвестный тип поста"}})
 		return
 	}
+	f.IncludeMembers = true
 	items, err := h.store.ListPosts(r.Context(), 0, f)
 	if err != nil {
 		httpx.Fail(w, err)

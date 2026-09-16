@@ -453,6 +453,27 @@ func TestStudentAccounts(t *testing.T) {
 	if joke["rating"] != nil || joke["mine"] != true {
 		t.Fatalf("joke should drop rating and be mine: %v", joke)
 	}
+
+	// 18+ и «только для своих»: nsfw принудительно делает пост members-only,
+	// анонимам не видны ни он сам, ни его комментарии, админ видит всё.
+	nsfw := u.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Очень непристойный анекдот", "nsfw": true}, 201)
+	nsfwID := int64(nsfw["id"].(float64))
+	if nsfw["nsfw"] != true || nsfw["visibility"] != "members" {
+		t.Fatalf("nsfw post must be members-only: %v", nsfw)
+	}
+	u.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Секрет", "visibility": "secret"}, 422)
+	if feed := anon.list("/api/v1/posts?kind=joke", 200); len(feed) != 1 || feed[0]["id"] == nsfw["id"] {
+		t.Fatalf("anonymous must not see members-only jokes: %v", feed)
+	}
+	if feed := other.list("/api/v1/posts?kind=joke", 200); len(feed) != 2 {
+		t.Fatalf("signed-in student must see members-only jokes: %v", feed)
+	}
+	anon.do("GET", fmt.Sprintf("/api/v1/comments/post/%d", nsfwID), nil, 404)
+	other.do("GET", fmt.Sprintf("/api/v1/comments/post/%d", nsfwID), nil, 200)
+	if all := admin.list("/api/v1/admin/posts?kind=joke", 200); len(all) != 2 {
+		t.Fatalf("admin must see every joke: %v", all)
+	}
+	u.do("DELETE", fmt.Sprintf("/api/v1/posts/%d", nsfwID), nil, 200)
 	anon.do("GET", "/api/v1/posts", nil, 422)
 	if feed := anon.list("/api/v1/posts?kind=shawarma", 200); len(feed) != 1 || feed[0]["likesCount"] != 0.0 || feed[0]["mine"] != false {
 		t.Fatalf("shawarma feed wrong: %v", feed)

@@ -89,7 +89,7 @@ func (s *Store) ListRecentComments(ctx context.Context, limit int) ([]models.Adm
 // ---- posts ----
 
 // postCols needs $1 = viewer id (0 for anonymous) to compute "liked".
-const postCols = `p.id, p.kind, p.title, p.body, p.address, p.price, p.rating, p.created_at, p.updated_at,
+const postCols = `p.id, p.kind, p.title, p.body, p.address, p.price, p.rating, p.visibility, p.nsfw, p.created_at, p.updated_at,
 	u.id AS author_id, ` + userNameExpr + ` AS author_name, u.photo_url AS author_photo_url,
 	(SELECT count(*) FROM post_likes pl WHERE pl.post_id = p.id)::int AS likes_count,
 	(SELECT count(*) FROM comments c WHERE c.target_type = 'post' AND c.target_id = p.id)::int AS comments_count,
@@ -101,12 +101,17 @@ const postFrom = ` FROM posts p JOIN users u ON u.id = p.user_id`
 type PostFilter struct {
 	Kind models.PostKind // empty = all kinds (admin)
 	Top  bool            // order by likes instead of recency
+	// IncludeMembers adds posts marked "members" (signed-in viewer or admin).
+	IncludeMembers bool
 }
 
 // ListPosts returns posts for the viewer (0 = anonymous).
 func (s *Store) ListPosts(ctx context.Context, viewerID int64, f PostFilter) ([]models.Post, error) {
 	q := `SELECT ` + postCols + postFrom + ` WHERE 1=1`
 	args := []any{viewerID}
+	if !f.IncludeMembers {
+		q += ` AND p.visibility = 'public'`
+	}
 	if f.Kind != "" {
 		args = append(args, f.Kind)
 		q += ` AND p.kind = $` + itoa(len(args))
@@ -127,8 +132,9 @@ func (s *Store) GetPost(ctx context.Context, viewerID, id int64) (models.Post, e
 // CreatePost inserts a post by the user.
 func (s *Store) CreatePost(ctx context.Context, userID int64, in *models.PostInput) (models.Post, error) {
 	var id int64
-	err := s.db.QueryRow(ctx, `INSERT INTO posts (kind, user_id, title, body, address, price, rating)
-		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, in.Kind, userID, in.Title, in.Body, in.Address, in.Price, in.Rating).Scan(&id)
+	err := s.db.QueryRow(ctx, `INSERT INTO posts (kind, user_id, title, body, address, price, rating, visibility, nsfw)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+		in.Kind, userID, in.Title, in.Body, in.Address, in.Price, in.Rating, in.Visibility, in.NSFW).Scan(&id)
 	if err != nil {
 		return models.Post{}, wrap(err)
 	}
@@ -137,8 +143,9 @@ func (s *Store) CreatePost(ctx context.Context, userID int64, in *models.PostInp
 
 // UpdatePost rewrites the editable fields; the kind never changes.
 func (s *Store) UpdatePost(ctx context.Context, viewerID, id int64, in *models.PostInput) (models.Post, error) {
-	if err := s.exec(ctx, `UPDATE posts SET title = $2, body = $3, address = $4, price = $5, rating = $6, updated_at = now()
-		WHERE id = $1`, id, in.Title, in.Body, in.Address, in.Price, in.Rating); err != nil {
+	if err := s.exec(ctx, `UPDATE posts SET title = $2, body = $3, address = $4, price = $5, rating = $6,
+		visibility = $7, nsfw = $8, updated_at = now() WHERE id = $1`,
+		id, in.Title, in.Body, in.Address, in.Price, in.Rating, in.Visibility, in.NSFW); err != nil {
 		return models.Post{}, err
 	}
 	return s.GetPost(ctx, viewerID, id)
@@ -164,6 +171,16 @@ func (s *Store) SetLike(ctx context.Context, postID, userID int64, on bool) erro
 		return wrap(err)
 	}
 	return nil
+}
+
+// PostVisibility returns who may see the post; ErrNotFound when it is gone.
+func (s *Store) PostVisibility(ctx context.Context, id int64) (models.PostVisibility, error) {
+	var v models.PostVisibility
+	err := s.db.QueryRow(ctx, `SELECT visibility FROM posts WHERE id = $1`, id).Scan(&v)
+	if err != nil {
+		return "", wrap(err)
+	}
+	return v, nil
 }
 
 // PostExists reports whether a post exists.

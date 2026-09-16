@@ -83,6 +83,27 @@ const (
 	PostJoke     PostKind = "joke"
 )
 
+// PostVisibility decides who sees the post.
+type PostVisibility string
+
+const (
+	// VisiblePublic is visible to everyone, including anonymous visitors.
+	VisiblePublic PostVisibility = "public"
+	// VisibleMembers is visible only to signed-in students.
+	VisibleMembers PostVisibility = "members"
+)
+
+// ParsePostVisibility validates a visibility from a body; empty means public.
+func ParsePostVisibility(raw string) (PostVisibility, bool) {
+	switch PostVisibility(raw) {
+	case "":
+		return VisiblePublic, true
+	case VisiblePublic, VisibleMembers:
+		return PostVisibility(raw), true
+	}
+	return "", false
+}
+
 // ParsePostKind validates a kind from a query or body.
 func ParsePostKind(raw string) (PostKind, bool) {
 	switch PostKind(raw) {
@@ -94,15 +115,19 @@ func ParsePostKind(raw string) (PostKind, bool) {
 
 // Post is a user-submitted entry in one of the feeds.
 type Post struct {
-	ID        int64     `db:"id" json:"id"`
-	Kind      PostKind  `db:"kind" json:"kind"`
-	Title     string    `db:"title" json:"title"`
-	Body      string    `db:"body" json:"body"`
-	Address   string    `db:"address" json:"address"`
-	Price     *int      `db:"price" json:"price"`
-	Rating    *int      `db:"rating" json:"rating"`
-	CreatedAt time.Time `db:"created_at" json:"createdAt"`
-	UpdatedAt time.Time `db:"updated_at" json:"updatedAt"`
+	ID      int64    `db:"id" json:"id"`
+	Kind    PostKind `db:"kind" json:"kind"`
+	Title   string   `db:"title" json:"title"`
+	Body    string   `db:"body" json:"body"`
+	Address string   `db:"address" json:"address"`
+	Price   *int     `db:"price" json:"price"`
+	Rating  *int     `db:"rating" json:"rating"`
+	// Visibility "members" hides the post from anonymous visitors; NSFW marks
+	// it 18+ so the site blurs it until the reader confirms their age.
+	Visibility PostVisibility `db:"visibility" json:"visibility"`
+	NSFW       bool           `db:"nsfw" json:"nsfw"`
+	CreatedAt  time.Time      `db:"created_at" json:"createdAt"`
+	UpdatedAt  time.Time      `db:"updated_at" json:"updatedAt"`
 
 	AuthorID       int64  `db:"author_id" json:"authorId"`
 	AuthorName     string `db:"author_name" json:"authorName"`
@@ -116,12 +141,14 @@ type Post struct {
 
 // PostInput is the create/update payload for students and admins.
 type PostInput struct {
-	Kind    PostKind `json:"kind"`
-	Title   string   `json:"title"`
-	Body    string   `json:"body"`
-	Address string   `json:"address"`
-	Price   *int     `json:"price"`
-	Rating  *int     `json:"rating"`
+	Kind       PostKind       `json:"kind"`
+	Title      string         `json:"title"`
+	Body       string         `json:"body"`
+	Address    string         `json:"address"`
+	Price      *int           `json:"price"`
+	Rating     *int           `json:"rating"`
+	Visibility PostVisibility `json:"visibility"`
+	NSFW       bool           `json:"nsfw"`
 }
 
 const (
@@ -141,6 +168,16 @@ func (in *PostInput) Validate() error {
 	if _, ok := ParsePostKind(string(in.Kind)); !ok {
 		ve.Add("kind", "Неизвестный тип поста")
 		return ve
+	}
+	visibility, ok := ParsePostVisibility(string(in.Visibility))
+	if !ok {
+		ve.Add("visibility", "Неизвестная видимость")
+		return ve
+	}
+	in.Visibility = visibility
+	// 18+ смотрят только вошедшие: NSFW всегда «для своих».
+	if in.NSFW {
+		in.Visibility = VisibleMembers
 	}
 	if utf8.RuneCountInString(in.Title) > maxPostTitleLen {
 		ve.Add("title", "Не больше 120 символов")

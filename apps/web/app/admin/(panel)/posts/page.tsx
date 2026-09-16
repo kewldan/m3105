@@ -1,6 +1,11 @@
 "use client";
 
-import { ExternalLinkIcon, HeartIcon, MessageCircleIcon } from "lucide-react";
+import {
+  ExternalLinkIcon,
+  HeartIcon,
+  LockIcon,
+  MessageCircleIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -11,6 +16,7 @@ import { RowActions } from "@/components/admin/row-actions";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { PostDialog } from "@/components/site/social/post-dialog";
 import { RatingStars } from "@/components/site/social/rating-stars";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { handleApiError } from "@/lib/admin/errors";
 import { useQuery } from "@/lib/admin/use-query";
@@ -92,6 +98,21 @@ export default function PostsPage() {
       header: "Содержимое",
       cell: (r) => (
         <div className="max-w-xl space-y-1">
+          {r.nsfw || r.visibility === "members" ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {r.nsfw ? (
+                <Badge variant="destructive" className="text-[11px]">
+                  18+
+                </Badge>
+              ) : null}
+              {r.visibility === "members" ? (
+                <Badge variant="secondary" className="gap-1 text-[11px]">
+                  <LockIcon className="size-3" aria-hidden />
+                  Только для своих
+                </Badge>
+              ) : null}
+            </div>
+          ) : null}
           {r.title ? <div className="font-medium">{r.title}</div> : null}
           {r.kind === "shawarma" ? (
             <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">

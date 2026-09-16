@@ -84,8 +84,8 @@
 | GET | `/comments/{target}/{id}` | комментарии к `note`, `lab` или `post` (публично); `mine` для своих |
 | POST | `/comments/{target}/{id}` | `{ body }` — до 2000 символов; конспект или лаба должны быть опубликованы |
 | DELETE | `/comments/{id}` | только свой комментарий, иначе 403 |
-| GET | `/posts?kind=shawarma\|joke&sort=new\|top` | лента постов (публично); `liked` и `mine` для вошедших |
-| POST | `/posts` | `{ kind, title, body, address, price, rating }` — для `shawarma` нужны название точки и оценка 1–5, у `joke` только текст |
+| GET | `/posts?kind=shawarma\|joke&sort=new\|top` | лента постов (публично); `liked` и `mine` для вошедших. Без куки отдаются только `visibility: public` |
+| POST | `/posts` | `{ kind, title, body, address, price, rating, visibility, nsfw }` — для `shawarma` нужны название точки и оценка 1–5, у `joke` только текст. `visibility: members` прячет пост от невошедших, `nsfw: true` ставит пометку 18+ и принудительно делает пост `members` |
 | PUT / DELETE | `/posts/{id}` | свой пост; `kind` не меняется |
 | PUT / DELETE | `/posts/{id}/like` | поставить или снять лайк, ответ — обновлённый пост |
 

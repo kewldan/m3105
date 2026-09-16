@@ -19,7 +19,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
 import type { Post, PostInput, PostKind } from "@/lib/api/types";
@@ -34,6 +36,8 @@ const schema = z.object({
   address: z.string().trim().max(200, "Не больше 200 символов"),
   price: z.string().regex(/^\d*$/, "Только число"),
   rating: z.number().int().min(1).max(5).nullable(),
+  members: z.boolean(),
+  nsfw: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -44,6 +48,8 @@ const EMPTY: FormValues = {
   address: "",
   price: "",
   rating: null,
+  members: false,
+  nsfw: false,
 };
 
 const COPY: Record<
@@ -108,6 +114,8 @@ export function PostDialog({
             address: post.address,
             price: post.price == null ? "" : String(post.price),
             rating: post.rating,
+            members: post.visibility === "members",
+            nsfw: post.nsfw,
           }
         : EMPTY,
     );
@@ -137,6 +145,9 @@ export function PostDialog({
           ? Number(values.price)
           : null,
       rating: kind === "shawarma" ? values.rating : null,
+      // 18+ сервер всё равно сделает «только для своих», ставим это и здесь.
+      visibility: values.members || values.nsfw ? "members" : "public",
+      nsfw: values.nsfw,
     };
     try {
       const saved = await onSave(input);
@@ -268,6 +279,63 @@ export function PostDialog({
                 {...form.register("body")}
                 aria-invalid={!!errors.body || undefined}
               />
+            </FormField>
+            <FormField
+              label="Кто увидит"
+              description="Пометка 18+ автоматически прячет пост от посторонних."
+            >
+              <div className="space-y-3">
+                <Controller
+                  control={form.control}
+                  name="nsfw"
+                  render={({ field }) => (
+                    <div className="flex items-start gap-2.5">
+                      <Switch
+                        id="post-nsfw"
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked) form.setValue("members", true);
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="space-y-0.5">
+                        <Label htmlFor="post-nsfw" className="font-normal">
+                          18+ / NSFW
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Текст размывается, пока читатель не подтвердит
+                          возраст.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                />
+                <Controller
+                  control={form.control}
+                  name="members"
+                  render={({ field }) => (
+                    <div className="flex items-start gap-2.5">
+                      <Switch
+                        id="post-members"
+                        checked={field.value}
+                        disabled={form.watch("nsfw")}
+                        onCheckedChange={field.onChange}
+                        className="mt-0.5"
+                      />
+                      <div className="space-y-0.5">
+                        <Label htmlFor="post-members" className="font-normal">
+                          Только для своих
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Видно только тем, кто вошёл через Telegram. Для 18+
+                          включено всегда.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                />
+              </div>
             </FormField>
           </div>
           <DialogFooter className="m-0 rounded-none">

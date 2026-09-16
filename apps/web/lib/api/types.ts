@@ -526,6 +526,9 @@ export type AdminComment = Comment & {
 
 export type PostKind = "shawarma" | "joke";
 
+/** `members` — пост видят только вошедшие через Telegram студенты. */
+export type PostVisibility = "public" | "members";
+
 export type Post = {
   id: number;
   kind: PostKind;
@@ -534,6 +537,8 @@ export type Post = {
   address: string;
   price: number | null;
   rating: number | null;
+  visibility: PostVisibility;
+  nsfw: boolean;
   createdAt: string;
   updatedAt: string;
   authorId: number;
@@ -552,6 +557,9 @@ export type PostInput = {
   address: string;
   price: number | null;
   rating: number | null;
+  visibility: PostVisibility;
+  /** При true сервер сам ставит visibility: members. */
+  nsfw: boolean;
 };
 
 export type PostSort = "new" | "top";

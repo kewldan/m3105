@@ -2,6 +2,7 @@
 
 import {
   HeartIcon,
+  LockIcon,
   MapPinIcon,
   MessageCircleIcon,
   PencilIcon,
@@ -14,9 +15,11 @@ import {
   CommentsSection,
   socialErrorMessage,
 } from "@/components/site/social/comments-section";
+import { confirmAge, useAgeConfirmed } from "@/components/site/social/nsfw";
 import { RatingStars } from "@/components/site/social/rating-stars";
 import { UserAvatar } from "@/components/site/user-avatar";
 import { useUser } from "@/components/site/user-provider";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Post } from "@/lib/api/types";
 import { userApi } from "@/lib/api/user";
@@ -36,8 +39,11 @@ export function PostCard({
   onDelete: () => void;
 }) {
   const { me } = useUser();
+  const ageConfirmed = useAgeConfirmed();
   const [open, setOpen] = useState(false);
   const [liking, setLiking] = useState(false);
+  // 18+ размывается, пока читатель не подтвердил возраст.
+  const blurred = post.nsfw && !ageConfirmed;
 
   const toggleLike = async () => {
     if (!me) {
@@ -68,6 +74,25 @@ export function PostCard({
 
   const isShawarma = post.kind === "shawarma";
 
+  const content = (
+    <>
+      {post.title ? (
+        <h3 className="font-heading text-lg font-semibold tracking-tight text-balance break-words">
+          {post.title}
+        </h3>
+      ) : null}
+      {isShawarma && post.address ? (
+        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <MapPinIcon className="size-3.5 shrink-0" aria-hidden />
+          <span className="break-words">{post.address}</span>
+        </p>
+      ) : null}
+      <p className="break-words whitespace-pre-wrap text-[15px] leading-relaxed">
+        {post.body}
+      </p>
+    </>
+  );
+
   return (
     <article
       id={`post-${post.id}`}
@@ -89,6 +114,17 @@ export function PostCard({
               {fmtRelative(post.createdAt)}
               {post.updatedAt !== post.createdAt ? " · изменено" : ""}
             </span>
+            {post.nsfw ? (
+              <Badge variant="destructive" className="text-[11px]">
+                18+
+              </Badge>
+            ) : null}
+            {post.visibility === "members" ? (
+              <Badge variant="secondary" className="gap-1 text-[11px]">
+                <LockIcon className="size-3" aria-hidden />
+                Только для своих
+              </Badge>
+            ) : null}
           </div>
           {isShawarma ? (
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -124,21 +160,29 @@ export function PostCard({
         ) : null}
       </header>
 
-      <div className="mt-3 space-y-2">
-        {post.title ? (
-          <h3 className="font-heading text-lg font-semibold tracking-tight text-balance break-words">
-            {post.title}
-          </h3>
-        ) : null}
-        {isShawarma && post.address ? (
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <MapPinIcon className="size-3.5 shrink-0" aria-hidden />
-            <span className="break-words">{post.address}</span>
-          </p>
-        ) : null}
-        <p className="break-words whitespace-pre-wrap text-[15px] leading-relaxed">
-          {post.body}
-        </p>
+      <div className="mt-3">
+        {blurred ? (
+          <div className="relative overflow-hidden rounded-xl border border-dashed">
+            <div
+              aria-hidden
+              className="pointer-events-none space-y-2 p-4 blur-[7px] select-none"
+            >
+              {content}
+            </div>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/50 p-4 text-center">
+              <p className="text-sm font-medium">🔞 Тут непристойно</p>
+              <p className="max-w-xs text-xs text-muted-foreground">
+                Анекдот с пометкой 18+. Откроется, когда подтвердите возраст —
+                на слово верим.
+              </p>
+              <Button size="sm" onClick={confirmAge}>
+                Мне есть 18
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">{content}</div>
+        )}
       </div>
 
       <footer className="mt-3 flex items-center gap-1 border-t pt-3">
@@ -174,7 +218,7 @@ export function PostCard({
         </Button>
       </footer>
 
-      {open ? (
+      {open && !blurred ? (
         <div className="mt-3 border-t pt-4">
           <CommentsSection
             target="post"

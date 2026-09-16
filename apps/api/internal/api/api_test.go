@@ -278,6 +278,22 @@ func TestEndToEnd(t *testing.T) {
 	if len(hits) != 1 || hits[0]["kind"] != "lab" {
 		t.Fatalf("unexpected search hits: %v", hits)
 	}
+	// Полнотекстовый поиск: словоформы, префикс последнего слова, опечатки через триграммы.
+	if byForm := pub.list("/api/v1/search?q=лабораторные", 200); len(byForm) == 0 {
+		t.Fatalf("search must match other word forms: %v", byForm)
+	}
+	if byPrefix := pub.list("/api/v1/search?q=лаборат", 200); len(byPrefix) == 0 {
+		t.Fatalf("search must match by prefix: %v", byPrefix)
+	}
+	if byTypo := pub.list("/api/v1/search?q=лабороторная", 200); len(byTypo) == 0 {
+		t.Fatalf("search must survive a typo: %v", byTypo)
+	}
+	if noWords := pub.list("/api/v1/search?q=%21%21%21", 200); len(noWords) != 0 {
+		t.Fatalf("punctuation-only query must find nothing: %v", noWords)
+	}
+	if _, ok := hits[0]["snippet"].(string); !ok {
+		t.Fatalf("search result must carry a snippet: %v", hits[0])
+	}
 
 	// Update + delete flows.
 	lab["title"] = "Лабораторная №1 (обновлено)"

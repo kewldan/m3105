@@ -310,6 +310,8 @@ export type SearchResult = {
   title: string;
   subtitle: string;
   path: string;
+  /** Фрагмент текста с совпадениями в `<mark>`; бывает пустым. */
+  snippet: string;
 };
 
 // ---- aggregated responses ----

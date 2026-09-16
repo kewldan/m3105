@@ -4,6 +4,7 @@ import { ItmoLogo } from "@/components/site/itmo-logo";
 import { MobileNav } from "@/components/site/mobile-nav";
 import { type NavLink, PRIMARY_LINKS } from "@/components/site/nav-config";
 import { NavLinks } from "@/components/site/nav-links";
+import { SearchDialog } from "@/components/site/search-dialog";
 import { UserMenu } from "@/components/site/user-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { SettingsResponse } from "@/lib/api/types";
@@ -35,6 +36,7 @@ export function SiteHeader({ site }: { site: SettingsResponse }) {
           className="ml-4 hidden lg:flex"
         />
         <div className="ml-auto flex items-center gap-1.5">
+          <SearchDialog />
           <ThemeToggle />
           <UserMenu className="ml-0.5" />
         </div>

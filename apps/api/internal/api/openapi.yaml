@@ -320,7 +320,11 @@ paths:
     get:
       tags: [search]
       summary: Поиск по опубликованному
-      description: Ищет по лабам, конспектам, квизам, ЧаВо, страницам и предметам. Пустой запрос даёт пустой список.
+      description: |
+        Полнотекстовый поиск по лабам, конспектам, квизам, ЧаВо, страницам и предметам.
+        Русский словарь с учётом словоформ, последнее слово ищется по префиксу (поиск по мере набора),
+        опечатки ловятся триграммами. Результаты отсортированы по релевантности: совпадение в заголовке
+        весит больше, чем в тексте. Пустой запрос и запрос без букв и цифр дают пустой список.
       operationId: search
       parameters:
         - name: q
@@ -778,7 +782,8 @@ components:
         title: { type: string }
         subtitle: { type: string }
         path: { type: string, description: "Путь на сайте" }
-      required: [kind, title, subtitle, path]
+        snippet: { type: string, description: "Фрагмент текста, совпадения обёрнуты в <mark>; может быть пустым" }
+      required: [kind, title, subtitle, path, snippet]
 
     SettingsResponse:
       type: object

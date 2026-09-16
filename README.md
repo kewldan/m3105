@@ -24,6 +24,290 @@ docs/       api.md, quiz-format.md
 scripts/    seed.ts — демо‑данные
 ```
 
+## 🗂 Схема базы
+
+Postgres, миграции — goose (`apps/api/internal/db/migrations`). Диаграмма собирается
+из живой схемы командой `bun scripts/erd.ts`, так что она не расходится с миграциями.
+
+<!-- erd:start -->
+
+```mermaid
+erDiagram
+    labs ||--o{ bot_announced_labs : "lab_id"
+    users ||--o{ comments : "user_id"
+    subjects ||--o{ events : "subject_id"
+    labs ||--o{ lab_completions : "lab_id"
+    users ||--o{ lab_completions : "user_id"
+    subjects ||--o{ labs : "subject_id"
+    subjects ||--o{ notes : "subject_id"
+    users ||--o{ passkeys : "user_id"
+    posts ||--o{ post_likes : "post_id"
+    users ||--o{ post_likes : "user_id"
+    users ||--o{ posts : "user_id"
+    subjects ||--o{ practice_sessions : "subject_id"
+    labs ||--o{ practice_signups : "lab_id"
+    practice_sessions ||--o{ practice_signups : "session_id"
+    users ||--o{ practice_signups : "user_id"
+    notes ||--o{ quizzes : "note_id"
+    subjects ||--o{ quizzes : "subject_id"
+    notes |o..o{ comments : "target_type=note"
+    labs |o..o{ comments : "target_type=lab"
+    posts |o..o{ comments : "target_type=post"
+    bot_chats {
+        int8 chat_id PK
+    }
+    faq_items {
+        int8 id PK
+    }
+    pages {
+        int8 id PK
+    }
+    search_queries {
+        int8 id PK
+    }
+    settings {
+        int8 id PK
+    }
+```
+
+<details>
+<summary>Та же схема с колонками</summary>
+
+```mermaid
+erDiagram
+    labs ||--o{ bot_announced_labs : "lab_id"
+    users ||--o{ comments : "user_id"
+    subjects ||--o{ events : "subject_id"
+    labs ||--o{ lab_completions : "lab_id"
+    users ||--o{ lab_completions : "user_id"
+    subjects ||--o{ labs : "subject_id"
+    subjects ||--o{ notes : "subject_id"
+    users ||--o{ passkeys : "user_id"
+    posts ||--o{ post_likes : "post_id"
+    users ||--o{ post_likes : "user_id"
+    users ||--o{ posts : "user_id"
+    subjects ||--o{ practice_sessions : "subject_id"
+    labs ||--o{ practice_signups : "lab_id"
+    practice_sessions ||--o{ practice_signups : "session_id"
+    users ||--o{ practice_signups : "user_id"
+    notes ||--o{ quizzes : "note_id"
+    subjects ||--o{ quizzes : "subject_id"
+    notes |o..o{ comments : "target_type=note"
+    labs |o..o{ comments : "target_type=lab"
+    posts |o..o{ comments : "target_type=post"
+    bot_announced_labs {
+        int8 lab_id PK
+        timestamptz announced_at
+    }
+    bot_chats {
+        int8 chat_id PK
+        int8 telegram_id
+        text first_name
+        text username
+        bool subscribed
+        text digest_sent_on
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    comments {
+        int8 id PK
+        text target_type
+        int8 target_id
+        int8 user_id FK
+        text body
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    events {
+        int8 id PK
+        text title
+        text kind
+        int8 subject_id FK "может быть пустым"
+        timestamptz starts_at
+        timestamptz ends_at "может быть пустым"
+        bool all_day
+        text location
+        text description
+        text url
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    faq_items {
+        int8 id PK
+        text question
+        text answer
+        text category
+        int4 position
+        timestamptz created_at
+        timestamptz updated_at
+        tsvector search_vector "может быть пустым"
+    }
+    lab_completions {
+        int8 user_id PK
+        int8 lab_id PK
+        timestamptz completed_at
+    }
+    labs {
+        int8 id PK
+        int8 subject_id FK
+        int4 number
+        text slug
+        text title
+        text summary
+        text content
+        text requirements
+        text submission
+        text variants
+        jsonb materials
+        timestamptz deadline_at "может быть пустым"
+        text deadline_note
+        int4 max_score "может быть пустым"
+        text teacher
+        text status
+        timestamptz created_at
+        timestamptz updated_at
+        tsvector search_vector "может быть пустым"
+    }
+    notes {
+        int8 id PK
+        int8 subject_id FK
+        int4 number
+        text slug
+        text title
+        text summary
+        text content
+        date lecture_date "может быть пустым"
+        text status
+        timestamptz created_at
+        timestamptz updated_at
+        tsvector search_vector "может быть пустым"
+    }
+    pages {
+        int8 id PK
+        text slug
+        text title
+        text summary
+        text content
+        int4 position
+        bool show_in_nav
+        text status
+        timestamptz created_at
+        timestamptz updated_at
+        tsvector search_vector "может быть пустым"
+    }
+    passkeys {
+        text id PK
+        int8 user_id FK
+        text label
+        jsonb credential
+        timestamptz created_at
+        timestamptz last_used_at "может быть пустым"
+    }
+    post_likes {
+        int8 post_id PK
+        int8 user_id PK
+        timestamptz created_at
+    }
+    posts {
+        int8 id PK
+        text kind
+        int8 user_id FK
+        text title
+        text body
+        text address
+        int4 price "может быть пустым"
+        int2 rating "может быть пустым"
+        timestamptz created_at
+        timestamptz updated_at
+        text visibility
+        bool nsfw
+    }
+    practice_sessions {
+        int8 id PK
+        int8 subject_id FK
+        timestamptz starts_at
+        timestamptz ends_at "может быть пустым"
+        text location
+        int4 capacity "может быть пустым"
+        text note
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    practice_signups {
+        int8 id PK
+        int8 session_id FK
+        int8 user_id FK
+        int8 lab_id FK
+        timestamptz created_at
+    }
+    quizzes {
+        int8 id PK
+        int8 subject_id FK "может быть пустым"
+        int8 note_id FK "может быть пустым"
+        text slug
+        text title
+        text description
+        jsonb questions
+        bool shuffle_questions
+        bool shuffle_options
+        text status
+        timestamptz created_at
+        timestamptz updated_at
+        tsvector search_vector "может быть пустым"
+    }
+    search_queries {
+        int8 id PK
+        text query
+        int4 results
+        timestamptz created_at
+    }
+    settings {
+        int2 id PK
+        text site_title
+        text group_name
+        text description
+        date semester_start "может быть пустым"
+        date semester_end "может быть пустым"
+        text first_week_parity
+        text timezone
+        jsonb links
+        timestamptz updated_at
+        text invite_code
+    }
+    subjects {
+        int8 id PK
+        text slug
+        text name
+        text short_name
+        text color
+        text teacher
+        text description
+        jsonb links
+        int4 position
+        timestamptz created_at
+        timestamptz updated_at
+        text icon
+        tsvector search_vector "может быть пустым"
+    }
+    users {
+        int8 id PK
+        bytea webauthn_id
+        text name
+        int8 telegram_id "может быть пустым"
+        text telegram_username
+        text photo_url
+        timestamptz created_at
+        timestamptz last_login_at
+        text display_name
+        text group_name
+        timestamptz approved_at "может быть пустым"
+    }
+```
+
+</details>
+
+<!-- erd:end -->
+
 ## 🚀 Локальная разработка
 
 Нужны `bun` и `go`. Docker необязателен.

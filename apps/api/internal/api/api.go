@@ -40,7 +40,7 @@ func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.
 func (h *Handler) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	r.Use(trustedRealIP)
 	r.Use(requestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))

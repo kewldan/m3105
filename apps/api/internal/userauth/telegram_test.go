@@ -1,6 +1,7 @@
 package userauth
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -15,12 +16,12 @@ func TestVerifyTelegram(t *testing.T) {
 	}
 	bad := d
 	bad.FirstName = "Пётр"
-	if err := VerifyTelegram(token, bad, now, 24*time.Hour); err != ErrBadTelegramSignature {
+	if err := VerifyTelegram(token, bad, now, 24*time.Hour); !errors.Is(err, ErrBadTelegramSignature) {
 		t.Fatalf("expected bad signature, got %v", err)
 	}
 	old := TelegramData{ID: 1, FirstName: "X", AuthDate: now.Add(-48 * time.Hour).Unix()}
 	old.Hash = SignTelegram(token, old)
-	if err := VerifyTelegram(token, old, now, 24*time.Hour); err != ErrTelegramExpired {
+	if err := VerifyTelegram(token, old, now, 24*time.Hour); !errors.Is(err, ErrTelegramExpired) {
 		t.Fatalf("expected expired, got %v", err)
 	}
 	if err := VerifyTelegram("", d, now, time.Hour); err == nil {

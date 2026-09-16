@@ -17,31 +17,8 @@ concurrency:
 
 jobs:
   checks:
-    name: Проверки
-    runs-on: ubuntu-latest
     if: ${{ !inputs.skip_checks }}
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.0
-      - run: bun install --frozen-lockfile
-      - name: Biome
-        run: bun run lint
-      - name: Типы web
-        run: bun run typecheck
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: apps/api/go.mod
-          cache-dependency-path: apps/api/go.sum
-      - name: go vet
-        run: go vet ./...
-        working-directory: apps/api
-      - name: go test
-        run: go test ./...
-        working-directory: apps/api
+    uses: ./.github/workflows/checks.yml
 
   build:
     name: Образ ${{ matrix.image }}

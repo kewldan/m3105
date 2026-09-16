@@ -1,0 +1,39 @@
+name: Проверки
+
+# Переиспользуемый набор проверок: дергается из ci.yml (ветки и PR)
+# и из deploy.yml перед сборкой образов.
+on:
+  workflow_call:
+
+jobs:
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Biome
+        run: bun run lint
+      - name: Типы
+        run: bun run typecheck
+
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2
+          working-directory: apps/api
+      - name: go test
+        run: go test ./...
+        working-directory: apps/api

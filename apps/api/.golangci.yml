@@ -1,0 +1,26 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose      # незакрытые http-ответы
+    - errorlint      # сравнение ошибок без errors.Is
+    - misspell
+    - nilerr         # return nil при ненулевой ошибке
+    - noctx          # запросы без контекста
+    - rowserrcheck   # непроверенный rows.Err
+    - sqlclosecheck
+    - usetesting
+  settings:
+    misspell:
+      locale: US
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [bodyclose, noctx]
+
+formatters:
+  enable:
+    - gofmt

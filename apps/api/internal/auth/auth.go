@@ -83,7 +83,8 @@ func (s *Service) Login(ctx context.Context, ip, password string) (string, error
 func (s *Service) Logout(ctx context.Context, r *http.Request) error {
 	c, err := r.Cookie(s.cookieName)
 	if err != nil || c.Value == "" {
-		return nil
+		// r.Cookie ошибается только отсутствием куки: выходить просто не из чего.
+		return nil //nolint:nilerr // нет куки — нет и сессии
 	}
 	return s.store.Delete(ctx, c.Value)
 }
@@ -157,7 +158,7 @@ func (s *Service) Require(next http.Handler) http.Handler {
 	})
 }
 
-// ClientIP extracts the caller IP, honouring the proxy-populated RemoteAddr.
+// ClientIP extracts the caller IP, honoring the proxy-populated RemoteAddr.
 func ClientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
 	if err != nil {

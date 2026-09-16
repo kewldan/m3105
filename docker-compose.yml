@@ -35,6 +35,8 @@ services:
     environment:
       API_URL: http://api:8080
       NEXT_PUBLIC_SITE_URL: https://${DOMAIN:-m3105.ru}
+      # Общий секрет: по нему api сбрасывает кеш публичного контента.
+      REVALIDATE_TOKEN: ${REVALIDATE_TOKEN:-}
       TZ: ${TZ:-Europe/Moscow}
     expose:
       - 3000
@@ -60,6 +62,8 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       BOT_DIGEST_HOUR: ${BOT_DIGEST_HOUR:-10}
+      WEB_URL: http://web:3000
+      REVALIDATE_TOKEN: ${REVALIDATE_TOKEN:-}
       TZ: ${TZ:-Europe/Moscow}
     expose:
       - 8080

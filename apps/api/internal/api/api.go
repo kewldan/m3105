@@ -18,6 +18,7 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/config"
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/models"
+	"github.com/kewldan/edu3105/apps/api/internal/revalidate"
 	"github.com/kewldan/edu3105/apps/api/internal/semester"
 	"github.com/kewldan/edu3105/apps/api/internal/store"
 	"github.com/kewldan/edu3105/apps/api/internal/userauth"
@@ -29,11 +30,19 @@ type Handler struct {
 	auth  *auth.Service
 	users *userauth.Service
 	cfg   config.Config
+	// revalidator is nil when the frontend cache drop is not configured.
+	revalidator *revalidate.Notifier
 }
 
 // New constructs the handler set.
 func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.Config) *Handler {
-	return &Handler{store: st, auth: au, users: users, cfg: cfg}
+	return &Handler{
+		store:       st,
+		auth:        au,
+		users:       users,
+		cfg:         cfg,
+		revalidator: revalidate.New(cfg.WebURL, cfg.RevalidateToken),
+	}
 }
 
 // Router builds the chi router with all routes mounted.
@@ -115,6 +124,7 @@ func (h *Handler) Router() http.Handler {
 
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(h.auth.Require)
+			r.Use(h.revalidateCache)
 			h.mountAdmin(r)
 		})
 	})

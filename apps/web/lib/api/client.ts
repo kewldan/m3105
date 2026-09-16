@@ -48,16 +48,31 @@ export type RequestOptions = {
   /** Extra headers, e.g. a forwarded Cookie on the server. */
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  /**
+   * Cache tags for the Next Data Cache. Ответ кладётся в общий кеш и
+   * сбрасывается из `/api/revalidate`, когда админка меняет контент.
+   * Запрос с кукой не кэшируется никогда — в нём личные данные.
+   */
+  tags?: string[];
+  /** Fallback TTL in seconds for tagged requests (default 300). */
+  revalidate?: number;
 };
+
+/** Сколько живёт закешированный публичный ответ, если инвалидация не дошла. */
+const DEFAULT_TTL = 300;
 
 /**
  * Server-side request (React Server Components, route handlers). Talks to the
- * Go API directly over the internal network. Never cached.
+ * Go API directly over the internal network. По умолчанию без кеша; публичные
+ * ответы кешируются, только если переданы `tags` и в запросе нет куки.
  */
 export async function apiServer<T>(
   path: string,
   opts: RequestOptions = {},
 ): Promise<T> {
+  const personal = opts.headers?.cookie !== undefined;
+  const cacheable =
+    !personal && (opts.method ?? "GET") === "GET" && !!opts.tags?.length;
   const res = await fetch(`${serverBase()}${PREFIX}${path}`, {
     method: opts.method ?? "GET",
     headers: {
@@ -68,7 +83,11 @@ export async function apiServer<T>(
       ...opts.headers,
     },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    cache: "no-store",
+    ...(cacheable
+      ? {
+          next: { tags: opts.tags, revalidate: opts.revalidate ?? DEFAULT_TTL },
+        }
+      : { cache: "no-store" as const }),
     signal: opts.signal,
   });
   return parse<T>(res);

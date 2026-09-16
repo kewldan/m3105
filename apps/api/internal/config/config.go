@@ -42,6 +42,11 @@ type Config struct {
 	// Telegram bot notifications.
 	BotPoll       bool
 	BotDigestHour int
+
+	// Сброс кеша фронтенда: адрес Next во внутренней сети и общий секрет.
+	// Пусто — кеш живёт только по TTL.
+	WebURL          string
+	RevalidateToken string
 }
 
 // Load reads configuration from the environment and validates required values.
@@ -78,6 +83,8 @@ func Load() (Config, error) {
 	cfg.DevLogin = getenvBool("DEV_LOGIN", cfg.Env != "production")
 	cfg.BotPoll = getenvBool("BOT_POLL", true)
 	cfg.BotDigestHour = getenvInt("BOT_DIGEST_HOUR", 10)
+	cfg.WebURL = os.Getenv("WEB_URL")
+	cfg.RevalidateToken = os.Getenv("REVALIDATE_TOKEN")
 	cfg.LoginRateWin = getenvDuration("LOGIN_RATE_WINDOW", 15*time.Minute)
 	cfg.CookieSecure = getenvBool("COOKIE_SECURE", cfg.Env == "production")
 

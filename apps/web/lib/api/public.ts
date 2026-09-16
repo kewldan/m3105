@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ApiError, apiServer } from "./client";
+import { TAG } from "./tags";
 import type {
   CalendarResponse,
   Comment,
@@ -26,19 +27,28 @@ import type {
 } from "./types";
 
 // Typed accessors for the public (unauthenticated) API. Server components only.
+// Ответы кешируются в Data Cache с тегами: админка при сохранении дёргает
+// /api/revalidate, и кеш сбрасывается сразу.
 
-export const getSettings = () => apiServer<SettingsResponse>("/settings");
-export const getHome = () => apiServer<HomeResponse>("/home");
-export const getSubjects = () => apiServer<SubjectWithCounts[]>("/subjects");
+export const getSettings = () =>
+  apiServer<SettingsResponse>("/settings", { tags: [TAG.settings] });
+export const getHome = () =>
+  apiServer<HomeResponse>("/home", { tags: [TAG.home] });
+export const getSubjects = () =>
+  apiServer<SubjectWithCounts[]>("/subjects", { tags: [TAG.subjects] });
 export const getSubject = (slug: string) =>
-  apiServer<SubjectResponse>(`/subjects/${encodeURIComponent(slug)}`);
+  apiServer<SubjectResponse>(`/subjects/${encodeURIComponent(slug)}`, {
+    tags: [TAG.subjects, TAG.labs, TAG.notes, TAG.quizzes],
+  });
 export const getLabs = (subject?: string) =>
   apiServer<Lab[]>(
     `/labs${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`,
+    { tags: [TAG.labs] },
   );
 export const getLab = (subject: string, slug: string) =>
   apiServer<Lab>(
     `/labs/${encodeURIComponent(subject)}/${encodeURIComponent(slug)}`,
+    { tags: [TAG.labs] },
   );
 export const getCalendar = (
   params: { from?: string; to?: string; subject?: string } = {},
@@ -48,26 +58,34 @@ export const getCalendar = (
   if (params.to) qs.set("to", params.to);
   if (params.subject) qs.set("subject", params.subject);
   const q = qs.toString();
-  return apiServer<CalendarResponse>(`/calendar${q ? `?${q}` : ""}`);
+  return apiServer<CalendarResponse>(`/calendar${q ? `?${q}` : ""}`, {
+    tags: [TAG.calendar],
+  });
 };
-export const getFAQ = () => apiServer<FAQItem[]>("/faq");
-export const getPages = () => apiServer<Page[]>("/pages");
+export const getFAQ = () => apiServer<FAQItem[]>("/faq", { tags: [TAG.faq] });
+export const getPages = () =>
+  apiServer<Page[]>("/pages", { tags: [TAG.pages] });
 export const getPage = (slug: string) =>
-  apiServer<Page>(`/pages/${encodeURIComponent(slug)}`);
+  apiServer<Page>(`/pages/${encodeURIComponent(slug)}`, { tags: [TAG.pages] });
 export const getNotes = (subject?: string) =>
   apiServer<Note[]>(
     `/notes${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`,
+    { tags: [TAG.notes] },
   );
 export const getNote = (subject: string, slug: string) =>
   apiServer<NoteResponse>(
     `/notes/${encodeURIComponent(subject)}/${encodeURIComponent(slug)}`,
+    { tags: [TAG.notes, TAG.quizzes] },
   );
 export const getQuizzes = (subject?: string) =>
   apiServer<QuizSummary[]>(
     `/quizzes${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`,
+    { tags: [TAG.quizzes] },
   );
 export const getQuiz = (slug: string) =>
-  apiServer<Quiz>(`/quizzes/${encodeURIComponent(slug)}`);
+  apiServer<Quiz>(`/quizzes/${encodeURIComponent(slug)}`, {
+    tags: [TAG.quizzes],
+  });
 export const search = (q: string) =>
   apiServer<SearchResult[]>(`/search?q=${encodeURIComponent(q)}`);
 

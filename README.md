@@ -60,13 +60,27 @@ bun dev
 Docker Compose за общим Traefik: на сервере уже есть внешняя сеть `virtual-hosts` и cert‑резолвер `myresolver`. Compose поднимает nginx (`proxy`) с Traefik‑лейблами для домена, а nginx разводит трафик: `/api/*` → Go (`api:8080`), остальное → Next.js (`web:3000`). Postgres и Valkey живут во внутренней сети и наружу не торчат.
 
 ```bash
+git clone https://github.com/kewldan/m3105.git edu3105 && cd edu3105
 cp .env.example .env      # DOMAIN, POSTGRES_PASSWORD, ADMIN_PASSWORD, TELEGRAM_BOT_*
 docker compose up -d --build
 ```
 
+### Автодеплой
+
+Пуш в `main` запускает workflow [`Deploy`](.github/workflows/deploy.yml):
+
+1. **Проверки** — `biome check`, `tsc --noEmit`, `go vet`, `go test` (сквозной тест на встроенном Postgres).
+2. **Сборка** — образы `web`, `api` и `backup` собираются в Actions с кэшем buildx и уходят в GHCR с тегами `latest` и sha коммита.
+3. **Деплой** — по SSH на сервере `git reset --hard` до этого коммита (конфиги, nginx, скрипты), `docker compose pull` и `up -d`, затем проверка `/api/v1/healthz` и главной. Сам прод ничего не собирает.
+
+Для этого в репозитории нужны секреты `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`, а на сервере — клон репозитория с заполненным `.env` (он в `.gitignore` и переживает `git reset`).
+
 | Действие | Команда |
 | --- | --- |
-| Обновить | `docker compose up -d --build` (или `--build web` / `--build api`) |
+| Задеплоить | `git push` в `main`, либо `gh workflow run deploy.yml` |
+| Срочно, без проверок | `gh workflow run deploy.yml -f skip_checks=true` |
+| Откатиться | на сервере `IMAGE_TAG=<sha> docker compose up -d web api` |
+| Собрать на сервере вручную | `docker compose up -d --build` (обходит GHCR) |
 | Логи | `make logs` |
 | Бэкап вручную | `docker compose run --rm backup once` (архив в Telegram и в томе `backup-data`) |
 | Только дамп базы | `docker compose exec postgres pg_dump -U edu edu > backup.sql` |

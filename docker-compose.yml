@@ -24,6 +24,8 @@ services:
       - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
 
   web:
+    # Образ собирается в GitHub Actions; build остаётся для локальной сборки (--build).
+    image: ghcr.io/kewldan/m3105/web:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -42,6 +44,7 @@ services:
       - backends
 
   api:
+    image: ghcr.io/kewldan/m3105/api:${IMAGE_TAG:-latest}
     build:
       context: ./apps/api
     restart: unless-stopped
@@ -102,6 +105,7 @@ services:
 
   # Ежедневный бэкап: pg_dump + конфиги одним архивом в Telegram админу (deploy/backup).
   backup:
+    image: ghcr.io/kewldan/m3105/backup:${IMAGE_TAG:-latest}
     build: ./deploy/backup
     restart: unless-stopped
     environment:

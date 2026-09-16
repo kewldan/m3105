@@ -21,6 +21,15 @@ docker compose pull --quiet web api backup
 echo "→ поднимаю стек"
 docker compose up -d --remove-orphans
 
+# Конфиг nginx примонтирован файлом: контейнер не пересоздаётся, и правки
+# в deploy/nginx подхватываются только перечитыванием конфига.
+if docker compose exec -T proxy nginx -t >/dev/null 2>&1; then
+	docker compose exec -T proxy nginx -s reload
+	echo "→ nginx перечитал конфиг"
+else
+	echo "⚠ конфиг nginx не прошёл проверку, оставляю прежний" >&2
+fi
+
 echo "→ убираю образы старше недели"
 docker image prune -f --filter "until=168h" >/dev/null
 

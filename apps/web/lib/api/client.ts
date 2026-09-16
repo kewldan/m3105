@@ -62,6 +62,14 @@ export type RequestOptions = {
 const DEFAULT_TTL = 300;
 
 /**
+ * Во время production-сборки API недоступен (образ собирается в CI без базы).
+ * Кешируемый запрос сделал бы страницу кандидатом на пререндер, и сборка упала бы
+ * на ECONNREFUSED, поэтому на этой фазе все запросы некешируемые: страницы
+ * остаются динамическими, а кеш данных работает уже в рантайме.
+ */
+const BUILD_PHASE = process.env.NEXT_PHASE === "phase-production-build";
+
+/**
  * Server-side request (React Server Components, route handlers). Talks to the
  * Go API directly over the internal network. По умолчанию без кеша; публичные
  * ответы кешируются, только если переданы `tags` и в запросе нет куки.
@@ -72,7 +80,10 @@ export async function apiServer<T>(
 ): Promise<T> {
   const personal = opts.headers?.cookie !== undefined;
   const cacheable =
-    !personal && (opts.method ?? "GET") === "GET" && !!opts.tags?.length;
+    !BUILD_PHASE &&
+    !personal &&
+    (opts.method ?? "GET") === "GET" &&
+    !!opts.tags?.length;
   const res = await fetch(`${serverBase()}${PREFIX}${path}`, {
     method: opts.method ?? "GET",
     headers: {

@@ -21,6 +21,7 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/bot"
 	"github.com/kewldan/edu3105/apps/api/internal/config"
 	"github.com/kewldan/edu3105/apps/api/internal/db"
+	"github.com/kewldan/edu3105/apps/api/internal/files"
 	"github.com/kewldan/edu3105/apps/api/internal/session"
 	"github.com/kewldan/edu3105/apps/api/internal/store"
 	"github.com/kewldan/edu3105/apps/api/internal/userauth"
@@ -49,6 +50,10 @@ func main() {
 	os.Setenv("DATABASE_URL", fmt.Sprintf("postgres://edu:edu@localhost:%d/edu?sslmode=disable", port))
 	if os.Getenv("ADMIN_PASSWORD") == "" {
 		os.Setenv("ADMIN_PASSWORD", "dev-password-123")
+	}
+	// Вложения без MinIO: файлы рядом с данными встроенного Postgres.
+	if os.Getenv("S3_ENDPOINT") == "" && os.Getenv("FILES_DIR") == "" {
+		os.Setenv("FILES_DIR", filepath.Join(base, "files"))
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -83,8 +88,24 @@ func main() {
 		slog.Error("userauth", "err", err)
 		os.Exit(1)
 	}
+	fileStore, err := files.Open(ctx, cfg.Files)
+	if err != nil {
+		slog.Error("files", "err", err)
+		os.Exit(1)
+	}
+	switch {
+	case cfg.Files.S3.Endpoint != "":
+		slog.Info("files in s3", "endpoint", cfg.Files.S3.Endpoint, "bucket", cfg.Files.S3.Bucket)
+	case fileStore != nil:
+		slog.Info("files in a local directory", "dir", cfg.Files.Dir)
+	default:
+		slog.Warn("S3_ENDPOINT and FILES_DIR not set: attachments are disabled")
+	}
 	st := store.New(pool)
-	handler := api.New(st, authSvc, userSvc, cfg)
+	handler := api.New(st, authSvc, userSvc, cfg, fileStore)
+	if fileStore != nil {
+		go files.RunGC(ctx, st, fileStore)
+	}
 	if tg := bot.New(st, bot.Options{Token: cfg.TelegramBotToken, SiteURL: cfg.PublicURL, DigestHour: cfg.BotDigestHour, Poll: cfg.BotPoll}); tg != nil {
 		go tg.Run(ctx)
 		slog.Info("telegram bot started", "bot", cfg.TelegramBotUsername, "poll", cfg.BotPoll)

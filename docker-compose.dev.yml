@@ -1,5 +1,6 @@
 # Local infrastructure only: `docker compose -f docker-compose.dev.yml up -d`
 # then run the API with `make api` and the web app with `bun dev`.
+# (`go run ./cmd/devapi` needs none of this: it embeds Postgres and keeps files in a directory.)
 name: edu3105-dev
 
 services:
@@ -19,5 +20,31 @@ services:
     ports:
       - "6379:6379"
 
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: edu
+      MINIO_ROOT_PASSWORD: edu-dev-password
+    ports:
+      - "9000:9000"
+    volumes:
+      - minio-dev:/data
+
+  # Превью картинок для `make api`: IMGPROXY_URL=http://localhost:8081 в apps/api/.env.
+  imgproxy:
+    image: ghcr.io/imgproxy/imgproxy:v4.0.15
+    environment:
+      IMGPROXY_KEY: 6465762d6b6579
+      IMGPROXY_SALT: 6465762d73616c74
+      IMGPROXY_USE_S3: "true"
+      IMGPROXY_S3_ENDPOINT: http://minio:9000
+      IMGPROXY_S3_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: edu
+      AWS_SECRET_ACCESS_KEY: edu-dev-password
+    ports:
+      - "8081:8080"
+
 volumes:
   postgres-dev:
+  minio-dev:

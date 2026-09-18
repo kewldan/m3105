@@ -91,10 +91,15 @@ export const userApi = {
   // ---- comments and posts ----
   comments: (target: CommentTarget, id: number) =>
     apiClient<Comment[]>(`/comments/${target}/${id}`),
-  addComment: (target: CommentTarget, id: number, body: string) =>
+  addComment: (
+    target: CommentTarget,
+    id: number,
+    body: string,
+    attachmentIds: string[] = [],
+  ) =>
     apiClient<Comment>(`/comments/${target}/${id}`, {
       method: "POST",
-      body: { body },
+      body: { body, attachmentIds },
     }),
   deleteComment: (id: number) =>
     apiClient<{ ok: true }>(`/comments/${id}`, { method: "DELETE" }),

@@ -4,6 +4,8 @@ import { ExternalLinkIcon, MessageCircleIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { AttachmentThumbs } from "@/components/admin/attachment-thumbs";
+import { CommentDialog } from "@/components/admin/comment-dialog";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { type Column, DataTable } from "@/components/admin/data-table";
 import { PageTitle } from "@/components/admin/page-title";
@@ -25,6 +27,7 @@ const TARGET_LABEL: Record<CommentTarget, string> = {
 export default function CommentsPage() {
   const { data, loading, reload } = useQuery(() => adminApi.comments.list());
   const [deleting, setDeleting] = useState<AdminComment | null>(null);
+  const [editing, setEditing] = useState<AdminComment | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   async function confirmDelete() {
@@ -63,9 +66,14 @@ export default function CommentsPage() {
       id: "body",
       header: "Текст",
       cell: (r) => (
-        <p className="line-clamp-3 max-w-xl break-words whitespace-pre-wrap">
-          {r.body}
-        </p>
+        <div className="max-w-xl space-y-1.5">
+          {r.body ? (
+            <p className="line-clamp-3 break-words whitespace-pre-wrap">
+              {r.body}
+            </p>
+          ) : null}
+          <AttachmentThumbs items={r.attachments} />
+        </div>
       ),
     },
     {
@@ -104,7 +112,12 @@ export default function CommentsPage() {
       id: "actions",
       header: <span className="sr-only">Действия</span>,
       className: "w-px",
-      cell: (r) => <RowActions onDelete={() => setDeleting(r)} />,
+      cell: (r) => (
+        <RowActions
+          onEdit={() => setEditing(r)}
+          onDelete={() => setDeleting(r)}
+        />
+      ),
     },
   ];
 
@@ -112,7 +125,7 @@ export default function CommentsPage() {
     <>
       <PageTitle
         title="Комментарии"
-        description="Последние 200 комментариев студентов к конспектам, лабам и постам. Редактировать чужие слова нельзя, удалить — можно."
+        description="Последние 200 комментариев студентов к конспектам, лабам и постам. Можно поправить текст, убрать или добавить файлы, удалить комментарий целиком."
         actions={
           data ? (
             <Badge variant="secondary" className="gap-1.5">
@@ -130,6 +143,13 @@ export default function CommentsPage() {
         defaultSort={{ id: "created", dir: "desc" }}
         emptyTitle="Комментариев пока нет"
         emptyDescription="Студенты могут комментировать опубликованные конспекты и лабы, а также посты в лентах «Шаверма» и «Анекдоты»."
+      />
+      <CommentDialog
+        comment={editing}
+        onOpenChange={(o) => {
+          if (!o) setEditing(null);
+        }}
+        onSaved={reload}
       />
       <ConfirmDialog
         open={deleting !== null}

@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { AttachmentGallery } from "@/components/site/attachments/gallery";
 import {
   CommentsSection,
   socialErrorMessage,
@@ -90,6 +91,7 @@ export function PostCard({
       <p className="break-words whitespace-pre-wrap text-[15px] leading-relaxed">
         {post.body}
       </p>
+      <AttachmentGallery items={post.attachments} className="pt-1" />
     </>
   );
 
@@ -172,8 +174,8 @@ export function PostCard({
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/50 p-4 text-center">
               <p className="text-sm font-medium">🔞 Тут непристойно</p>
               <p className="max-w-xs text-xs text-muted-foreground">
-                Анекдот с пометкой 18+. Откроется, когда подтвердите возраст —
-                на слово верим.
+                {post.kind === "joke" ? "Анекдот" : "Пост"} с пометкой 18+.
+                Откроется, когда подтвердите возраст — на слово верим.
               </p>
               <Button size="sm" onClick={confirmAge}>
                 Мне есть 18

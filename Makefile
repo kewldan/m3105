@@ -1,6 +1,6 @@
 .PHONY: dev infra api web build test lint typecheck up down logs
 
-infra: ## start local Postgres + Valkey in Docker
+infra: ## start local Postgres + Valkey + MinIO in Docker
 	docker compose -f docker-compose.dev.yml up -d
 
 api: ## run the Go API locally (reads apps/api/.env)

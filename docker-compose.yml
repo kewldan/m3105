@@ -64,6 +64,15 @@ services:
       BOT_DIGEST_HOUR: ${BOT_DIGEST_HOUR:-10}
       WEB_URL: http://web:3000
       REVALIDATE_TOKEN: ${REVALIDATE_TOKEN:-}
+      # Вложения: бакет в MinIO создаётся при первом старте.
+      S3_ENDPOINT: minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+      S3_BUCKET: ${S3_BUCKET:-edu3105}
+      # Превью картинок; если imgproxy недоступен, api отдаёт оригиналы.
+      IMGPROXY_URL: http://imgproxy:8080
+      IMGPROXY_KEY: ${IMGPROXY_KEY:?set IMGPROXY_KEY in .env}
+      IMGPROXY_SALT: ${IMGPROXY_SALT:?set IMGPROXY_SALT in .env}
       TZ: ${TZ:-Europe/Moscow}
     expose:
       - 8080
@@ -71,6 +80,8 @@ services:
       postgres:
         condition: service_healthy
       valkey:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - backends
@@ -107,7 +118,63 @@ services:
     networks:
       - backends
 
-  # Ежедневный бэкап: pg_dump + конфиги одним архивом в Telegram админу (deploy/backup).
+  # Вложения (S3). Только во внутренней сети: файлы отдаёт api с проверкой прав,
+  # наружу хранилище не смотрит. MinIO больше не выпускает сборки community-версии,
+  # поэтому образ закреплён на последнем релизе; api говорит с ним по обычному S3 API
+  # и переедет на другое S3-совместимое хранилище сменой S3_ENDPOINT.
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+      MINIO_BROWSER: "off"
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - backends
+
+  # Превью картинок: уменьшает по ширине и пережимает в WebP (libvips). Читает
+  # оригиналы прямо из бакета MinIO и живёт только во внутренней сети: к нему
+  # ходит api, уже проверив права, а URL подписаны ключом из .env.
+  imgproxy:
+    image: ghcr.io/imgproxy/imgproxy:v4.0.15
+    restart: unless-stopped
+    environment:
+      IMGPROXY_KEY: ${IMGPROXY_KEY:?set IMGPROXY_KEY in .env}
+      IMGPROXY_SALT: ${IMGPROXY_SALT:?set IMGPROXY_SALT in .env}
+      IMGPROXY_USE_S3: "true"
+      IMGPROXY_S3_ENDPOINT: http://minio:9000
+      IMGPROXY_S3_REGION: us-east-1
+      IMGPROXY_S3_ALLOWED_BUCKETS: ${S3_BUCKET:-edu3105}
+      IMGPROXY_ALLOWED_SOURCES: s3://
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+      # Загрузка ограничена 60 мегапикселями, больше imgproxy и не увидит.
+      IMGPROXY_MAX_SRC_RESOLUTION: "60"
+      # Сервер небольшой: две картинки одновременно, память возвращается системе.
+      IMGPROXY_WORKERS: "2"
+      IMGPROXY_MALLOC: jemalloc
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "imgproxy", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backends
+
+  # Ежедневный бэкап: pg_dump + конфиги одним архивом в Telegram админу (deploy/backup),
+  # файлы из MinIO — вторым архивом, если с прошлого раза что-то поменялось.
   backup:
     image: ghcr.io/kewldan/m3105/backup:${IMAGE_TAG:-latest}
     build: ./deploy/backup
@@ -122,12 +189,14 @@ services:
       BACKUP_HOUR: ${BACKUP_HOUR:-4}
       BACKUP_KEEP: ${BACKUP_KEEP:-7}
       DOMAIN: ${DOMAIN:-m3105.ru}
+      BACKUP_FILES_DIR: /files
       TZ: ${TZ:-Europe/Moscow}
     volumes:
       - ./.env:/project/.env:ro
       - ./docker-compose.yml:/project/docker-compose.yml:ro
       - ./deploy:/project/deploy:ro
       - backup-data:/backups
+      - minio-data:/files:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -143,3 +212,4 @@ volumes:
   postgres-data:
   valkey-data:
   backup-data:
+  minio-data:

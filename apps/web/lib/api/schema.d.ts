@@ -364,6 +364,7 @@ export type Comment = {
   authorId: number;
   authorName: string;
   authorPhotoUrl: string;
+  attachments: Attachment[];
   /** Комментарий текущего студента */
   mine: boolean;
 };
@@ -389,6 +390,7 @@ export type Post = {
   authorPhotoUrl: string;
   likesCount: number;
   commentsCount: number;
+  attachments: Attachment[];
   liked: boolean;
   mine: boolean;
 };
@@ -405,4 +407,22 @@ export type PostInput = {
   visibility?: "public" | "members";
   /** При true видимость принудительно становится members */
   nsfw?: boolean;
+  /** Файлы поста по порядку. При обновлении без поля файлы не меняются, пустой список убирает все */
+  attachmentIds?: string[];
+};
+
+/** Вложение — картинка или файл */
+export type Attachment = {
+  id: string;
+  /** Адрес от корня сайта: /api/v1/files/{id}/{name} */
+  url: string;
+  /** Исходное имя файла */
+  name: string;
+  contentType: string;
+  /** Размер в байтах */
+  size: number;
+  /** Ширина картинки с учётом поворота из EXIF */
+  width: number | null;
+  height: number | null;
+  createdAt: DateTime;
 };

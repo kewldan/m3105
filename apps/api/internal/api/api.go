@@ -16,6 +16,7 @@ import (
 
 	"github.com/kewldan/edu3105/apps/api/internal/auth"
 	"github.com/kewldan/edu3105/apps/api/internal/config"
+	"github.com/kewldan/edu3105/apps/api/internal/files"
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/models"
 	"github.com/kewldan/edu3105/apps/api/internal/revalidate"
@@ -32,16 +33,27 @@ type Handler struct {
 	cfg   config.Config
 	// revalidator is nil when the frontend cache drop is not configured.
 	revalidator *revalidate.Notifier
+	// files is nil when attachment storage is not configured.
+	files files.Storage
+	// resizer is nil without imgproxy: previews then fall back to originals.
+	resizer *files.Resizer
 }
 
-// New constructs the handler set.
-func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.Config) *Handler {
+// New constructs the handler set. fs may be nil: uploads then answer 503.
+func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.Config, fs files.Storage) *Handler {
+	// config.Load уже проверил настройки imgproxy; ошибка здесь — только в тестах с ручным конфигом.
+	resizer, err := files.NewResizer(cfg.Imgproxy, cfg.Files)
+	if err != nil {
+		slog.Error("imgproxy disabled", "err", err)
+	}
 	return &Handler{
 		store:       st,
 		auth:        au,
 		users:       users,
 		cfg:         cfg,
 		revalidator: revalidate.New(cfg.WebURL, cfg.RevalidateToken),
+		files:       fs,
+		resizer:     resizer,
 	}
 }
 
@@ -52,7 +64,7 @@ func (h *Handler) Router() http.Handler {
 	r.Use(trustedRealIP)
 	r.Use(requestLogger)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(timeoutExcept(30*time.Second, isFileTransfer))
 	r.Use(middleware.Compress(5, "application/json", "text/calendar"))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -96,6 +108,9 @@ func (h *Handler) Router() http.Handler {
 		r.With(userauth.Require).Delete("/posts/{id}", h.deletePost)
 		r.With(userauth.Require, h.requireApproved).Put("/posts/{id}/like", h.setLike(true))
 		r.With(userauth.Require, h.requireApproved).Delete("/posts/{id}/like", h.setLike(false))
+		// Вложения: студент загружает файл, потом прикрепляет его id к комментарию или посту.
+		r.With(userauth.Require, h.requireApproved).Post("/files", h.uploadFile)
+		r.Get("/files/{id}/{name}", h.serveFile)
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", h.login)
@@ -133,6 +148,22 @@ func (h *Handler) Router() http.Handler {
 		httpx.Error(w, http.StatusNotFound, "not_found", "Маршрут не найден")
 	})
 	return r
+}
+
+// timeoutExcept bounds handler time like middleware.Timeout, skipping requests
+// for which skip returns true.
+func timeoutExcept(d time.Duration, skip func(*http.Request) bool) func(http.Handler) http.Handler {
+	limit := middleware.Timeout(d)
+	return func(next http.Handler) http.Handler {
+		limited := limit(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if skip(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			limited.ServeHTTP(w, r)
+		})
+	}
 }
 
 func requestLogger(next http.Handler) http.Handler {

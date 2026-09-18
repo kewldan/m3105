@@ -37,9 +37,10 @@ type Comment struct {
 	CreatedAt  time.Time     `db:"created_at" json:"createdAt"`
 	UpdatedAt  time.Time     `db:"updated_at" json:"updatedAt"`
 
-	AuthorID       int64  `db:"author_id" json:"authorId"`
-	AuthorName     string `db:"author_name" json:"authorName"`
-	AuthorPhotoURL string `db:"author_photo_url" json:"authorPhotoUrl"`
+	AuthorID       int64        `db:"author_id" json:"authorId"`
+	AuthorName     string       `db:"author_name" json:"authorName"`
+	AuthorPhotoURL string       `db:"author_photo_url" json:"authorPhotoUrl"`
+	Attachments    []Attachment `db:"attachments" json:"attachments"`
 	// Mine is true for the signed-in viewer's own comments.
 	Mine bool `db:"-" json:"mine"`
 }
@@ -51,9 +52,11 @@ type AdminComment struct {
 	TargetPath  string `db:"target_path" json:"targetPath"`
 }
 
-// CommentInput is the create payload.
+// CommentInput is the create payload. AttachmentIDs are the author's own
+// uploads from POST /files, not yet attached anywhere.
 type CommentInput struct {
-	Body string `json:"body"`
+	Body          string   `json:"body"`
+	AttachmentIDs []string `json:"attachmentIds"`
 }
 
 const maxCommentLen = 2000
@@ -62,11 +65,13 @@ const maxCommentLen = 2000
 func (in *CommentInput) Validate() error {
 	ve := httpx.NewValidation()
 	in.Body = strings.TrimSpace(in.Body)
-	if in.Body == "" {
+	// Фото без подписи — тоже комментарий.
+	if in.Body == "" && len(in.AttachmentIDs) == 0 {
 		ve.Add("body", "Напишите что-нибудь")
 	} else if utf8.RuneCountInString(in.Body) > maxCommentLen {
 		ve.Add("body", "Не больше 2000 символов")
 	}
+	validateAttachmentIDs(ve, in.AttachmentIDs)
 	if !ve.Empty() {
 		return ve
 	}
@@ -129,11 +134,12 @@ type Post struct {
 	CreatedAt  time.Time      `db:"created_at" json:"createdAt"`
 	UpdatedAt  time.Time      `db:"updated_at" json:"updatedAt"`
 
-	AuthorID       int64  `db:"author_id" json:"authorId"`
-	AuthorName     string `db:"author_name" json:"authorName"`
-	AuthorPhotoURL string `db:"author_photo_url" json:"authorPhotoUrl"`
-	LikesCount     int    `db:"likes_count" json:"likesCount"`
-	CommentsCount  int    `db:"comments_count" json:"commentsCount"`
+	AuthorID       int64        `db:"author_id" json:"authorId"`
+	AuthorName     string       `db:"author_name" json:"authorName"`
+	AuthorPhotoURL string       `db:"author_photo_url" json:"authorPhotoUrl"`
+	LikesCount     int          `db:"likes_count" json:"likesCount"`
+	CommentsCount  int          `db:"comments_count" json:"commentsCount"`
+	Attachments    []Attachment `db:"attachments" json:"attachments"`
 	// Liked and Mine are relative to the signed-in viewer.
 	Liked bool `db:"liked" json:"liked"`
 	Mine  bool `db:"-" json:"mine"`
@@ -149,6 +155,9 @@ type PostInput struct {
 	Rating     *int           `json:"rating"`
 	Visibility PostVisibility `json:"visibility"`
 	NSFW       bool           `json:"nsfw"`
+	// AttachmentIDs is the full list of files in display order. On update nil
+	// (field absent) keeps the current files, an empty list removes them all.
+	AttachmentIDs []string `json:"attachmentIds"`
 }
 
 const (
@@ -187,6 +196,7 @@ func (in *PostInput) Validate() error {
 	} else if utf8.RuneCountInString(in.Body) > maxPostBodyLen {
 		ve.Add("body", "Не больше 4000 символов")
 	}
+	validateAttachmentIDs(ve, in.AttachmentIDs)
 	switch in.Kind {
 	case PostShawarma:
 		if in.Title == "" {

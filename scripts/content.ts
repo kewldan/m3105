@@ -6,6 +6,7 @@
  *   bun scripts/content.ts note pull <subject>/<slug> [--out file.mdx]
  *   bun scripts/content.ts note push <file.mdx> [--status draft|published]
  *   bun scripts/content.ts quiz push <file.json> [--status draft|published]
+ *   bun scripts/content.ts file push <file> [...]
  *   bun scripts/content.ts mdx check <file.mdx> [...]
  *
  * Формат файлов — docs/note-format.md и docs/quiz-format.md. Конспект
@@ -13,13 +14,24 @@
  * создаётся, а выданный сервером слаг дописывается в шапку. Квиз так же
  * находится по `slug` в JSON.
  *
+ * Картинки и файлы, на которые конспект ссылается относительным путём
+ * (`![Доска](./board.jpg)`), при `note push` заливаются в хранилище сайта, и на
+ * сервер уходит текст с их адресами; локальный файл не меняется. Повторная
+ * заливка того же файла отдаёт уже сохранённый, так что push идемпотентен.
+ *
  * Адрес сайта — `--api`, иначе SITE_URL, иначе https://m3105.ru. Авторизация —
  * ADMIN_API_TOKEN (Bearer, без входа) или ADMIN_PASSWORD (вход по паролю, кука
  * кэшируется в ~/.cache/edu3105); оба берутся из окружения или из .env в корне.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "..");
 
@@ -147,6 +159,97 @@ async function admin<T = Json>(
     if (!(e instanceof ApiError) || e.status !== 401) throw e;
     await login(); // кэшированная сессия протухла
     return call<T>(method, path, body);
+  }
+}
+
+// ---------- files ----------
+
+type Attachment = {
+  id: string;
+  url: string;
+  name: string;
+  contentType: string;
+  size: number;
+};
+
+/** Uploads a file to the admin file storage (multipart, not JSON). */
+async function uploadFile(path: string): Promise<Attachment> {
+  if (!loggedIn) await login();
+  const send = async () => {
+    const form = new FormData();
+    form.append("file", Bun.file(path), basename(path));
+    const res = await fetch(`${API}/admin/files`, {
+      method: "POST",
+      headers: API_TOKEN
+        ? { Authorization: `Bearer ${API_TOKEN}` }
+        : { Cookie: cookie },
+      body: form,
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new ApiError(
+        res.status,
+        `POST /admin/files ${basename(path)} → ${res.status}: ${text}`,
+      );
+    }
+    return JSON.parse(text) as Attachment;
+  };
+  try {
+    return await send();
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 401) throw e;
+    await login(); // кэшированная сессия протухла
+    return send();
+  }
+}
+
+const markdownFor = (a: Attachment) =>
+  a.contentType.startsWith("image/")
+    ? `![${a.name.replace(/\.[^.]+$/, "").replace(/[[\]]/g, "")}](${a.url})`
+    : `[${a.name.replace(/[[\]]/g, "")}](${a.url})`;
+
+/** Markdown-ссылка или картинка: `[текст](адрес "заголовок")`. */
+const LINK = /(!?\[[^\]]*\]\()(<[^>]+>|[^)\s]+)((?:\s+"[^"]*")?\))/g;
+
+/**
+ * Uploads files the text links to by a relative path and returns the text with
+ * their site addresses. Links to pages and missing files stay as they are.
+ */
+async function uploadLocalLinks(
+  text: string,
+  baseDir: string,
+): Promise<string> {
+  const urls = new Map<string, string>();
+  for (const m of text.matchAll(LINK)) {
+    const raw = m[2].replace(/^<|>$/g, "");
+    if (urls.has(raw) || /^([a-z][a-z0-9+.-]*:|\/|#)/i.test(raw)) continue;
+    let file: string;
+    try {
+      file = resolve(baseDir, decodeURI(raw));
+    } catch {
+      continue;
+    }
+    if (!existsSync(file) || !statSync(file).isFile()) continue;
+    const a = await uploadFile(file);
+    urls.set(raw, a.url);
+    console.log(`  ↑ ${raw} → ${a.url}`);
+  }
+  if (urls.size === 0) return text;
+  return text.replace(
+    LINK,
+    (all, head: string, target: string, tail: string) => {
+      const url = urls.get(target.replace(/^<|>$/g, ""));
+      return url ? `${head}${url}${tail}` : all;
+    },
+  );
+}
+
+async function filePush(): Promise<void> {
+  const files = positional.slice(2);
+  if (files.length === 0) throw new Error("Укажите файлы");
+  for (const f of files) {
+    const a = await uploadFile(f);
+    console.log(`✓ ${f} → ${SITE}${a.url}\n  ${markdownFor(a)}`);
   }
 }
 
@@ -313,7 +416,7 @@ async function notePush(): Promise<void> {
     slug: meta.slug || undefined,
     title: meta.title,
     summary: meta.summary,
-    content: body.trimEnd(),
+    content: (await uploadLocalLinks(body, dirname(resolve(file)))).trimEnd(),
     lectureDate: meta.lectureDate || null,
     status,
   };
@@ -401,6 +504,7 @@ const usage = `Использование:
   bun scripts/content.ts note pull <subject>/<slug> [--out file.mdx]
   bun scripts/content.ts note push <file.mdx> [--status draft|published]
   bun scripts/content.ts quiz push <file.json> [--status draft|published]
+  bun scripts/content.ts file push <file> [...]
   bun scripts/content.ts mdx check <file.mdx> [...]`;
 
 try {
@@ -417,6 +521,9 @@ try {
       break;
     case "quiz push":
       await quizPush();
+      break;
+    case "file push":
+      await filePush();
       break;
     case "mdx check":
       process.exit((await mdxCheck(positional.slice(2))) ? 0 : 1);

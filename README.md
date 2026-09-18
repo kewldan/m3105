@@ -10,6 +10,7 @@
 - ❓ **Квизы** — самопроверка после лекции, конструктор и импорт JSON.
 - 🙋 **Аккаунты** — вход через Telegram или пасскей, отметки «сделано» и запись на сдачи.
 - 🗣️ **Мини‑соцсеть** — комментарии к конспектам и лабам, ленты «Шаверма» (обзоры точек с оценками) и «Анекдоты» с лайками; всё пишут студенты, админ модерирует.
+- 📎 **Вложения** — фото и PDF в комментариях и постах, картинки и файлы в конспектах и лабах. Фото уменьшаются перед загрузкой, EXIF с координатами вырезается на сервере, а на страницы картинки приходят превью нужной ширины в WebP через imgproxy.
 - 🔍 **Поиск по сайту** — ⌘K из любой страницы: полнотекстовый поиск Postgres по конспектам, лабам, квизам, ЧаВо и страницам, со словоформами, поиском по мере набора и устойчивостью к опечаткам.
 - 📲 **Работает офлайн** — сайт ставится на телефон как приложение, а прочитанные конспекты открываются в метро без связи.
 - 💬 **ЧаВо и страницы** — произвольные статические страницы в MDX.
@@ -18,7 +19,7 @@
 
 ```
 apps/web    Next.js 16 · React 19 · Tailwind 4 · shadcn (Base UI) · MDX · motion
-apps/api    Go · chi · PostgreSQL (pgx, goose‑миграции) · Valkey (сессии, рейт‑лимит)
+apps/api    Go · chi · PostgreSQL (pgx, goose‑миграции) · Valkey (сессии, рейт‑лимит) · MinIO (вложения, S3) · imgproxy (превью)
 deploy/     nginx‑конфиг, который делит трафик между API и Next
 docs/       api.md, quiz-format.md
 scripts/    seed.ts — демо‑данные
@@ -33,6 +34,9 @@ Postgres, миграции — goose (`apps/api/internal/db/migrations`). Диа
 
 ```mermaid
 erDiagram
+    comments ||--o{ attachments : "comment_id"
+    posts ||--o{ attachments : "post_id"
+    users ||--o{ attachments : "user_id"
     labs ||--o{ bot_announced_labs : "lab_id"
     users ||--o{ comments : "user_id"
     subjects ||--o{ events : "subject_id"
@@ -66,7 +70,7 @@ erDiagram
         int8 id PK
     }
     settings {
-        int8 id PK
+        int2 id PK
     }
 ```
 
@@ -75,6 +79,9 @@ erDiagram
 
 ```mermaid
 erDiagram
+    comments ||--o{ attachments : "comment_id"
+    posts ||--o{ attachments : "post_id"
+    users ||--o{ attachments : "user_id"
     labs ||--o{ bot_announced_labs : "lab_id"
     users ||--o{ comments : "user_id"
     subjects ||--o{ events : "subject_id"
@@ -95,6 +102,21 @@ erDiagram
     notes |o..o{ comments : "target_type=note"
     labs |o..o{ comments : "target_type=lab"
     posts |o..o{ comments : "target_type=post"
+    attachments {
+        text id PK
+        text name
+        text slug
+        text content_type
+        int8 size
+        int4 width "может быть пустым"
+        int4 height "может быть пустым"
+        text sha256
+        int8 user_id FK "может быть пустым"
+        int8 comment_id FK "может быть пустым"
+        int8 post_id FK "может быть пустым"
+        int2 position
+        timestamptz created_at
+    }
     bot_announced_labs {
         int8 lab_id PK
         timestamptz announced_at
@@ -325,10 +347,11 @@ bun dev
 
 > [!TIP]
 > Пароль админки в dev‑режиме — `dev-password-123`. Демо‑контент:
-> `bun scripts/seed.ts --api http://localhost:8080 --password dev-password-123`
+> `bun scripts/seed.ts --api http://localhost:8080 --password dev-password-123`.
+> Вложения `devapi` хранит в каталоге рядом с данными Postgres, MinIO для разработки не нужен.
 
 <details>
-<summary>🐳 Вариант с Postgres и Valkey в Docker</summary>
+<summary>🐳 Вариант с Postgres, Valkey и MinIO в Docker</summary>
 
 ```bash
 make infra              # docker compose -f docker-compose.dev.yml up -d
@@ -343,11 +366,11 @@ bun dev
 
 ## ☁️ Деплой
 
-Docker Compose за общим Traefik: на сервере уже есть внешняя сеть `virtual-hosts` и cert‑резолвер `myresolver`. Compose поднимает nginx (`proxy`) с Traefik‑лейблами для домена, а nginx разводит трафик: `/api/*` → Go (`api:8080`), остальное → Next.js (`web:3000`). Postgres и Valkey живут во внутренней сети и наружу не торчат.
+Docker Compose за общим Traefik: на сервере уже есть внешняя сеть `virtual-hosts` и cert‑резолвер `myresolver`. Compose поднимает nginx (`proxy`) с Traefik‑лейблами для домена, а nginx разводит трафик: `/api/*` → Go (`api:8080`), остальное → Next.js (`web:3000`). Postgres, Valkey, MinIO и imgproxy живут во внутренней сети и наружу не торчат: файлы вложений отдаёт API с проверкой прав, а превью картинок (`?w=640`) берёт у imgproxy уже после неё. Если imgproxy лежит, отдаются оригиналы.
 
 ```bash
 git clone https://github.com/kewldan/m3105.git edu3105 && cd edu3105
-cp .env.example .env      # DOMAIN, POSTGRES_PASSWORD, ADMIN_PASSWORD, TELEGRAM_BOT_*
+cp .env.example .env      # DOMAIN, POSTGRES_PASSWORD, ADMIN_PASSWORD, S3_*, IMGPROXY_*, TELEGRAM_BOT_*
 docker compose up -d --build
 ```
 
@@ -378,13 +401,18 @@ docker compose up -d --build
 | Только дамп базы | `docker compose exec postgres pg_dump -U edu edu > backup.sql` |
 
 > [!IMPORTANT]
-> Данные лежат в томах `postgres-data` и `valkey-data`. Не удаляйте их вместе со стеком (`docker compose down -v`), если не хотите потерять контент.
+> Данные лежат в томах `postgres-data`, `minio-data` (вложения) и `valkey-data`. Не удаляйте их вместе со стеком (`docker compose down -v`), если не хотите потерять контент.
+
+> [!NOTE]
+> MinIO больше не выпускает сборки community‑версии, поэтому образ закреплён на последнем релизе (`RELEASE.2025-09-07`). Наружу он не открыт, а API говорит с ним по обычному S3: переезд на другое S3‑совместимое хранилище — это смена `S3_ENDPOINT` и перенос бакета.
 
 ### 💾 Ежедневные бэкапы
 
 Сервис `backup` (`deploy/backup/`) раз в сутки в `BACKUP_HOUR` по `TZ` делает `pg_dump` всей базы, кладёт рядом `.env`, `docker-compose.yml` и `deploy/`, собирает `edu3105-<дата>.tar.gz` и отправляет его документом в Telegram на `BACKUP_CHAT_ID`. Последние `BACKUP_KEEP` архивов остаются на сервере в томе `backup-data`, так что бэкап есть даже если Telegram недоступен. Если архив не влезает в лимит Bot API (50 МБ), вместо файла приходит предупреждение с путём на сервере.
 
 Внутри архива лежит `MANIFEST.txt` с порядком восстановления: распаковать, вернуть `config/.env` и `config/docker-compose.yml` в каталог проекта на сервере, поднять `postgres`, залить `db.sql` через `psql` и пересобрать стек.
+
+Вложения приезжают вторым архивом, `edu3105-files-<дата>.tar.gz`: это том `minio-data` целиком, и отправляется он, только когда с прошлого раза файлы появились или пропали. Восстанавливается распаковкой обратно в том при остановленном `minio`. Если архив перерастёт лимит Telegram, он останется на сервере, а в чат придёт предупреждение.
 
 > [!CAUTION]
 > В архив входит `.env` с паролем админки, токеном бота и паролем Postgres. Он уходит в личный чат с ботом — не пересылайте его в группы.
@@ -419,6 +447,10 @@ docker compose up -d --build
 
 **Порядок заполнения:** Настройки (дата начала семестра и чётность первой недели) → Предметы → Лабы и события → Сдачи → Конспекты → Квизы → ЧаВо и страницы.
 
+**Файлы:** в любом MDX‑редакторе картинку или документ можно добавить кнопкой «Файл», вставкой из буфера или перетаскиванием, и в текст встанет готовая разметка. Раздел «Файлы» показывает всё загруженное: где файл используется, фото из комментариев и постов студентов, ссылки и разметку для копирования, удаление.
+
+**Модерация:** админ правит любой пост и комментарий целиком — текст, видимость, файлы (убрать чужие, добавить свои) — и видит все файлы, включая посты «для своих» и незаконченные загрузки.
+
 > [!WARNING]
 > Лабы, конспекты, квизы и страницы публикуются переключателем статуса. Черновики на сайте не видны.
 
@@ -428,6 +460,7 @@ docker compose up -d --build
   - `<Callout type="info|tip|warning|danger|success" title="…">`
   - `<Spoiler title="…">`
   - `<Steps>` с обычным нумерованным списком внутри
+  - картинки и файлы: `![подпись](/api/v1/files/…)` вставляет редактор; в `.mdx` для `scripts/content.ts note push` достаточно относительного пути `![Доска](./board.jpg)`, файл зальётся сам
 - **Квизы**: формат описан в [docs/quiz-format.md](docs/quiz-format.md); в админке есть конструктор и импорт JSON.
 - **Календарь**: дедлайны лаб, контрольные, экзамены, консультации и сдачи; `/api/v1/calendar.ics` — подписка, у дедлайнов, контрольных и экзаменов напоминание за сутки. Ближайшие события дублируются на главной в блоке «События».
 

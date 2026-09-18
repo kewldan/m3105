@@ -146,3 +146,17 @@ export function toYmd(d: Date | string, tz = DEFAULT_TZ): string {
   const dd = String(z.getDate()).padStart(2, "0");
   return `${z.getFullYear()}-${mm}-${dd}`;
 }
+
+/** Размер файла: «840 КБ», «3,2 МБ». */
+export function fmtBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} Б`;
+  const units = ["КБ", "МБ", "ГБ"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const digits = value < 10 && unit > 0 ? 1 : 0;
+  return `${value.toFixed(digits).replace(".", ",")} ${units[unit]}`;
+}

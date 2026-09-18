@@ -113,7 +113,7 @@ func TestSpecCoversPublicRoutes(t *testing.T) {
 	// Служебное и приватное в публичную спеку не входит.
 	skip := regexp.MustCompile(`^/api/v1/(admin|auth|me)(/|$)|^/api/v1/docs$|^/api/v1/openapi\.yaml$|^/healthz$`)
 
-	router, ok := api.New(nil, nil, nil, config.Config{}).Router().(chi.Routes)
+	router, ok := api.New(nil, nil, nil, config.Config{}, nil).Router().(chi.Routes)
 	if !ok {
 		t.Fatal("роутер больше не chi.Routes, тест надо обновить")
 	}

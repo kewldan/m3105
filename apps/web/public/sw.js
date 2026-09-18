@@ -6,15 +6,20 @@
  *   - /_next/static и шрифты — cache-first, они неизменяемые;
  *   - страницы (навигация и RSC-переходы) — network-first с откатом в кеш,
  *     а если и в кеше пусто, показываем /offline;
+ *   - картинки из вложений (/api/v1/files/…) — cache-first: по id файл
+ *     никогда не меняется, а без них конспект со схемами офлайн неполный;
  *   - всё остальное (API, админка, POST) не трогаем вовсе.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL = `m3105-shell-${VERSION}`;
 const PAGES = `m3105-pages-${VERSION}`;
 const ASSETS = `m3105-assets-${VERSION}`;
+const FILES = `m3105-files-${VERSION}`;
 const OFFLINE_URL = "/offline";
 /** Сколько страниц держим офлайн: примерно семестр конспектов. */
 const PAGES_LIMIT = 80;
+/** Картинок из вложений — с запасом на иллюстрации тех же конспектов. */
+const FILES_LIMIT = 300;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -32,7 +37,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => ![SHELL, PAGES, ASSETS].includes(key))
+            .filter((key) => ![SHELL, PAGES, ASSETS, FILES].includes(key))
             .map((key) => caches.delete(key)),
         ),
       )
@@ -55,12 +60,16 @@ async function trim(cacheName, limit) {
   }
 }
 
-async function cacheFirst(request, cacheName) {
+async function cacheFirst(request, cacheName, limit) {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(request);
   if (hit) return hit;
   const response = await fetch(request);
-  if (response.ok) cache.put(request, response.clone());
+  // 206 (Range) в кеш не кладётся, да и не нужен.
+  if (response.status === 200) {
+    cache.put(request, response.clone());
+    if (limit) trim(cacheName, limit);
+  }
   return response;
 }
 
@@ -91,6 +100,13 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (
+    url.pathname.startsWith("/api/v1/files/") &&
+    request.destination === "image"
+  ) {
+    event.respondWith(cacheFirst(request, FILES, FILES_LIMIT));
+    return;
+  }
   // API, админка и служебные маршруты кешировать нельзя: там личные данные
   // и мутации.
   if (

@@ -7,5 +7,12 @@ func SetSocialWriteLimit(n int) int {
 	return prev
 }
 
+// SetUploadLimit overrides the per-student upload limit in tests and returns the previous value.
+func SetUploadLimit(n int) int {
+	prev := uploadLimit
+	uploadLimit = n
+	return prev
+}
+
 // TagsForPath exposes the cache-tag mapping to the contract test.
 var TagsForPath = tagsForPath

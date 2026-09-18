@@ -65,6 +65,19 @@ func wrap(err error) error {
 	return err
 }
 
+// inTx runs fn in a transaction, committing only when it returns nil.
+func (s *Store) inTx(ctx context.Context, fn func(pgx.Tx) error) error {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return wrap(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op after a successful commit
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return wrap(tx.Commit(ctx))
+}
+
 func (s *Store) exec(ctx context.Context, q string, args ...any) error {
 	tag, err := s.db.Exec(ctx, q, args...)
 	if err != nil {

@@ -3,6 +3,7 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,15 +13,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kewldan/edu3105/apps/api/internal/api"
 	"github.com/kewldan/edu3105/apps/api/internal/auth"
 	"github.com/kewldan/edu3105/apps/api/internal/config"
 	"github.com/kewldan/edu3105/apps/api/internal/db"
+	"github.com/kewldan/edu3105/apps/api/internal/files"
 	"github.com/kewldan/edu3105/apps/api/internal/session"
 	"github.com/kewldan/edu3105/apps/api/internal/store"
 	"github.com/kewldan/edu3105/apps/api/internal/userauth"
@@ -30,7 +34,41 @@ const testPassword = "correct-horse-battery"
 const testAPIToken = "test-api-token-0123456789abcdef0123456789"
 const testBotToken = "123456:TEST-BOT-TOKEN"
 
-var srvURL string
+var (
+	srvURL string
+	// testPool и testFiles нужны тестам вложений: состарить загрузку и
+	// проверить, что сборщик мусора убрал объект.
+	testPool    *pgxpool.Pool
+	testFiles   *files.Dir
+	testFileDir string
+	// fakeImgproxy отвечает вместо imgproxy; imgproxyDown имитирует его падение.
+	imgproxyDown atomic.Bool
+)
+
+const (
+	testImgproxyKey  = "736563726574"
+	testImgproxySalt = "68656c6c6f"
+)
+
+// fakeImgproxy checks the signature like imgproxy does and answers with a
+// marker instead of a real preview.
+func fakeImgproxy() *httptest.Server {
+	key, _ := hex.DecodeString(testImgproxyKey)
+	salt, _ := hex.DecodeString(testImgproxySalt)
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sig, path, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+		if imgproxyDown.Load() || sig != files.Sign(key, salt, "/"+path) {
+			http.Error(w, "nope", http.StatusForbidden)
+			return
+		}
+		format := path[strings.LastIndex(path, "@")+1:]
+		if format == "jpg" {
+			format = "jpeg"
+		}
+		w.Header().Set("Content-Type", "image/"+format)
+		fmt.Fprint(w, "preview:"+path)
+	}))
+}
 
 func TestMain(m *testing.M) {
 	if os.Getenv("SKIP_PG_TESTS") != "" {
@@ -67,8 +105,18 @@ func run(m *testing.M) int {
 		fmt.Println("migrate:", err)
 		return 1
 	}
+	testFileDir, err = os.MkdirTemp("", "edu3105-files-")
+	if err != nil {
+		fmt.Println("files dir:", err)
+		return 1
+	}
+	defer os.RemoveAll(testFileDir)
+	imgproxy := fakeImgproxy()
+	defer imgproxy.Close()
 	cfg := config.Config{PublicURL: "https://m3105.ru", CookieName: "edu_session", SessionTTL: time.Hour, LoginRateMax: 5, LoginRateWin: time.Minute,
-		UserCookieName: "edu_user", TelegramBotToken: testBotToken, TelegramBotUsername: "m3105_bot", RPID: "m3105.ru", RPOrigins: []string{"https://m3105.ru"}, DevLogin: true}
+		UserCookieName: "edu_user", TelegramBotToken: testBotToken, TelegramBotUsername: "m3105_bot", RPID: "m3105.ru", RPOrigins: []string{"https://m3105.ru"}, DevLogin: true,
+		Files:    files.Config{Dir: testFileDir},
+		Imgproxy: files.ImgproxyConfig{URL: imgproxy.URL, Key: testImgproxyKey, Salt: testImgproxySalt}}
 	sessions := session.NewMemory()
 	au := auth.New(sessions, auth.Options{Password: testPassword, APIToken: testAPIToken, CookieName: cfg.CookieName, TTL: cfg.SessionTTL, RateMax: 5, RateWindow: time.Minute})
 	us, err := userauth.New(sessions, userauth.Options{CookieName: cfg.UserCookieName, TTL: cfg.SessionTTL, RPID: cfg.RPID, RPDisplayName: "М3105", RPOrigins: cfg.RPOrigins})
@@ -76,7 +124,13 @@ func run(m *testing.M) int {
 		fmt.Println("userauth:", err)
 		return 1
 	}
-	h := api.New(store.New(pool), au, us, cfg)
+	testFiles, err = files.NewDir(testFileDir)
+	if err != nil {
+		fmt.Println("files:", err)
+		return 1
+	}
+	testPool = pool
+	h := api.New(store.New(pool), au, us, cfg, testFiles)
 	ts := httptest.NewServer(h.Router())
 	defer ts.Close()
 	srvURL = ts.URL

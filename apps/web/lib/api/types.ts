@@ -5,6 +5,7 @@
 // эти эндпоинты в публичную спеку не входят.
 import type * as Schema from "./schema";
 
+export type Attachment = Schema.Attachment;
 export type AuthInfo = Schema.AuthInfo;
 export type CalendarItem = Schema.CalendarItem;
 export type CalendarResponse = Schema.CalendarResponse;
@@ -277,6 +278,27 @@ export type PostKind = "shawarma" | "joke";
 export type PostVisibility = "public" | "members";
 
 export type PostSort = "new" | "top";
+
+// ---- attachments ----
+
+/** К чему относится файл: ссылка из текстов админки, комментарий, пост или незаконченная загрузка студента. */
+export type AttachmentPlace = "content" | "comment" | "post" | "pending";
+
+export type ContentRef = {
+  type: "note" | "lab" | "page" | "faq" | "subject";
+  title: string;
+  path: string;
+};
+
+export type AdminAttachment = Attachment & {
+  place: AttachmentPlace;
+  /** Кто загрузил; null — админка. */
+  authorName: string | null;
+  targetTitle: string | null;
+  targetPath: string | null;
+  /** Тексты со ссылкой на файл (только для файлов админки). */
+  usedIn: ContentRef[];
+};
 
 /** Агрегированный поисковый запрос для админской аналитики. */
 export type SearchStat = {

@@ -123,7 +123,7 @@ func (h *Handler) createComment(w http.ResponseWriter, r *http.Request) {
 	if !h.allowWrite(w, r, userID) {
 		return
 	}
-	c, err := h.store.CreateComment(r.Context(), userID, target, id, in.Body)
+	c, err := h.store.CreateComment(r.Context(), userID, target, id, &in)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -326,6 +326,31 @@ func (h *Handler) adminDeleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// adminUpdateComment lets moderation fix the text and files of any comment.
+// New files are admin uploads with ?scope=social.
+func (h *Handler) adminUpdateComment(w http.ResponseWriter, r *http.Request) {
+	id, err := httpx.IDParam(r)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	var in models.CommentInput
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := in.Validate(); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	c, err := h.store.UpdateComment(r.Context(), id, &in)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, c)
 }
 
 func (h *Handler) adminListPosts(w http.ResponseWriter, r *http.Request) {

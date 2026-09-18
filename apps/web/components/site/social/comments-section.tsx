@@ -5,6 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AttachmentGallery } from "@/components/site/attachments/gallery";
+import {
+  AttachButton,
+  AttachmentTray,
+  STUDENT_ACCEPT,
+  useAttachments,
+  useFileDrop,
+} from "@/components/site/attachments/picker";
 import {
   isPending,
   PendingNotice,
@@ -57,6 +65,8 @@ export function CommentsSection({
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [confirmId, setConfirmId] = useState<number | null>(null);
+  const files = useAttachments();
+  const { dragging, dropProps } = useFileDrop(files.add);
 
   useEffect(() => {
     if (initial) return;
@@ -79,14 +89,22 @@ export function CommentsSection({
     onCountChange?.(next.length);
   };
 
+  const canSend =
+    (body.trim() !== "" || files.ids.length > 0) && !files.uploading;
+
   const submit = async () => {
-    const text = body.trim();
-    if (!text || sending) return;
+    if (!canSend || sending) return;
     setSending(true);
     try {
-      const created = await userApi.addComment(target, targetId, text);
+      const created = await userApi.addComment(
+        target,
+        targetId,
+        body.trim(),
+        files.ids,
+      );
       update([...(comments ?? []), created]);
       setBody("");
+      files.reset();
     } catch (err) {
       toast.error(socialErrorMessage(err, "Не удалось отправить комментарий"));
     } finally {
@@ -197,14 +215,21 @@ export function CommentsSection({
                     )
                   ) : null}
                 </div>
-                <p
-                  className={cn(
-                    "mt-0.5 break-words whitespace-pre-wrap",
-                    compact ? "text-sm" : "text-[15px] leading-relaxed",
-                  )}
-                >
-                  {c.body}
-                </p>
+                {c.body ? (
+                  <p
+                    className={cn(
+                      "mt-0.5 break-words whitespace-pre-wrap",
+                      compact ? "text-sm" : "text-[15px] leading-relaxed",
+                    )}
+                  >
+                    {c.body}
+                  </p>
+                ) : null}
+                <AttachmentGallery
+                  items={c.attachments}
+                  compact={compact}
+                  className="mt-2"
+                />
               </div>
             </li>
           ))}
@@ -219,7 +244,11 @@ export function CommentsSection({
             e.preventDefault();
             submit();
           }}
-          className="flex gap-3"
+          className={cn(
+            "flex gap-3 rounded-xl transition-colors",
+            dragging && "bg-primary/5 ring-2 ring-primary/40 ring-offset-4",
+          )}
+          {...dropProps}
         >
           <UserAvatar
             name={me.user.name}
@@ -234,6 +263,7 @@ export function CommentsSection({
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit();
               }}
+              onPaste={files.onPaste}
               placeholder={
                 compact ? "Ответить…" : "Вопрос, дополнение или благодарность…"
               }
@@ -242,15 +272,24 @@ export function CommentsSection({
               className={compact ? "min-h-12 text-sm" : undefined}
               aria-label="Текст комментария"
             />
+            <AttachmentTray state={files} />
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">
-                {body.length > 1800 ? `${body.length} / 2000 · ` : ""}
-                Ctrl+Enter — отправить
-              </span>
+              <div className="flex min-w-0 items-center gap-1">
+                <AttachButton
+                  state={files}
+                  accept={STUDENT_ACCEPT}
+                  label={compact ? "" : "Фото или файл"}
+                  className={compact ? "px-2" : "-ml-2"}
+                />
+                <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+                  {body.length > 1800 ? `${body.length} / 2000 · ` : ""}
+                  Ctrl+Enter — отправить
+                </span>
+              </div>
               <Button
                 type="submit"
                 size={compact ? "sm" : "default"}
-                disabled={!body.trim() || sending}
+                disabled={!canSend || sending}
               >
                 {sending ? <Spinner /> : <SendIcon data-icon="inline-start" />}
                 Отправить

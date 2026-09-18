@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-
+import { AttachmentThumbs } from "@/components/admin/attachment-thumbs";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { type Column, DataTable } from "@/components/admin/data-table";
 import { PageTitle } from "@/components/admin/page-title";
@@ -124,6 +124,7 @@ export default function PostsPage() {
           <p className="line-clamp-3 break-words whitespace-pre-wrap text-muted-foreground">
             {r.body}
           </p>
+          <AttachmentThumbs items={r.attachments} />
         </div>
       ),
     },
@@ -196,6 +197,7 @@ export default function PostsPage() {
             if (!o) setEditing(null);
           }}
           onSave={(input) => adminApi.posts.update(editing.id, input)}
+          uploadTarget="adminSocial"
           onSaved={() => reload()}
         />
       ) : null}

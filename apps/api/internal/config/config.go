@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kewldan/edu3105/apps/api/internal/files"
 )
 
 // Config holds all runtime settings for the API service.
@@ -47,6 +49,11 @@ type Config struct {
 	// Пусто — кеш живёт только по TTL.
 	WebURL          string
 	RevalidateToken string
+
+	// Вложения: S3 (MinIO в docker-compose) или локальный каталог для разработки.
+	Files files.Config
+	// Превью картинок через imgproxy во внутренней сети; пусто — отдаются оригиналы.
+	Imgproxy files.ImgproxyConfig
 }
 
 // Load reads configuration from the environment and validates required values.
@@ -87,6 +94,22 @@ func Load() (Config, error) {
 	cfg.RevalidateToken = os.Getenv("REVALIDATE_TOKEN")
 	cfg.LoginRateWin = getenvDuration("LOGIN_RATE_WINDOW", 15*time.Minute)
 	cfg.CookieSecure = getenvBool("COOKIE_SECURE", cfg.Env == "production")
+	cfg.Files = files.Config{
+		S3: files.S3Config{
+			Endpoint:  os.Getenv("S3_ENDPOINT"),
+			AccessKey: os.Getenv("S3_ACCESS_KEY"),
+			SecretKey: os.Getenv("S3_SECRET_KEY"),
+			Bucket:    getenv("S3_BUCKET", "edu3105"),
+			Region:    getenv("S3_REGION", "us-east-1"),
+			UseSSL:    getenvBool("S3_USE_SSL", false),
+		},
+		Dir: os.Getenv("FILES_DIR"),
+	}
+	cfg.Imgproxy = files.ImgproxyConfig{
+		URL:  os.Getenv("IMGPROXY_URL"),
+		Key:  os.Getenv("IMGPROXY_KEY"),
+		Salt: os.Getenv("IMGPROXY_SALT"),
+	}
 
 	if cfg.DatabaseURL == "" {
 		return cfg, errors.New("DATABASE_URL is required")
@@ -99,6 +122,18 @@ func Load() (Config, error) {
 	}
 	if cfg.AdminAPIToken != "" && len(cfg.AdminAPIToken) < 32 {
 		return cfg, errors.New("ADMIN_API_TOKEN must be at least 32 characters")
+	}
+	if cfg.Files.S3.Endpoint != "" && (cfg.Files.S3.AccessKey == "" || cfg.Files.S3.SecretKey == "") {
+		return cfg, errors.New("S3_ENDPOINT needs S3_ACCESS_KEY and S3_SECRET_KEY")
+	}
+	if strings.Contains(cfg.Files.S3.Endpoint, "://") {
+		return cfg, errors.New("S3_ENDPOINT is host:port without a scheme; use S3_USE_SSL for https")
+	}
+	if cfg.Imgproxy.URL != "" && cfg.Env == "production" && (cfg.Imgproxy.Key == "" || cfg.Imgproxy.Salt == "") {
+		return cfg, errors.New("IMGPROXY_URL needs IMGPROXY_KEY and IMGPROXY_SALT in production")
+	}
+	if _, err := files.NewResizer(cfg.Imgproxy, cfg.Files); err != nil {
+		return cfg, err
 	}
 	return cfg, nil
 }

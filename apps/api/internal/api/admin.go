@@ -150,10 +150,14 @@ func (h *Handler) mountAdmin(r chi.Router) {
 	r.Delete("/users/{id}", h.adminDeleteUser)
 	r.Get("/comments", h.adminListComments)
 	r.Get("/search-queries", h.adminSearchStats)
+	r.Put("/comments/{id}", h.adminUpdateComment)
 	r.Delete("/comments/{id}", h.adminDeleteComment)
 	r.Get("/posts", h.adminListPosts)
 	r.Put("/posts/{id}", h.adminUpdatePost)
 	r.Delete("/posts/{id}", h.adminDeletePost)
+	r.Get("/files", h.adminListFiles)
+	r.Post("/files", h.adminUploadFile)
+	r.Delete("/files/{id}", h.adminDeleteFile)
 
 	r.Route("/practice", func(r chi.Router) {
 		r.Get("/{id}/signups", h.adminPracticeSignups)

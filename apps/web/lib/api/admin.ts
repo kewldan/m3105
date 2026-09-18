@@ -2,9 +2,11 @@
 
 import { apiClient } from "./client";
 import type {
+  AdminAttachment,
   AdminComment,
   AdminUser,
   AdminUserInput,
+  Comment,
   Event,
   EventInput,
   FAQInput,
@@ -79,6 +81,12 @@ export const adminApi = {
     apiClient<SearchStat[]>(`/admin/search-queries?days=${days}`),
   comments: {
     list: () => apiClient<AdminComment[]>("/admin/comments"),
+    /** Текст и файлы; без `attachmentIds` файлы не меняются. */
+    update: (id: number, input: { body: string; attachmentIds?: string[] }) =>
+      apiClient<Comment>(`/admin/comments/${id}`, {
+        method: "PUT",
+        body: input,
+      }),
     remove: (id: number) =>
       apiClient<{ ok: true }>(`/admin/comments/${id}`, { method: "DELETE" }),
   },
@@ -89,6 +97,14 @@ export const adminApi = {
       apiClient<Post>(`/admin/posts/${id}`, { method: "PUT", body: input }),
     remove: (id: number) =>
       apiClient<{ ok: true }>(`/admin/posts/${id}`, { method: "DELETE" }),
+  },
+  /** Загрузка — `uploadFile(file, { target: "admin" })` из `lib/api/upload`. */
+  files: {
+    list: () => apiClient<AdminAttachment[]>("/admin/files"),
+    remove: (id: string) =>
+      apiClient<{ ok: true }>(`/admin/files/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }),
   },
   practice: {
     ...resource<PracticeSession, PracticeSessionInput>("/admin/practice"),

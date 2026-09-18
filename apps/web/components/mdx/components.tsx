@@ -9,6 +9,7 @@ import type { MDXComponents } from "mdx/types";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
+import { isStoredFile, previewSrc, previewSrcSet } from "@/lib/files/preview";
 import { cn } from "@/lib/utils";
 
 type CalloutType = "info" | "tip" | "warning" | "danger" | "success";
@@ -142,10 +143,20 @@ function Pre(props: ComponentProps<"pre">) {
   );
 }
 
-function Img({ alt = "", ...props }: ComponentProps<"img">) {
+function Img({ alt = "", src, ...props }: ComponentProps<"img">) {
+  // Картинки из хранилища сайта приходят уменьшенными под ширину колонки.
+  const stored = typeof src === "string" && isStoredFile(src);
   return (
     // biome-ignore lint/performance/noImgElement: MDX images come from arbitrary external hosts.
-    <img alt={alt} loading="lazy" className="rounded-xl border" {...props} />
+    <img
+      alt={alt}
+      loading="lazy"
+      className="rounded-xl border"
+      src={stored ? previewSrc(src, 1280) : src}
+      srcSet={stored ? previewSrcSet(src, [640, 1280, 1920]) : undefined}
+      sizes={stored ? "(min-width: 1024px) 760px, 100vw" : undefined}
+      {...props}
+    />
   );
 }
 

@@ -96,7 +96,9 @@ const linked = new Set([
 ]);
 const standalone = tables.filter((t) => !linked.has(t));
 const overviewExtra = standalone.flatMap((table) => {
-  const pk = columns.find((c) => pks.has(key({ table, column: c.name })));
+  const pk = columns.find(
+    (c) => c.table === table && pks.has(key({ table, column: c.name })),
+  );
   return [
     `    ${table} {`,
     `        ${typeName(pk?.type ?? "int8")} ${pk?.name ?? "id"} PK`,

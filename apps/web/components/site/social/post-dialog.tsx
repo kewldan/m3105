@@ -7,6 +7,13 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { FormField, FormGrid } from "@/components/admin/form-field";
+import {
+  AttachButton,
+  AttachmentTray,
+  STUDENT_ACCEPT,
+  useAttachments,
+  useFileDrop,
+} from "@/components/site/attachments/picker";
 import { RatingStars } from "@/components/site/social/rating-stars";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +32,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
 import type { Post, PostInput, PostKind } from "@/lib/api/types";
+import type { UploadTarget } from "@/lib/api/upload";
+import { cn } from "@/lib/utils";
 
 const schema = z.object({
   title: z.string().trim().max(120, "Не больше 120 символов"),
@@ -60,6 +69,8 @@ const COPY: Record<
     hint: string;
     bodyLabel: string;
     bodyPlaceholder: string;
+    filesLabel: string;
+    filesHint: string;
   }
 > = {
   shawarma: {
@@ -68,6 +79,8 @@ const COPY: Record<
     hint: "Где брали, сколько стоила и стоит ли идти снова.",
     bodyLabel: "Впечатления",
     bodyPlaceholder: "Сочная, много мяса, соус острый. Очередь в обед…",
+    filesLabel: "Фото",
+    filesHint: "Шаверма в разрезе, меню с ценами, вывеска — до 6 штук.",
   },
   joke: {
     create: "Новый анекдот",
@@ -75,12 +88,15 @@ const COPY: Record<
     hint: "Свой или услышанный на паре — главное, чтобы было смешно.",
     bodyLabel: "Текст",
     bodyPlaceholder: "Заходит студент на пересдачу…",
+    filesLabel: "Картинки",
+    filesHint: "Мем или скриншот к анекдоту — до 6 штук.",
   },
 };
 
 /**
  * Create / edit form for a post. `onSave` performs the request so the same
- * dialog serves students (own posts) and admins (any post).
+ * dialog serves students (own posts) and admins (any post, their own uploads
+ * go through `adminSocial`).
  */
 export function PostDialog({
   kind,
@@ -89,6 +105,7 @@ export function PostDialog({
   onOpenChange,
   onSave,
   onSaved,
+  uploadTarget = "student",
 }: {
   kind: PostKind;
   post: Post | null;
@@ -96,6 +113,7 @@ export function PostDialog({
   onOpenChange: (open: boolean) => void;
   onSave: (input: PostInput) => Promise<Post>;
   onSaved: (post: Post) => void;
+  uploadTarget?: UploadTarget;
 }) {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -103,9 +121,15 @@ export function PostDialog({
   });
   const { reset, setError } = form;
   const copy = COPY[kind];
+  const files = useAttachments({ target: uploadTarget });
+  const admin = uploadTarget !== "student";
+  const resetFiles = files.reset;
+  const { dragging, dropProps } = useFileDrop(files.add);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: resetFiles changes every render; files are reset only when the dialog opens.
   useEffect(() => {
     if (!open) return;
+    resetFiles(post?.attachments ?? []);
     reset(
       post
         ? {
@@ -148,6 +172,7 @@ export function PostDialog({
       // 18+ сервер всё равно сделает «только для своих», ставим это и здесь.
       visibility: values.members || values.nsfw ? "members" : "public",
       nsfw: values.nsfw,
+      attachmentIds: files.ids,
     };
     try {
       const saved = await onSave(input);
@@ -174,7 +199,7 @@ export function PostDialog({
   }
 
   const errors = form.formState.errors;
-  const saving = form.formState.isSubmitting;
+  const saving = form.formState.isSubmitting || files.uploading;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -277,8 +302,29 @@ export function PostDialog({
                 placeholder={copy.bodyPlaceholder}
                 autoFocus={kind === "joke"}
                 {...form.register("body")}
+                onPaste={files.onPaste}
                 aria-invalid={!!errors.body || undefined}
               />
+            </FormField>
+            <FormField
+              label={copy.filesLabel}
+              description={`${copy.filesHint} Можно вставить из буфера или перетащить.`}
+            >
+              <div
+                className={cn(
+                  "space-y-2 rounded-lg transition-colors",
+                  dragging && "bg-primary/5 ring-2 ring-primary/40",
+                )}
+                {...dropProps}
+              >
+                <AttachmentTray state={files} />
+                <AttachButton
+                  state={files}
+                  label="Добавить"
+                  accept={admin ? undefined : STUDENT_ACCEPT}
+                  className="-ml-2"
+                />
+              </div>
             </FormField>
             <FormField
               label="Кто увидит"
@@ -347,7 +393,11 @@ export function PostDialog({
             </DialogClose>
             <Button type="submit" disabled={saving}>
               {saving ? <Spinner /> : null}
-              {post ? "Сохранить" : "Опубликовать"}
+              {files.uploading
+                ? "Загружаем файлы…"
+                : post
+                  ? "Сохранить"
+                  : "Опубликовать"}
             </Button>
           </DialogFooter>
         </form>

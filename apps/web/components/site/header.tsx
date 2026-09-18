@@ -16,7 +16,7 @@ export function SiteHeader({ site }: { site: SettingsResponse }) {
   }));
   const links: NavLink[] = [...PRIMARY_LINKS, ...pageLinks];
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/65">
+    <header className="sticky top-0 z-40 border-b print:hidden bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/65">
       <div className="container-page flex h-14 items-center gap-2 md:h-16">
         <MobileNav
           links={links}

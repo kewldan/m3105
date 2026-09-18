@@ -15,7 +15,7 @@ export function ReadingProgress() {
     <motion.div
       aria-hidden
       style={{ scaleX: reduce ? scrollYProgress : scaleX }}
-      className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-0.5 origin-left bg-primary"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-0.5 origin-left bg-primary print:hidden"
     />
   );
 }

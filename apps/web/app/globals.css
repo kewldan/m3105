@@ -4,7 +4,14 @@
 @import "katex/dist/katex.min.css";
 @plugin "@tailwindcss/typography";
 
-@custom-variant dark (&:is(.dark *));
+/* Тёмная тема только на экране: печать и «Сохранить как PDF» всегда светлые. */
+@custom-variant dark {
+  @media screen {
+    &:is(.dark *) {
+      @slot;
+    }
+  }
+}
 
 @theme inline {
   --color-background: var(--background);
@@ -113,40 +120,42 @@
   --sidebar-ring: oklch(0.623 0.214 259.8);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.185 0 0);
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.2 0 0);
-  --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.6 0.215 260);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.25 0 0);
-  --secondary-foreground: oklch(0.93 0 0);
-  --muted: oklch(0.24 0 0);
-  --muted-foreground: oklch(0.7 0 0);
-  --accent: oklch(0.27 0 0);
-  --accent-foreground: oklch(0.96 0 0);
-  --destructive: oklch(0.704 0.191 22.2);
-  --success: oklch(0.72 0.17 150);
-  --warning: oklch(0.8 0.16 75);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.623 0.214 259.8);
-  --chart-1: oklch(0.6 0.215 260);
-  --chart-2: oklch(0.715 0.143 215.2);
-  --chart-3: oklch(0.673 0.182 276.9);
-  --chart-4: oklch(0.8 0.16 75);
-  --chart-5: oklch(0.72 0.17 150);
-  --sidebar: oklch(0.17 0 0);
-  --sidebar-foreground: oklch(0.96 0 0);
-  --sidebar-primary: oklch(0.6 0.215 260);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.27 0 0);
-  --sidebar-accent-foreground: oklch(0.96 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.623 0.214 259.8);
+@media screen {
+  .dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.96 0 0);
+    --card: oklch(0.185 0 0);
+    --card-foreground: oklch(0.96 0 0);
+    --popover: oklch(0.2 0 0);
+    --popover-foreground: oklch(0.96 0 0);
+    --primary: oklch(0.6 0.215 260);
+    --primary-foreground: oklch(1 0 0);
+    --secondary: oklch(0.25 0 0);
+    --secondary-foreground: oklch(0.93 0 0);
+    --muted: oklch(0.24 0 0);
+    --muted-foreground: oklch(0.7 0 0);
+    --accent: oklch(0.27 0 0);
+    --accent-foreground: oklch(0.96 0 0);
+    --destructive: oklch(0.704 0.191 22.2);
+    --success: oklch(0.72 0.17 150);
+    --warning: oklch(0.8 0.16 75);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 14%);
+    --ring: oklch(0.623 0.214 259.8);
+    --chart-1: oklch(0.6 0.215 260);
+    --chart-2: oklch(0.715 0.143 215.2);
+    --chart-3: oklch(0.673 0.182 276.9);
+    --chart-4: oklch(0.8 0.16 75);
+    --chart-5: oklch(0.72 0.17 150);
+    --sidebar: oklch(0.17 0 0);
+    --sidebar-foreground: oklch(0.96 0 0);
+    --sidebar-primary: oklch(0.6 0.215 260);
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: oklch(0.27 0 0);
+    --sidebar-accent-foreground: oklch(0.96 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.623 0.214 259.8);
+  }
 }
 
 @layer base {
@@ -257,10 +266,12 @@ code[data-theme] span {
   color: var(--shiki-light);
   background-color: var(--shiki-light-bg);
 }
-.dark code[data-theme],
-.dark code[data-theme] span {
-  color: var(--shiki-dark);
-  background-color: var(--shiki-dark-bg);
+@media screen {
+  .dark code[data-theme],
+  .dark code[data-theme] span {
+    color: var(--shiki-dark);
+    background-color: var(--shiki-dark-bg);
+  }
 }
 pre > code {
   display: grid;
@@ -299,4 +310,49 @@ figure[data-rehype-pretty-code-figure] > [data-rehype-pretty-code-title] + pre {
   overflow-x: auto;
   overflow-y: hidden;
   padding-block: 0.25rem;
+}
+
+/*
+ * Печать и «Сохранить как PDF» (кнопка на странице конспекта). Хром сайта прячется
+ * классами print:hidden, здесь — бумажная вёрстка самого текста.
+ */
+@media print {
+  @page {
+    margin: 16mm 14mm;
+  }
+  :root {
+    --background: oklch(1 0 0);
+    font-size: 14px;
+    /* Фон плашек, подсветки кода и значков предметов без галочки «Фоновая графика». */
+    print-color-adjust: exact;
+    /* next-themes ставит color-scheme инлайном. */
+    color-scheme: light !important;
+  }
+  html {
+    scroll-padding-top: 0;
+  }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  /* На бумаге не прокрутишь: длинные строки кода переносятся, остальное просто не обрезается. */
+  .prose :where(pre, .katex-display, .overflow-x-auto) {
+    overflow: visible !important;
+  }
+  .prose pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .prose :where(h1, h2, h3, h4, figcaption, [data-rehype-pretty-code-title]) {
+    break-after: avoid;
+  }
+  .prose :where(pre, figure, img, tr, blockquote, .katex-display) {
+    break-inside: avoid;
+  }
+  .prose :where(p, li) {
+    orphans: 3;
+    widows: 3;
+  }
 }

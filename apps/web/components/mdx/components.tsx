@@ -64,7 +64,7 @@ export function Callout({
   return (
     <div
       className={cn(
-        "not-prose my-5 flex gap-3 rounded-xl border px-4 py-3 text-sm leading-relaxed",
+        "not-prose my-5 flex gap-3 rounded-xl border px-4 py-3 text-sm leading-relaxed print:break-inside-avoid",
         c.className,
       )}
     >

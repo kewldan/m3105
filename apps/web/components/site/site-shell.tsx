@@ -71,7 +71,7 @@ export async function SiteShell({ children }: { children: ReactNode }) {
       <SiteHeader site={site} />
       <main
         id="content"
-        className="container-page flex-1 py-6 sm:py-8 lg:py-10"
+        className="container-page flex-1 py-6 sm:py-8 lg:py-10 print:max-w-none print:p-0"
       >
         {children}
       </main>

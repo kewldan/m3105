@@ -7,6 +7,7 @@ import { cache } from "react";
 import { breadcrumbs, JsonLd } from "@/components/site/json-ld";
 import { MdxBody } from "@/components/site/mdx-content";
 import { CourseOutline } from "@/components/site/notes/course-outline";
+import { ExportPdfButton } from "@/components/site/notes/export-pdf";
 import { NoteNav } from "@/components/site/notes/note-nav";
 import { ReadingProgress } from "@/components/site/notes/reading-progress";
 import { RememberNote } from "@/components/site/notes/remember-note";
@@ -117,7 +118,7 @@ export default async function NotePage({ params }: { params: Params }) {
         <header className="animate-rise space-y-4">
           <nav
             aria-label="Хлебные крошки"
-            className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground"
+            className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground print:hidden"
           >
             <Link
               href="/notes"
@@ -149,6 +150,10 @@ export default async function NotePage({ params }: { params: Params }) {
                 {fmtDateOnly(note.lectureDate)}
               </span>
             ) : null}
+            <ExportPdfButton
+              fileName={`${note.subjectName} — Лекция ${note.number}. ${note.title}`}
+              className="ml-auto"
+            />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-balance break-words sm:text-4xl">
             {note.title}
@@ -168,23 +173,32 @@ export default async function NotePage({ params }: { params: Params }) {
                 currentId={note.id}
                 subject={outlineSubject}
                 variant="inline"
-                className="lg:hidden"
+                className="lg:hidden print:hidden"
               />
             ) : null}
-            <Toc items={rendered.toc} variant="inline" className="lg:hidden" />
+            <Toc
+              items={rendered.toc}
+              variant="inline"
+              className="lg:hidden print:hidden"
+            />
             <div className="animate-fade-in">
               <MdxBody rendered={rendered} />
             </div>
-            <NoteQuizzes quizzes={note.quizzes} />
-            <NoteNav prev={note.prev} next={note.next} />
-            <CommentsSection
-              target="note"
-              targetId={note.id}
-              initial={comments}
-              className="border-t pt-8"
-            />
+            <p className="hidden border-t pt-3 text-xs text-muted-foreground print:block">
+              Актуальная версия: {noteUrl}
+            </p>
+            <div className="space-y-8 print:hidden">
+              <NoteQuizzes quizzes={note.quizzes} />
+              <NoteNav prev={note.prev} next={note.next} />
+              <CommentsSection
+                target="note"
+                targetId={note.id}
+                initial={comments}
+                className="border-t pt-8"
+              />
+            </div>
           </div>
-          <aside className="hidden lg:block">
+          <aside className="hidden lg:block print:hidden">
             <div className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-6 overflow-y-auto">
               {hasOutline ? (
                 <CourseOutline

@@ -13,7 +13,7 @@ export function SiteFooter({
   const year = new Date().getFullYear();
   const links = [...PRIMARY_LINKS, ...pageLinks];
   return (
-    <footer className="mt-auto border-t bg-muted/30">
+    <footer className="mt-auto border-t bg-muted/30 print:hidden">
       <div className="container-page flex flex-col gap-5 py-8">
         <nav aria-label="Навигация в подвале">
           <ul className="flex flex-wrap gap-x-5 gap-y-2">

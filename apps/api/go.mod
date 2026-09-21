@@ -7,8 +7,11 @@ require (
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-webauthn/webauthn v0.18.1
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/minio/minio-go/v7 v7.3.0
 	github.com/pressly/goose/v3 v3.28.0
-	github.com/valkey-io/valkey-go v1.0.77
+	github.com/valkey-io/valkey-go v1.0.78
+	go.yaml.in/yaml/v3 v3.0.5
+	golang.org/x/image v0.46.0
 )
 
 require (
@@ -30,7 +33,6 @@ require (
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
-	github.com/minio/minio-go/v7 v7.3.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/sethvargo/go-retry v0.4.0 // indirect
@@ -39,9 +41,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

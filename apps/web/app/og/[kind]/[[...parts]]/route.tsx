@@ -6,6 +6,7 @@ import {
   getSubject,
 } from "@/lib/api/public";
 import { fmtDate, fmtDateOnly, plural } from "@/lib/format";
+import { noteKind } from "@/lib/notes";
 import { type OgKind, ogImage } from "@/lib/og/image";
 import { DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 
@@ -81,7 +82,7 @@ async function labImage(subject: string, slug: string) {
 async function noteImage(subject: string, slug: string) {
   const note = await getNote(subject, slug);
   const chips = [
-    `Лекция ${note.number}`,
+    noteKind(note.title) ?? "",
     note.lectureDate ? fmtDateOnly(note.lectureDate) : "",
     note.quizzes.length
       ? `${note.quizzes.length} ${plural(note.quizzes.length, "квиз", "квиза", "квизов")}`
@@ -94,7 +95,6 @@ async function noteImage(subject: string, slug: string) {
     description: note.summary,
     chips,
     color: note.subjectColor || undefined,
-    figure: note.number,
   });
 }
 

@@ -97,7 +97,7 @@ export type OgProps = {
   /** Short facts rendered as pills under the title: deadline, points, lecture date. */
   chips?: string[];
   color?: SubjectColor;
-  /** Big decorative figure for labs (the lab number) or notes (the lecture number). */
+  /** Big decorative figure for labs (the lab number). */
   figure?: string | number;
 };
 

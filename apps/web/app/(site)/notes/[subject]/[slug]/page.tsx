@@ -21,6 +21,7 @@ import { getComments, getNote, getNotes } from "@/lib/api/public";
 import type { NoteResponse } from "@/lib/api/types";
 import { fmtDateOnly } from "@/lib/format";
 import { renderMdx } from "@/lib/mdx/render";
+import { noteKind } from "@/lib/notes";
 import { absoluteUrl, metaText, pageMetadata, SITE_NAME } from "@/lib/seo";
 
 type Params = Promise<{ subject: string; slug: string }>;
@@ -47,8 +48,7 @@ export async function generateMetadata({
   return pageMetadata({
     title: `${note.title} — ${note.subjectName}`,
     description:
-      metaText(note.summary) ||
-      `Конспект лекции ${note.number} по предмету «${note.subjectName}».`,
+      metaText(note.summary) || `Конспект по предмету «${note.subjectName}».`,
     path: `/notes/${note.subjectSlug}/${note.slug}`,
     type: "article",
     publishedTime: note.lectureDate ?? note.createdAt,
@@ -77,6 +77,7 @@ export default async function NotePage({ params }: { params: Params }) {
     icon: note.subjectIcon,
   };
   const hasOutline = siblings.length > 1;
+  const kind = noteKind(note.title);
 
   const noteUrl = absoluteUrl(`/notes/${note.subjectSlug}/${note.slug}`);
 
@@ -141,9 +142,9 @@ export default async function NotePage({ params }: { params: Params }) {
               icon={note.subjectIcon}
               slug={note.subjectSlug}
             />
-            <span className="font-medium text-primary">
-              Лекция {note.number}
-            </span>
+            {kind ? (
+              <span className="font-medium text-primary">{kind}</span>
+            ) : null}
             {note.lectureDate ? (
               <span className="inline-flex items-center gap-1 text-muted-foreground">
                 <CalendarIcon className="size-3.5" />
@@ -151,7 +152,7 @@ export default async function NotePage({ params }: { params: Params }) {
               </span>
             ) : null}
             <ExportPdfButton
-              fileName={`${note.subjectName} — Лекция ${note.number}. ${note.title}`}
+              fileName={`${note.subjectName} — ${note.title}`}
               className="ml-auto"
             />
           </div>

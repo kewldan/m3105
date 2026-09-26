@@ -140,7 +140,7 @@ export default async function HomePage() {
                         />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium">
-                            Лекция {n.number}. {n.title}
+                            {n.title}
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                             <SubjectBadge

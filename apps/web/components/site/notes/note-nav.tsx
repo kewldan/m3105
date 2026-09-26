@@ -30,17 +30,15 @@ function NavCard({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-xs text-muted-foreground">
-          {isNext ? "Следующая лекция" : "Предыдущая лекция"}
+          {isNext ? "Следующий конспект" : "Предыдущий конспект"}
         </span>
-        <span className="block truncate font-medium">
-          {note.number}. {note.title}
-        </span>
+        <span className="block truncate font-medium">{note.title}</span>
       </span>
     </Link>
   );
 }
 
-/** Previous / next lecture links at the bottom of a note. */
+/** Previous / next note links at the bottom of a note. */
 export function NoteNav({
   prev,
   next,
@@ -51,7 +49,7 @@ export function NoteNav({
   if (!prev && !next) return null;
   return (
     <nav
-      aria-label="Соседние лекции"
+      aria-label="Соседние конспекты"
       className="grid grid-cols-1 gap-3 sm:grid-cols-2"
     >
       <NavCard note={prev} direction="prev" />

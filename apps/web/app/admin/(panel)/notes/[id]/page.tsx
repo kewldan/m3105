@@ -25,11 +25,7 @@ export default function EditNotePage() {
   return (
     <>
       <PageTitle
-        title={
-          note.data
-            ? `Лекция ${note.data.number}: ${note.data.title}`
-            : "Конспект"
-        }
+        title={note.data ? note.data.title : "Конспект"}
         description={note.data?.subjectName}
         actions={
           note.data && note.data.status === "published" ? (

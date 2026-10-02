@@ -5,6 +5,7 @@ linters:
   enable:
     - bodyclose      # незакрытые http-ответы
     - errorlint      # сравнение ошибок без errors.Is
+    - gosec          # SQL-конкатенация (G201/G202), слабая крипта, права файлов
     - misspell
     - nilerr         # return nil при ненулевой ошибке
     - noctx          # запросы без контекста
@@ -14,12 +15,22 @@ linters:
   settings:
     misspell:
       locale: US
+    gosec:
+      excludes:
+        - G101 # ложно срабатывает на именах вроде passkeyCols
+        - G124 # Secure у куки задаётся конфигом: в dev по http он выключен намеренно
   exclusions:
     presets:
       - std-error-handling
     rules:
       - path: _test\.go
-        linters: [bodyclose, noctx]
+        linters: [bodyclose, noctx, gosec]
+      - path: cmd/devapi/
+        linters: [gosec]  # dev-обёртка: os.Setenv без проверки ошибок не страшен
+      - path: internal/files/strip\.go
+        text: G115        # длины сегментов проверены выше по коду
+      - path: internal/files/dir\.go
+        text: G304        # путь строится через Dir.path, который не выпускает за root
 
 formatters:
   enable:

@@ -17,7 +17,7 @@ type Dir struct {
 
 // NewDir creates the directory if needed.
 func NewDir(root string) (*Dir, error) {
-	if err := os.MkdirAll(root, 0o755); err != nil {
+	if err := os.MkdirAll(root, 0o750); err != nil {
 		return nil, err
 	}
 	return &Dir{root: root}, nil

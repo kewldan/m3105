@@ -177,7 +177,7 @@ func TestResponsesMatchSpec(t *testing.T) {
 	spec := loadSpec(t)
 	c := newClient(t).bearer(testAPIToken)
 
-	subj := c.do("POST", "/api/v1/admin/subjects", map[string]any{"name": "Контрактный предмет", "color": "teal", "teacher": "Петров П.П."}, 201)
+	subj := c.do("POST", "/api/v1/admin/subjects", map[string]any{"name": "Контрактный предмет", "color": "teal", "lecturer": "Петров П.П.", "practiceTeacher": "Сидоров С.С."}, 201)
 	subjectID := int64(subj["id"].(float64))
 	t.Cleanup(func() { c.do("DELETE", fmt.Sprintf("/api/v1/admin/subjects/%d", subjectID), nil, 200) })
 

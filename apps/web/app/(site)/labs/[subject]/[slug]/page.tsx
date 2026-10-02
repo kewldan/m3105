@@ -85,6 +85,8 @@ export default async function LabPage({ params }: Params) {
   const tz = site.settings.timezone;
   const sections = SECTIONS.filter((s) => lab[s.key]?.trim());
   const hasMaterials = lab.materials.length > 0;
+  // Свой преподаватель лабы, иначе тот, кто ведёт практику по предмету.
+  const teacher = lab.teacher || lab.subjectPracticeTeacher;
 
   const labUrl = absoluteUrl(`/labs/${lab.subjectSlug}/${lab.slug}`);
 
@@ -150,10 +152,10 @@ export default async function LabPage({ params }: Params) {
           ) : null}
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-          {lab.teacher ? (
+          {teacher ? (
             <span className="inline-flex items-center gap-1.5">
               <UserRoundIcon className="size-4" aria-hidden />
-              {lab.teacher}
+              {teacher}
             </span>
           ) : null}
           {lab.maxScore != null ? (

@@ -79,7 +79,7 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchRe
 		WHERE p.status = 'published' AND (p.search_vector @@ q.tsq OR p.title % q.raw)
 		UNION ALL
 		SELECT 'subject', s.name, 'Предмет', '/subjects/' || s.slug,
-			COALESCE(NULLIF(s.teacher, ''), s.name),
+			COALESCE(NULLIF(concat_ws(', ', NULLIF(s.lecturer, ''), NULLIF(s.practice_teacher, '')), ''), s.name),
 			ts_rank_cd(s.search_vector, q.tsq) + similarity(s.name, q.raw)
 		FROM subjects s, q
 		WHERE s.search_vector @@ q.tsq OR s.name % q.raw

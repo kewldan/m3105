@@ -240,7 +240,7 @@ export function LabForm({
           <FormField
             label="Преподаватель"
             htmlFor="lab-teacher"
-            description="Если отличается от преподавателя предмета."
+            description="Если отличается от преподавателя практики по предмету."
             error={errors.teacher?.message}
           >
             <Input id="lab-teacher" {...form.register("teacher")} />

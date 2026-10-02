@@ -67,7 +67,8 @@ export type SubjectInput = {
   shortName: string;
   color: SubjectColor;
   icon: string;
-  teacher: string;
+  lecturer: string;
+  practiceTeacher: string;
   description: string;
   links: Link[];
   position: number;

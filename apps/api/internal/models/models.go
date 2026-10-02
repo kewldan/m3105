@@ -130,31 +130,33 @@ func (s *Settings) Validate() error {
 
 // Subject is a course/discipline.
 type Subject struct {
-	ID          int64     `db:"id" json:"id"`
-	Slug        string    `db:"slug" json:"slug"`
-	Name        string    `db:"name" json:"name"`
-	ShortName   string    `db:"short_name" json:"shortName"`
-	Color       string    `db:"color" json:"color"`
-	Icon        string    `db:"icon" json:"icon"`
-	Teacher     string    `db:"teacher" json:"teacher"`
-	Description string    `db:"description" json:"description"`
-	Links       []Link    `db:"links" json:"links"`
-	Position    int       `db:"position" json:"position"`
-	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
+	ID              int64     `db:"id" json:"id"`
+	Slug            string    `db:"slug" json:"slug"`
+	Name            string    `db:"name" json:"name"`
+	ShortName       string    `db:"short_name" json:"shortName"`
+	Color           string    `db:"color" json:"color"`
+	Icon            string    `db:"icon" json:"icon"`
+	Lecturer        string    `db:"lecturer" json:"lecturer"`
+	PracticeTeacher string    `db:"practice_teacher" json:"practiceTeacher"`
+	Description     string    `db:"description" json:"description"`
+	Links           []Link    `db:"links" json:"links"`
+	Position        int       `db:"position" json:"position"`
+	CreatedAt       time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updatedAt"`
 }
 
 // SubjectInput is the create/update payload for a subject.
 type SubjectInput struct {
-	Slug        string `json:"slug"`
-	Name        string `json:"name"`
-	ShortName   string `json:"shortName"`
-	Color       string `json:"color"`
-	Icon        string `json:"icon"`
-	Teacher     string `json:"teacher"`
-	Description string `json:"description"`
-	Links       []Link `json:"links"`
-	Position    int    `json:"position"`
+	Slug            string `json:"slug"`
+	Name            string `json:"name"`
+	ShortName       string `json:"shortName"`
+	Color           string `json:"color"`
+	Icon            string `json:"icon"`
+	Lecturer        string `json:"lecturer"`
+	PracticeTeacher string `json:"practiceTeacher"`
+	Description     string `json:"description"`
+	Links           []Link `json:"links"`
+	Position        int    `json:"position"`
 }
 
 // Validate normalises and checks the payload.
@@ -162,7 +164,8 @@ func (in *SubjectInput) Validate() error {
 	ve := httpx.NewValidation()
 	in.Name = strings.TrimSpace(in.Name)
 	in.ShortName = strings.TrimSpace(in.ShortName)
-	in.Teacher = strings.TrimSpace(in.Teacher)
+	in.Lecturer = strings.TrimSpace(in.Lecturer)
+	in.PracticeTeacher = strings.TrimSpace(in.PracticeTeacher)
 	in.Slug = strings.TrimSpace(strings.ToLower(in.Slug))
 	if in.Name == "" {
 		ve.Add("name", "Укажите название предмета")
@@ -231,6 +234,8 @@ type Lab struct {
 	SubjectShortName string `db:"subject_short_name" json:"subjectShortName"`
 	SubjectColor     string `db:"subject_color" json:"subjectColor"`
 	SubjectIcon      string `db:"subject_icon" json:"subjectIcon"`
+	// SubjectPracticeTeacher подставляется на сайте, если у лабы свой преподаватель не указан.
+	SubjectPracticeTeacher string `db:"subject_practice_teacher" json:"subjectPracticeTeacher"`
 }
 
 // LabInput is the create/update payload for a lab.

@@ -56,11 +56,18 @@ export default function SubjectsPage() {
       ),
     },
     {
-      id: "teacher",
-      header: "Преподаватель",
-      sort: (r) => r.teacher,
+      id: "lecturer",
+      header: "Лектор",
+      sort: (r) => r.lecturer,
       cell: (r) =>
-        r.teacher || <span className="text-muted-foreground">—</span>,
+        r.lecturer || <span className="text-muted-foreground">—</span>,
+    },
+    {
+      id: "practiceTeacher",
+      header: "Практика",
+      sort: (r) => r.practiceTeacher,
+      cell: (r) =>
+        r.practiceTeacher || <span className="text-muted-foreground">—</span>,
     },
     {
       id: "labs",

@@ -30,7 +30,8 @@ const schema = z.object({
   slug: z.string().trim(),
   color: z.enum(SUBJECT_COLORS),
   icon: z.string(),
-  teacher: z.string().trim(),
+  lecturer: z.string().trim(),
+  practiceTeacher: z.string().trim(),
   position: z.string().regex(/^-?\d*$/, "Введите целое число"),
   description: z.string(),
   links: z.array(z.object({ title: z.string(), url: z.string() })),
@@ -44,7 +45,8 @@ const EMPTY: FormValues = {
   slug: "",
   color: "blue",
   icon: "book",
-  teacher: "",
+  lecturer: "",
+  practiceTeacher: "",
   position: "0",
   description: "",
   links: [],
@@ -82,7 +84,8 @@ export function SubjectDialog({
             slug: subject.slug,
             color: subject.color,
             icon: subject.icon || "book",
-            teacher: subject.teacher,
+            lecturer: subject.lecturer,
+            practiceTeacher: subject.practiceTeacher,
             position: String(subject.position),
             description: subject.description,
             links: subject.links ?? [],
@@ -98,7 +101,8 @@ export function SubjectDialog({
       slug: values.slug || undefined,
       color: values.color as SubjectColor,
       icon: values.icon,
-      teacher: values.teacher,
+      lecturer: values.lecturer,
+      practiceTeacher: values.practiceTeacher,
       position: Number(values.position || 0),
       description: values.description,
       links: values.links.filter((l) => l.title || l.url),
@@ -203,14 +207,26 @@ export function SubjectDialog({
           )}
         />
         <FormField
-          label="Преподаватель"
-          htmlFor="s-teacher"
-          error={errors.teacher?.message}
+          label="Лектор"
+          htmlFor="s-lecturer"
+          error={errors.lecturer?.message}
         >
           <Input
-            id="s-teacher"
+            id="s-lecturer"
             placeholder="Иванов И. И."
-            {...form.register("teacher")}
+            {...form.register("lecturer")}
+          />
+        </FormField>
+        <FormField
+          label="Преподаватель практики"
+          htmlFor="s-practice-teacher"
+          description="Ведёт практику и принимает лабы."
+          error={errors.practiceTeacher?.message}
+        >
+          <Input
+            id="s-practice-teacher"
+            placeholder="Петров П. П."
+            {...form.register("practiceTeacher")}
           />
         </FormField>
         <FormField

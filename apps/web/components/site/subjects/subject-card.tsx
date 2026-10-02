@@ -10,6 +10,7 @@ import Link from "next/link";
 import { SubjectIcon } from "@/components/site/subject-icon";
 import type { SubjectWithCounts } from "@/lib/api/types";
 import { plural } from "@/lib/format";
+import { subjectTeachers } from "@/lib/teachers";
 import { cn } from "@/lib/utils";
 
 export function SubjectCard({
@@ -33,12 +34,16 @@ export function SubjectCard({
           <div className="font-heading font-semibold leading-snug text-pretty">
             {subject.name}
           </div>
-          {subject.teacher ? (
-            <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <UserRoundIcon className="size-3" aria-hidden />
-              <span className="truncate">{subject.teacher}</span>
+          {subjectTeachers(subject).map((t) => (
+            <div
+              key={t.role}
+              className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"
+              title={`${t.role}: ${t.name}`}
+            >
+              <UserRoundIcon className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">{t.name}</span>
             </div>
-          ) : null}
+          ))}
         </div>
         <ArrowRightIcon
           className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"

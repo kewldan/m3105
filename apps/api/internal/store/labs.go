@@ -9,11 +9,13 @@ import (
 
 const labCols = `l.id, l.subject_id, l.number, l.slug, l.title, l.summary, l.content, l.requirements, l.submission,
 	l.variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at,
-	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon`
+	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
+	s.practice_teacher AS subject_practice_teacher`
 
 const labListCols = `l.id, l.subject_id, l.number, l.slug, l.title, l.summary, '' AS content, '' AS requirements, '' AS submission,
 	'' AS variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at,
-	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon`
+	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
+	s.practice_teacher AS subject_practice_teacher`
 
 // LabFilter narrows lab listings.
 type LabFilter struct {

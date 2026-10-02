@@ -81,7 +81,8 @@ const prog = await subj({
   shortName: "Прога",
   color: "blue",
   icon: "code",
-  teacher: "Иванов Иван Иванович",
+  lecturer: "Иванов Иван Иванович",
+  practiceTeacher: "Смирнова Ольга Викторовна",
   position: 1,
   description: `Курс по языку **C** и основам алгоритмов.
 
@@ -93,7 +94,8 @@ const math = await subj({
   shortName: "Матан",
   color: "violet",
   icon: "sigma",
-  teacher: "Петрова Мария Сергеевна",
+  lecturer: "Петрова Мария Сергеевна",
+  practiceTeacher: "Петрова Мария Сергеевна",
   position: 2,
   description:
     "Пределы, производные, интегралы. Контрольные по темам, экзамен в январе.",
@@ -104,7 +106,8 @@ const web = await subj({
   shortName: "Веб",
   color: "emerald",
   icon: "globe",
-  teacher: "Сидоров Пётр Алексеевич",
+  lecturer: "Сидоров Пётр Алексеевич",
+  practiceTeacher: "Орлов Денис Игоревич",
   position: 3,
   description:
     "HTML, CSS, JavaScript и немного бэкенда. Итоговый проект в конце семестра.",
@@ -115,7 +118,8 @@ const physics = await subj({
   shortName: "Физика",
   color: "amber",
   icon: "atom",
-  teacher: "Кузнецов Андрей Николаевич",
+  lecturer: "Кузнецов Андрей Николаевич",
+  practiceTeacher: "",
   position: 4,
   description: "Механика и молекулярная физика.",
   links: [],

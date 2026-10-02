@@ -302,13 +302,14 @@ erDiagram
         text name
         text short_name
         text color
-        text teacher
+        text lecturer
         text description
         jsonb links
         int4 position
         timestamptz created_at
         timestamptz updated_at
         text icon
+        text practice_teacher
         tsvector search_vector "может быть пустым"
     }
     users {

@@ -93,7 +93,10 @@ export type SubjectRef = {
 };
 
 export type Subject = SubjectRef & {
-  teacher: string;
+  /** Лектор */
+  lecturer: string;
+  /** Преподаватель практики */
+  practiceTeacher: string;
   /** MDX */
   description: string;
   links: Link[];
@@ -137,7 +140,10 @@ export type Lab = SubjectJoin & {
   deadlineAt: DateTime | null;
   deadlineNote: string;
   maxScore: number | null;
+  /** Свой преподаватель лабы; пусто = преподаватель практики предмета */
   teacher: string;
+  /** Преподаватель практики предмета */
+  subjectPracticeTeacher: string;
   status: Status;
   createdAt: DateTime;
   updatedAt: DateTime;

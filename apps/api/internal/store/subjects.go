@@ -6,7 +6,7 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/models"
 )
 
-const subjectCols = `s.id, s.slug, s.name, s.short_name, s.color, s.icon, s.teacher, s.description, s.links, s.position, s.created_at, s.updated_at`
+const subjectCols = `s.id, s.slug, s.name, s.short_name, s.color, s.icon, s.lecturer, s.practice_teacher, s.description, s.links, s.position, s.created_at, s.updated_at`
 
 // SubjectWithCounts adds published-content counters for public listings.
 type SubjectWithCounts struct {
@@ -53,9 +53,9 @@ func (s *Store) CreateSubject(ctx context.Context, in *models.SubjectInput) (mod
 		return models.Subject{}, err
 	}
 	var id int64
-	err = s.db.QueryRow(ctx, `INSERT INTO subjects (slug, name, short_name, color, icon, teacher, description, links, position)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-		slug, in.Name, in.ShortName, in.Color, in.Icon, in.Teacher, in.Description, in.Links, in.Position).Scan(&id)
+	err = s.db.QueryRow(ctx, `INSERT INTO subjects (slug, name, short_name, color, icon, lecturer, practice_teacher, description, links, position)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+		slug, in.Name, in.ShortName, in.Color, in.Icon, in.Lecturer, in.PracticeTeacher, in.Description, in.Links, in.Position).Scan(&id)
 	if err != nil {
 		return models.Subject{}, wrap(err)
 	}
@@ -68,9 +68,9 @@ func (s *Store) UpdateSubject(ctx context.Context, id int64, in *models.SubjectI
 	if err != nil {
 		return models.Subject{}, err
 	}
-	if err := s.exec(ctx, `UPDATE subjects SET slug=$1, name=$2, short_name=$3, color=$4, icon=$5, teacher=$6, description=$7,
-		links=$8, position=$9, updated_at=now() WHERE id = $10`,
-		slug, in.Name, in.ShortName, in.Color, in.Icon, in.Teacher, in.Description, in.Links, in.Position, id); err != nil {
+	if err := s.exec(ctx, `UPDATE subjects SET slug=$1, name=$2, short_name=$3, color=$4, icon=$5, lecturer=$6, practice_teacher=$7,
+		description=$8, links=$9, position=$10, updated_at=now() WHERE id = $11`,
+		slug, in.Name, in.ShortName, in.Color, in.Icon, in.Lecturer, in.PracticeTeacher, in.Description, in.Links, in.Position, id); err != nil {
 		return models.Subject{}, err
 	}
 	return s.GetSubject(ctx, id)

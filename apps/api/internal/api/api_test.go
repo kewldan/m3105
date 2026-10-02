@@ -229,9 +229,12 @@ func TestEndToEnd(t *testing.T) {
 	c.do("PUT", "/api/v1/admin/settings", settings, 422)
 
 	// Subjects.
-	subj := c.do("POST", "/api/v1/admin/subjects", map[string]any{"name": "Программирование", "color": "blue", "teacher": "Иванов И.И."}, 201)
+	subj := c.do("POST", "/api/v1/admin/subjects", map[string]any{"name": "Программирование", "color": "blue", "lecturer": "Иванов И.И.", "practiceTeacher": "Смирнов С.С."}, 201)
 	if subj["slug"] != "programmirovanie" {
 		t.Fatalf("unexpected slug %v", subj["slug"])
+	}
+	if subj["lecturer"] != "Иванов И.И." || subj["practiceTeacher"] != "Смирнов С.С." {
+		t.Fatalf("teachers not saved: %v / %v", subj["lecturer"], subj["practiceTeacher"])
 	}
 	subj2 := c.do("POST", "/api/v1/admin/subjects", map[string]any{"name": "Программирование", "color": "rose"}, 201)
 	if subj2["slug"] != "programmirovanie-2" {
@@ -249,6 +252,9 @@ func TestEndToEnd(t *testing.T) {
 		"materials": []map[string]string{{"title": "Методичка", "url": "https://example.com/m.pdf"}},
 	}, 201)
 	labID := int64(lab["id"].(float64))
+	if lab["teacher"] != "" || lab["subjectPracticeTeacher"] != "Смирнов С.С." {
+		t.Fatalf("lab must carry subject practice teacher: %v / %v", lab["teacher"], lab["subjectPracticeTeacher"])
+	}
 	c.do("POST", "/api/v1/admin/labs", map[string]any{"subjectId": subjectID, "number": 2, "title": "Черновик", "status": "draft"}, 201)
 	c.do("POST", "/api/v1/admin/labs", map[string]any{"subjectId": 999, "number": 1, "title": "X"}, 422)
 

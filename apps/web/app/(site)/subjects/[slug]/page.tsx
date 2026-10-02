@@ -22,6 +22,7 @@ import type { SubjectResponse } from "@/lib/api/types";
 import { fmtDateOnly, fmtDateTime, plural } from "@/lib/format";
 import { absoluteUrl, metaText, pageMetadata, SITE_NAME } from "@/lib/seo";
 import { subjectColor } from "@/lib/subject-colors";
+import { subjectTeachers } from "@/lib/teachers";
 import { cn } from "@/lib/utils";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -42,7 +43,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   try {
     const { subject, labs, notes } = await getSubject(slug);
     const bits = [
-      subject.teacher ? `Преподаватель: ${subject.teacher}.` : "",
+      ...subjectTeachers(subject).map((t) => `${t.role}: ${t.name}`),
       labs.length
         ? `${labs.length} ${plural(labs.length, "лаба", "лабы", "лаб")}`
         : "",
@@ -78,6 +79,7 @@ export default async function SubjectPage({ params }: Params) {
     .reverse();
 
   const subjectUrl = absoluteUrl(`/subjects/${subject.slug}`);
+  const teachers = subjectTeachers(subject);
 
   return (
     <div className="space-y-10">
@@ -92,8 +94,13 @@ export default async function SubjectPage({ params }: Params) {
           url: subjectUrl,
           inLanguage: "ru",
           provider: { "@type": "Organization", name: SITE_NAME },
-          ...(subject.teacher
-            ? { instructor: { "@type": "Person", name: subject.teacher } }
+          ...(teachers.length
+            ? {
+                instructor: teachers.map((t) => ({
+                  "@type": "Person",
+                  name: t.name,
+                })),
+              }
             : {}),
         }}
       />
@@ -118,11 +125,18 @@ export default async function SubjectPage({ params }: Params) {
             <h1 className="text-2xl font-bold tracking-tight text-balance break-words sm:text-3xl md:text-4xl">
               {subject.name}
             </h1>
-            {subject.teacher ? (
-              <p className="inline-flex items-center gap-1.5 text-base text-muted-foreground">
-                <UserRoundIcon className="size-4" aria-hidden />
-                {subject.teacher}
-              </p>
+            {teachers.length ? (
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-base text-muted-foreground">
+                {teachers.map((t) => (
+                  <p key={t.role} className="inline-flex items-center gap-1.5">
+                    <UserRoundIcon className="size-4" aria-hidden />
+                    <span>
+                      <span className="text-foreground/70">{t.role}:</span>{" "}
+                      {t.name}
+                    </span>
+                  </p>
+                ))}
+              </div>
             ) : null}
           </div>
         </div>

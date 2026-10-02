@@ -47,7 +47,8 @@ async function subjectImage(slug: string) {
     notes.length
       ? `${notes.length} ${plural(notes.length, "конспект", "конспекта", "конспектов")}`
       : "",
-    subject.teacher,
+    subject.lecturer,
+    subject.practiceTeacher !== subject.lecturer ? subject.practiceTeacher : "",
   ];
   return ogImage({
     kind: "subject",
@@ -66,7 +67,7 @@ async function labImage(subject: string, slug: string) {
     lab.maxScore
       ? `${lab.maxScore} ${plural(lab.maxScore, "балл", "балла", "баллов")}`
       : "",
-    lab.teacher,
+    lab.teacher || lab.subjectPracticeTeacher,
   ];
   return ogImage({
     kind: "lab",

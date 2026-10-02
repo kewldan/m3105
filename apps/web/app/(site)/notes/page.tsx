@@ -67,9 +67,9 @@ export default async function NotesPage({
                   <h2 className="truncate text-xl font-semibold tracking-tight">
                     {active.name}
                   </h2>
-                  {active.teacher ? (
+                  {active.lecturer ? (
                     <div className="truncate text-sm text-muted-foreground">
-                      {active.teacher}
+                      Лектор: {active.lecturer}
                     </div>
                   ) : null}
                 </div>

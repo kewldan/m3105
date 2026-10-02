@@ -620,7 +620,8 @@ components:
         - $ref: "#/components/schemas/SubjectRef"
         - type: object
           properties:
-            teacher: { type: string }
+            lecturer: { type: string, description: "Лектор" }
+            practiceTeacher: { type: string, description: "Преподаватель практики" }
             description: { type: string, description: "MDX" }
             links:
               type: array
@@ -628,7 +629,7 @@ components:
             position: { type: integer }
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
-          required: [teacher, description, links, position, createdAt, updatedAt]
+          required: [lecturer, practiceTeacher, description, links, position, createdAt, updatedAt]
 
     SubjectWithCounts:
       allOf:
@@ -676,11 +677,12 @@ components:
             deadlineAt: { oneOf: [{ $ref: "#/components/schemas/DateTime" }, { type: "null" }] }
             deadlineNote: { type: string }
             maxScore: { oneOf: [{ type: integer }, { type: "null" }] }
-            teacher: { type: string }
+            teacher: { type: string, description: "Свой преподаватель лабы; пусто = преподаватель практики предмета" }
+            subjectPracticeTeacher: { type: string, description: "Преподаватель практики предмета" }
             status: { $ref: "#/components/schemas/Status" }
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
-          required: [id, subjectId, number, slug, title, summary, content, requirements, submission, variants, materials, deadlineAt, deadlineNote, maxScore, teacher, status, createdAt, updatedAt]
+          required: [id, subjectId, number, slug, title, summary, content, requirements, submission, variants, materials, deadlineAt, deadlineNote, maxScore, teacher, subjectPracticeTeacher, status, createdAt, updatedAt]
 
     Note:
       allOf:

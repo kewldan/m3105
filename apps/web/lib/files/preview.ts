@@ -14,6 +14,15 @@ const FILES_PREFIX = "/api/v1/files/";
 /** Файл из нашего хранилища, у которого бывают превью. */
 export const isStoredFile = (url: string) => url.startsWith(FILES_PREFIX);
 
+/**
+ * Уменьшает ли сервер картинку (`files.Resizable` в Go): только JPEG, PNG и
+ * WebP. SVG и GIF приходят оригиналом на любой `?w=`, и srcset с ширинами
+ * обманул бы браузер — он сжал бы картинку в `w / ширина оригинала` раз.
+ * Тип угадывается по расширению в имени файла; без расширения превью нет.
+ */
+export const isResizable = (url: string) =>
+  /\.(jpe?g|png|webp)$/i.test(url.split("?")[0]);
+
 export const previewSrc = (url: string, w: PreviewWidth) => `${url}?w=${w}`;
 
 /** srcset из превью, не шире исходной картинки (если её ширина известна). */

@@ -147,8 +147,11 @@ export function SessionCard({
       {me ? (
         session.participants.length > 0 ? (
           <ul className="mt-4 divide-y overflow-hidden rounded-xl border bg-muted/30">
-            {session.participants.map((p) => (
+            {session.participants.map((p, i) => (
               <li key={p.user.id} className="flex items-center gap-3 px-3 py-2">
+                <span className="w-5 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                  {i + 1}
+                </span>
                 <UserAvatar
                   name={p.user.name}
                   photoUrl={p.user.photoUrl}

@@ -648,6 +648,33 @@ func (h *Handler) adminPracticeSignups(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
+	h.writeAdminSignups(w, r, id)
+}
+
+// adminReorderSignups sets the order in which students hand their labs in.
+func (h *Handler) adminReorderSignups(w http.ResponseWriter, r *http.Request) {
+	id, err := httpx.IDParam(r)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	var in models.SignupOrderInput
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := in.Validate(); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := h.store.ReorderSignups(r.Context(), id, in.UserIDs); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	h.writeAdminSignups(w, r, id)
+}
+
+func (h *Handler) writeAdminSignups(w http.ResponseWriter, r *http.Request, id int64) {
 	sess, err := h.store.GetPracticeSession(r.Context(), id)
 	if err != nil {
 		httpx.Fail(w, err)

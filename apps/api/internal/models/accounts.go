@@ -138,6 +138,21 @@ func (in *PracticeSessionInput) Validate() error {
 	return nil
 }
 
+// SignupOrderInput is the admin payload that sets the queue order of a session.
+type SignupOrderInput struct {
+	UserIDs []int64 `json:"userIds"`
+}
+
+// Validate checks the payload.
+func (in *SignupOrderInput) Validate() error {
+	if len(in.UserIDs) == 0 {
+		ve := httpx.NewValidation()
+		ve.Add("userIds", "Список пуст")
+		return ve
+	}
+	return nil
+}
+
 // LabRef is a compact lab reference used in signup lists.
 type LabRef struct {
 	ID          int64  `db:"id" json:"id"`

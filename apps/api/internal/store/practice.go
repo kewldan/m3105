@@ -84,7 +84,7 @@ func (s *Store) ListSignupsForSessions(ctx context.Context, sessionIDs []int64) 
 	if len(sessionIDs) == 0 {
 		return []models.SignupRow{}, nil
 	}
-	return many[models.SignupRow](ctx, s.db, `SELECT `+signupCols+signupFrom+` WHERE g.session_id = ANY($1) ORDER BY g.created_at, l.number`, sessionIDs)
+	return many[models.SignupRow](ctx, s.db, `SELECT `+signupCols+signupFrom+` WHERE g.session_id = ANY($1) ORDER BY g.queue_pos, g.user_id, l.number`, sessionIDs)
 }
 
 // ListUserSignups returns everything a user signed up for.
@@ -115,6 +115,11 @@ func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, lab
 	if err := tx.QueryRow(ctx, `SELECT subject_id, capacity FROM practice_sessions WHERE id = $1 FOR UPDATE`, sessionID).Scan(&subjectID, &capacity); err != nil {
 		return wrap(err)
 	}
+	// Правка набора лаб не должна отправлять студента в конец очереди.
+	var pos *int64
+	if err := tx.QueryRow(ctx, `SELECT min(queue_pos) FROM practice_signups WHERE session_id = $1 AND user_id = $2`, sessionID, userID).Scan(&pos); err != nil {
+		return wrap(err)
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM practice_signups WHERE session_id = $1 AND user_id = $2`, sessionID, userID); err != nil {
 		return wrap(err)
 	}
@@ -128,6 +133,13 @@ func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, lab
 				return ErrSessionFull
 			}
 		}
+		if pos == nil {
+			var next int64
+			if err := tx.QueryRow(ctx, `SELECT nextval('practice_queue_seq')`).Scan(&next); err != nil {
+				return wrap(err)
+			}
+			pos = &next
+		}
 		for _, labID := range labIDs {
 			var ok bool
 			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM labs WHERE id = $1 AND subject_id = $2 AND status = 'published')`, labID, subjectID).Scan(&ok); err != nil {
@@ -136,10 +148,60 @@ func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, lab
 			if !ok {
 				return &httpx.ValidationError{Fields: map[string]string{"labIds": "Лаба не относится к этому предмету"}}
 			}
-			if _, err := tx.Exec(ctx, `INSERT INTO practice_signups (session_id, user_id, lab_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, sessionID, userID, labID); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO practice_signups (session_id, user_id, lab_id, queue_pos) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, sessionID, userID, labID, *pos); err != nil {
 				return wrap(err)
 			}
 		}
+	}
+	return wrap(tx.Commit(ctx))
+}
+
+// ReorderSignups sets the queue order of a session's students. userIDs must be
+// exactly the students currently signed up; the queue positions they already
+// hold are redistributed, so later signups still land at the end.
+func (s *Store) ReorderSignups(ctx context.Context, sessionID int64, userIDs []int64) error {
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	if err != nil {
+		return wrap(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM practice_sessions WHERE id = $1 FOR UPDATE`, sessionID); err != nil {
+		return wrap(err)
+	}
+	rows, err := tx.Query(ctx, `SELECT user_id, min(queue_pos) FROM practice_signups WHERE session_id = $1 GROUP BY user_id ORDER BY 2`, sessionID)
+	if err != nil {
+		return wrap(err)
+	}
+	current := map[int64]bool{}
+	positions := []int64{}
+	for rows.Next() {
+		var uid, pos int64
+		if err := rows.Scan(&uid, &pos); err != nil {
+			rows.Close()
+			return wrap(err)
+		}
+		current[uid] = true
+		positions = append(positions, pos)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return wrap(err)
+	}
+	seen := map[int64]bool{}
+	for _, uid := range userIDs {
+		if !current[uid] || seen[uid] {
+			return &httpx.ValidationError{Fields: map[string]string{"userIds": "Список устарел, обновите очередь"}}
+		}
+		seen[uid] = true
+	}
+	if len(userIDs) != len(current) {
+		return &httpx.ValidationError{Fields: map[string]string{"userIds": "Список устарел, обновите очередь"}}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE practice_signups g SET queue_pos = v.pos
+		FROM unnest($2::bigint[], $3::bigint[]) AS v(uid, pos)
+		WHERE g.session_id = $1 AND g.user_id = v.uid`, sessionID, userIDs, positions); err != nil {
+		return wrap(err)
 	}
 	return wrap(tx.Commit(ctx))
 }

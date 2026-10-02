@@ -112,6 +112,12 @@ export const adminApi = {
       apiClient<{ session: PracticeSession; participants: Participant[] }>(
         `/admin/practice/${id}/signups`,
       ),
+    /** Новый порядок очереди: id всех записавшихся студентов. */
+    reorder: (id: number, userIds: number[]) =>
+      apiClient<{ session: PracticeSession; participants: Participant[] }>(
+        `/admin/practice/${id}/signups/order`,
+        { method: "PUT", body: { userIds } },
+      ),
   },
   settings: {
     get: () => apiClient<Settings>("/admin/settings"),

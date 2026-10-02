@@ -507,6 +507,32 @@ func TestStudentAccounts(t *testing.T) {
 	if len(who["participants"].([]any)) != 1 {
 		t.Fatalf("admin signups wrong: %v", who)
 	}
+	// The queue is FIFO; the admin can reorder it, and re-signing keeps the place.
+	capBig := int(10)
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice/%d", sessID), map[string]any{"subjectId": subjectID, "startsAt": starts, "location": "412", "capacity": capBig}, 200)
+	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab1ID}}, 200)
+	names := func() []string {
+		out := []string{}
+		for _, p := range admin.do("GET", fmt.Sprintf("/api/v1/admin/practice/%d/signups", sessID), nil, 200)["participants"].([]any) {
+			out = append(out, p.(map[string]any)["user"].(map[string]any)["name"].(string))
+		}
+		return out
+	}
+	if got := names(); len(got) != 2 || got[0] != "Пётр Сидоров" || got[1] != "Маша Иванова" {
+		t.Fatalf("queue is not FIFO: %v", got)
+	}
+	petya, masha := userIDByName(t, admin, "Пётр Сидоров"), userIDByName(t, admin, "Маша Иванова")
+	orderURL := fmt.Sprintf("/api/v1/admin/practice/%d/signups/order", sessID)
+	admin.do("PUT", orderURL, map[string]any{"userIds": []int64{masha, petya}}, 200)
+	if got := names(); got[0] != "Маша Иванова" {
+		t.Fatalf("reorder ignored: %v", got)
+	}
+	admin.do("PUT", orderURL, map[string]any{"userIds": []int64{masha}}, 422)
+	admin.do("PUT", orderURL, map[string]any{"userIds": []int64{masha, masha}}, 422)
+	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab1ID}}, 200)
+	if got := names(); got[0] != "Маша Иванова" {
+		t.Fatalf("editing labs lost the place in the queue: %v", got)
+	}
 	u.do("DELETE", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), nil, 200)
 	if got := u.do("GET", "/api/v1/me/", nil, 200); len(got["signups"].([]any)) != 0 {
 		t.Fatalf("cancel failed: %v", got["signups"])

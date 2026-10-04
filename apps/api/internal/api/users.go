@@ -478,10 +478,11 @@ func (h *Handler) freezeQueues(ctx context.Context, loc *time.Location) {
 
 func queueEntry(r store.QueuedSignup, capacity *int, i int) models.QueueEntry {
 	return models.QueueEntry{
-		User:    models.PublicUser{ID: r.UserID, Name: r.UserName, PhotoURL: r.PhotoURL},
+		User:    models.PublicUser{ID: r.UserID, Name: r.UserName, PhotoURL: r.PhotoURL, Group: r.UserGroup},
 		Lab:     models.LabRef{ID: r.LabID, Number: r.LabNumber, Title: r.LabTitle, Slug: r.LabSlug, SubjectSlug: r.SubjectSlug},
 		Reserve: capacity != nil && i >= *capacity,
-		Carried: r.Carried,
+		Carried: r.Missed > 0,
+		Missed:  r.Missed,
 		Late:    r.Late,
 	}
 }

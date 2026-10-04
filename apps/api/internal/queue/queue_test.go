@@ -43,13 +43,25 @@ func TestOrderRoundRobin(t *testing.T) {
 func TestOrderCarriedFirst(t *testing.T) {
 	got := Order(1, []Entry{
 		{UserID: 1, LabID: 15, Lab: 5},
-		{UserID: 2, LabID: 11, Lab: 1, Carried: 2},
-		{UserID: 3, LabID: 11, Lab: 1, Carried: 1},
+		{UserID: 2, LabID: 11, Lab: 1, Missed: 1, ReservePlace: 2},
+		{UserID: 3, LabID: 11, Lab: 1, Missed: 1, ReservePlace: 1},
 		{UserID: 3, LabID: 12, Lab: 2},
 	})
 	want := []Key{{3, 11}, {2, 11}, {1, 15}, {3, 12}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// Left out twice in a row beats left out once, whatever the place in the last reserve.
+func TestOrderMissedTwiceFirst(t *testing.T) {
+	got := Order(1, []Entry{
+		{UserID: 1, LabID: 11, Lab: 1, Missed: 1, ReservePlace: 1},
+		{UserID: 2, LabID: 11, Lab: 1, Missed: 2, ReservePlace: 5},
+		{UserID: 3, LabID: 13, Lab: 3},
+	})
+	if u := users(got); !slices.Equal(u, []int64{2, 1, 3}) {
+		t.Fatalf("missed twice must go first: %v", u)
 	}
 }
 

@@ -276,9 +276,6 @@ export type AdminComment = Comment & {
 
 export type PostKind = "shawarma" | "joke";
 
-/** `members` — пост видят только вошедшие через Telegram студенты. */
-export type PostVisibility = "public" | "members";
-
 export type PostSort = "new" | "top";
 
 // ---- attachments ----

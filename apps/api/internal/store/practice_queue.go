@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"time"
 
@@ -15,42 +14,92 @@ import (
 // QueuedSignup is a defense in its place in the queue.
 type QueuedSignup struct {
 	models.SignupRow
-	Carried bool
-	Late    bool
+	// Missed is how many sessions in a row the defense was left in the reserve.
+	Missed int
+	Late   bool
 }
 
-// carriedFrom maps defenses left in the reserve of the subject's previous session
-// to their place in that reserve. Only a stored (frozen or manual) order counts:
-// a session still being reshuffled has no reserve yet.
-func carriedFrom(ctx context.Context, q querier, sess models.PracticeSession) (map[queue.Key]int, error) {
-	out := map[queue.Key]int{}
-	var prevID int64
-	var capacity *int
-	var stored bool
-	err := q.QueryRow(ctx, `SELECT id, capacity, queue_manual OR queue_frozen_at IS NOT NULL FROM practice_sessions
-		WHERE subject_id = $1 AND starts_at < $2 ORDER BY starts_at DESC, id DESC LIMIT 1`, sess.SubjectID, sess.StartsAt).Scan(&prevID, &capacity, &stored)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (capacity == nil || !stored)) {
-		return out, nil
-	}
-	if err != nil {
-		return nil, wrap(err)
-	}
-	rows, err := q.Query(ctx, `SELECT user_id, lab_id, row_number() OVER (ORDER BY queue_pos, id) FROM practice_signups WHERE session_id = $1`, prevID)
+type carry struct{ missed, place int }
+
+// maxCarryChain bounds how far back the misses are counted.
+const maxCarryChain = 20
+
+// reserveOf maps the defenses beyond the capacity of a stored session to their
+// 1-based place in its reserve.
+func reserveOf(ctx context.Context, q querier, sessionID int64, capacity int) (map[queue.Key]int, error) {
+	rows, err := q.Query(ctx, `SELECT user_id, lab_id, row_number() OVER (ORDER BY queue_pos, id) FROM practice_signups WHERE session_id = $1`, sessionID)
 	if err != nil {
 		return nil, wrap(err)
 	}
 	defer rows.Close()
+	out := map[queue.Key]int{}
 	for rows.Next() {
 		var k queue.Key
 		var pos int
 		if err := rows.Scan(&k.UserID, &k.LabID, &pos); err != nil {
 			return nil, wrap(err)
 		}
-		if pos > *capacity {
-			out[k] = pos - *capacity
+		if pos > capacity {
+			out[k] = pos - capacity
 		}
 	}
 	return out, wrap(rows.Err())
+}
+
+// carriedFrom finds defenses left in the reserve of the subject's previous
+// session and counts how many sessions in a row (going back) each was left out.
+// Only a stored (frozen or manual) order counts: a session still being
+// reshuffled has no reserve yet, and it ends the chain.
+func carriedFrom(ctx context.Context, q querier, sess models.PracticeSession) (map[queue.Key]carry, error) {
+	type prev struct {
+		id       int64
+		capacity *int
+		stored   bool
+	}
+	rows, err := q.Query(ctx, `SELECT id, capacity, queue_manual OR queue_frozen_at IS NOT NULL FROM practice_sessions
+		WHERE subject_id = $1 AND starts_at < $2 ORDER BY starts_at DESC, id DESC LIMIT $3`, sess.SubjectID, sess.StartsAt, maxCarryChain)
+	if err != nil {
+		return nil, wrap(err)
+	}
+	prevs, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (prev, error) {
+		var p prev
+		return p, r.Scan(&p.id, &p.capacity, &p.stored)
+	})
+	if err != nil {
+		return nil, wrap(err)
+	}
+	out := map[queue.Key]carry{}
+	for i, p := range prevs {
+		if p.capacity == nil || !p.stored {
+			break
+		}
+		reserve, err := reserveOf(ctx, q, p.id, *p.capacity)
+		if err != nil {
+			return nil, err
+		}
+		if i == 0 {
+			for k, place := range reserve {
+				out[k] = carry{missed: 1, place: place}
+			}
+			continue
+		}
+		// Продолжаем цепочку только для тех, кто был в резерве и на этой сдаче.
+		alive := false
+		for k, c := range out {
+			if c.missed != i {
+				continue
+			}
+			if _, ok := reserve[k]; ok {
+				c.missed++
+				out[k] = c
+				alive = true
+			}
+		}
+		if !alive {
+			break
+		}
+	}
+	return out, nil
 }
 
 // orderSession puts a session's signup rows (given in queue_pos order) into
@@ -63,7 +112,7 @@ func orderSession(ctx context.Context, q querier, sess models.PracticeSession, r
 	freeze := queue.FreezeAt(sess.StartsAt, loc)
 	out := make([]QueuedSignup, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, QueuedSignup{SignupRow: r, Carried: carried[queue.Key{UserID: r.UserID, LabID: r.LabID}] > 0, Late: r.CreatedAt.After(freeze)})
+		out = append(out, QueuedSignup{SignupRow: r, Missed: carried[queue.Key{UserID: r.UserID, LabID: r.LabID}].missed, Late: r.CreatedAt.After(freeze)})
 	}
 	if sess.QueueManual || sess.QueueFrozen {
 		return out, nil
@@ -73,7 +122,8 @@ func orderSession(ctx context.Context, q querier, sess models.PracticeSession, r
 	for _, r := range out {
 		k := queue.Key{UserID: r.UserID, LabID: r.LabID}
 		byKey[k] = r
-		entries = append(entries, queue.Entry{UserID: r.UserID, LabID: r.LabID, Lab: r.LabNumber, Carried: carried[k], Late: r.Late, SignedAt: r.CreatedAt})
+		c := carried[k]
+		entries = append(entries, queue.Entry{UserID: r.UserID, LabID: r.LabID, Lab: r.LabNumber, Missed: c.missed, ReservePlace: c.place, Late: r.Late, SignedAt: r.CreatedAt})
 	}
 	ordered := out[:0:0]
 	for _, k := range queue.Order(sess.ID, entries) {

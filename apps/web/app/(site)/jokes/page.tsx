@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/site/page-header";
+import { GroupGate } from "@/components/site/social/group-gate";
 import { PostFeed } from "@/components/site/social/post-feed";
 import { cookieHeader } from "@/lib/api/cookies";
-import { getPosts } from "@/lib/api/public";
+import { getPosts, getSettings } from "@/lib/api/public";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
@@ -11,10 +12,14 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Анекдоты и байки группы М3105: студенты пишут, группа лайкает и комментирует.",
   path: "/jokes",
+  noindex: true,
 });
 
 export default async function JokesPage() {
-  const posts = await getPosts("joke", "new", await cookieHeader());
+  const [feed, site] = await Promise.all([
+    getPosts("joke", "new", await cookieHeader()),
+    getSettings(),
+  ]);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -22,7 +27,15 @@ export default async function JokesPage() {
         title="Анекдоты"
         description="Свои и услышанные на лекциях. Лайкайте лучшие, чтобы они поднимались наверх."
       />
-      <PostFeed kind="joke" initial={posts} />
+      {"posts" in feed ? (
+        <PostFeed kind="joke" initial={feed.posts} />
+      ) : (
+        <GroupGate
+          reason={feed.denied}
+          group={site.settings.groupName}
+          next="/jokes"
+        />
+      )}
     </div>
   );
 }

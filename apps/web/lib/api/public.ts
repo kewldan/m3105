@@ -135,9 +135,27 @@ export const getComments = (
     cookie ? { headers: { cookie } } : {},
   );
 
-/** One feed of user posts; the cookie fills `liked` and `mine`. */
-export const getPosts = (kind: PostKind, sort: PostSort, cookie?: string) =>
-  apiServer<Post[]>(
-    `/posts?kind=${kind}&sort=${sort}`,
-    cookie ? { headers: { cookie } } : {},
-  );
+/**
+ * One feed of user posts, open only to confirmed students of the site's group.
+ * Instead of throwing on 401/403 it says why the feed is closed.
+ */
+export async function getPosts(
+  kind: PostKind,
+  sort: PostSort,
+  cookie?: string,
+): Promise<{ posts: Post[] } | { denied: "login" | "member" }> {
+  try {
+    return {
+      posts: await apiServer<Post[]>(
+        `/posts?kind=${kind}&sort=${sort}`,
+        cookie ? { headers: { cookie } } : {},
+      ),
+    };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401)
+      return { denied: "login" };
+    if (err instanceof ApiError && err.status === 403)
+      return { denied: "member" };
+    throw err;
+  }
+}

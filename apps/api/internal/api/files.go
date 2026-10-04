@@ -173,8 +173,8 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request) {
 	private := false
 	switch {
 	case h.auth != nil && h.auth.Authenticated(ctx, r):
-		// Админ видит всё: модерация, незаконченные загрузки, посты «для своих».
-		private = a.Place == models.PlacePending || a.Visibility != models.VisiblePublic
+		// Админ видит всё: модерация, незаконченные загрузки, файлы постов.
+		private = a.Place == models.PlacePending || a.GroupOnly
 	case a.Place == models.PlacePending:
 		// Незаконченную загрузку видит только автор.
 		if a.UserID == nil || *a.UserID != viewer {
@@ -182,8 +182,13 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		private = true
-	case a.Visibility != models.VisiblePublic:
-		if viewer == 0 {
+	case a.GroupOnly:
+		member, err := h.isMember(r)
+		if err != nil {
+			httpx.Fail(w, err)
+			return
+		}
+		if !member {
 			httpx.Fail(w, httpx.ErrNotFound)
 			return
 		}

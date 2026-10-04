@@ -97,7 +97,7 @@ func student(t *testing.T, admin *client, name string) *client {
 	t.Helper()
 	c := newClient(t)
 	c.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": name}, 200)
-	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, name)), map[string]any{"approved": true}, 200)
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, name)), map[string]any{"groupName": "М3105", "approved": true}, 200)
 	return c
 }
 
@@ -181,24 +181,27 @@ func TestAttachments(t *testing.T) {
 		t.Fatal("the photo of a deleted comment is still served")
 	}
 
-	// Пост «для своих» с файлом: аноним файла не видит; правка без списка файлы
-	// не трогает, пустой список убирает все.
+	// Пост с файлом: файл видят только свои (не аноним и не студент другой группы);
+	// правка без списка файлы не трогает, пустой список убирает все.
 	picID, picURL := petyaPic["id"].(string), petyaPic["url"].(string)
-	post := petya.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "С картинкой", "visibility": "members", "attachmentIds": []string{picID}}, 201)
+	post := petya.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "С картинкой", "attachmentIds": []string{picID}}, 201)
 	assertMatchesSchema(t, spec, "Post", post)
 	postPath := fmt.Sprintf("/api/v1/posts/%v", post["id"])
-	if anon.fetchStatus(picURL) != 404 || masha.fetchStatus(picURL) != 200 {
-		t.Fatal("members-only post files must be hidden from anonymous visitors only")
+	stranger := newClient(t)
+	stranger.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Чужой Студент"}, 200)
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, "Чужой Студент")), map[string]any{"groupName": "М3115", "approved": true}, 200)
+	if anon.fetchStatus(picURL) != 404 || stranger.fetchStatus(picURL) != 404 || masha.fetchStatus(picURL) != 200 {
+		t.Fatal("post files must be visible to the group only")
 	}
 	if res, _ := masha.fetch(picURL); !strings.HasPrefix(res.Header.Get("Cache-Control"), "private") {
-		t.Fatalf("members-only file must not be publicly cacheable: %v", res.Header)
+		t.Fatalf("post file must not be publicly cacheable: %v", res.Header)
 	}
-	kept := petya.do("PUT", postPath, map[string]any{"body": "Текст поправлен", "visibility": "members"}, 200)
+	kept := petya.do("PUT", postPath, map[string]any{"body": "Текст поправлен"}, 200)
 	if len(attachmentsOf(t, kept)) != 1 {
 		t.Fatalf("update without attachmentIds must keep files: %v", kept)
 	}
 	second := petya.upload("/api/v1/files", "second.png", testPNG(t, 3), 201)
-	both := petya.do("PUT", postPath, map[string]any{"body": "Две", "visibility": "members", "attachmentIds": []any{second["id"], picID}}, 200)
+	both := petya.do("PUT", postPath, map[string]any{"body": "Две", "attachmentIds": []any{second["id"], picID}}, 200)
 	if got := attachmentsOf(t, both); len(got) != 2 || got[0]["id"] != second["id"] {
 		t.Fatalf("files must follow the given order: %v", got)
 	}
@@ -358,7 +361,7 @@ func TestAdminCanDoEverything(t *testing.T) {
 	if admin.fetchStatus(pending["url"].(string)) != 200 || anon.fetchStatus(pending["url"].(string)) != 404 {
 		t.Fatal("admin must see pending uploads, anonymous must not")
 	}
-	post := s.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Пост", "visibility": "members", "attachmentIds": []any{pending["id"]}}, 201)
+	post := s.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Пост", "attachmentIds": []any{pending["id"]}}, 201)
 	postURL := fmt.Sprintf("/api/v1/admin/posts/%v", post["id"])
 
 	// Файл админки для текстов в пост не прикрепить, файл «для постов» — можно.
@@ -369,12 +372,12 @@ func TestAdminCanDoEverything(t *testing.T) {
 		t.Fatal("files for posts must not be shared between uploads")
 	}
 	s.do("PUT", fmt.Sprintf("/api/v1/posts/%v", post["id"]), map[string]any{"body": "Пост", "attachmentIds": []any{pending["id"], extra["id"]}}, 422)
-	edited := admin.do("PUT", postURL, map[string]any{"body": "Поправил админ", "visibility": "members", "attachmentIds": []any{extra["id"], pending["id"]}}, 200)
+	edited := admin.do("PUT", postURL, map[string]any{"body": "Поправил админ", "attachmentIds": []any{extra["id"], pending["id"]}}, 200)
 	if got := attachmentsOf(t, edited); len(got) != 2 || got[0]["id"] != extra["id"] || edited["body"] != "Поправил админ" {
 		t.Fatalf("admin post edit: %v", edited)
 	}
 	if admin.fetchStatus(extra["url"].(string)) != 200 || anon.fetchStatus(extra["url"].(string)) != 404 {
-		t.Fatal("files of a members-only post: admin yes, anonymous no")
+		t.Fatal("files of a post: admin yes, anonymous no")
 	}
 
 	// Комментарий: текст и файлы правит админ, студенту такой маршрут недоступен.

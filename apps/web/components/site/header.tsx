@@ -2,19 +2,26 @@ import Link from "next/link";
 
 import { ItmoLogo } from "@/components/site/itmo-logo";
 import { MobileNav } from "@/components/site/mobile-nav";
-import { type NavLink, PRIMARY_LINKS } from "@/components/site/nav-config";
+import { type NavLink, primaryLinks } from "@/components/site/nav-config";
 import { NavLinks } from "@/components/site/nav-links";
 import { SearchDialog } from "@/components/site/search-dialog";
 import { UserMenu } from "@/components/site/user-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { SettingsResponse } from "@/lib/api/types";
 
-export function SiteHeader({ site }: { site: SettingsResponse }) {
+export function SiteHeader({
+  site,
+  member,
+}: {
+  site: SettingsResponse;
+  member: boolean;
+}) {
+  const primary = primaryLinks(member);
   const pageLinks: NavLink[] = site.navPages.map((p) => ({
     href: `/p/${p.slug}`,
     label: p.title,
   }));
-  const links: NavLink[] = [...PRIMARY_LINKS, ...pageLinks];
+  const links: NavLink[] = [...primary, ...pageLinks];
   return (
     <header className="sticky top-0 z-40 border-b print:hidden bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/65">
       <div className="container-page flex h-14 items-center gap-2 md:h-16">
@@ -31,7 +38,7 @@ export function SiteHeader({ site }: { site: SettingsResponse }) {
           <span>{site.settings.siteTitle}</span>
         </Link>
         <NavLinks
-          links={PRIMARY_LINKS}
+          links={primary}
           more={pageLinks}
           className="ml-4 hidden lg:flex"
         />

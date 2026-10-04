@@ -102,16 +102,17 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/practice/{id}", h.getPractice)
 		r.With(userauth.Require, h.requireApproved).Put("/practice/{id}/signups", h.setPracticeSignup)
 		r.With(userauth.Require, h.requireApproved).Delete("/practice/{id}/signups", h.setPracticeSignup)
-		// Comments and posts: reading is public, writing needs a student session.
+		// Comments: reading is public (under posts — only for the group), writing needs a student session.
 		r.Get("/comments/{target}/{id}", h.listComments)
 		r.With(userauth.Require, h.requireApproved).Post("/comments/{target}/{id}", h.createComment)
 		r.With(userauth.Require).Delete("/comments/{id}", h.deleteComment)
-		r.Get("/posts", h.listPosts)
-		r.With(userauth.Require, h.requireApproved).Post("/posts", h.createPost)
-		r.With(userauth.Require, h.requireApproved).Put("/posts/{id}", h.updatePost)
-		r.With(userauth.Require).Delete("/posts/{id}", h.deletePost)
-		r.With(userauth.Require, h.requireApproved).Put("/posts/{id}/like", h.setLike(true))
-		r.With(userauth.Require, h.requireApproved).Delete("/posts/{id}/like", h.setLike(false))
+		// Шаверма и анекдоты — только для подтверждённых студентов группы сайта.
+		r.With(h.requireMember).Get("/posts", h.listPosts)
+		r.With(h.requireMember).Post("/posts", h.createPost)
+		r.With(h.requireMember).Put("/posts/{id}", h.updatePost)
+		r.With(h.requireMember).Delete("/posts/{id}", h.deletePost)
+		r.With(h.requireMember).Put("/posts/{id}/like", h.setLike(true))
+		r.With(h.requireMember).Delete("/posts/{id}/like", h.setLike(false))
 		// Вложения: студент загружает файл, потом прикрепляет его id к комментарию или посту.
 		r.With(userauth.Require, h.requireApproved).Post("/files", h.uploadFile)
 		r.Get("/files/{id}/{name}", h.serveFile)

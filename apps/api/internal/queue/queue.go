@@ -4,7 +4,8 @@
 //  1. The queue is made of defenses: one student with one lab. A student who
 //     brings two labs defends the second one after everybody's first.
 //  2. Defenses left in the reserve of the previous session of the subject (signed
-//     up beyond the teacher's capacity) go first, in the order they stood there.
+//     up beyond the teacher's capacity) go first: those left out several sessions
+//     in a row before those left out once, then in the order they stood there.
 //  3. Then round by round: newer labs first, ties broken by a lottery that is
 //     fixed for a (session, student) pair, so signing up early gives nothing and
 //     the order does not jump on reload.
@@ -34,8 +35,11 @@ type Entry struct {
 	LabID  int64
 	// Lab is the lab number; newer labs have larger numbers.
 	Lab int
-	// Carried is the 1-based place in the previous session's reserve, 0 if none.
-	Carried int
+	// Missed is how many sessions in a row (the previous one and back) this
+	// defense was left in the reserve; 0 if it was not.
+	Missed int
+	// ReservePlace is the 1-based place in the previous session's reserve.
+	ReservePlace int
 	// Late marks a signup made after the freeze.
 	Late     bool
 	SignedAt time.Time
@@ -72,6 +76,24 @@ func Order(sessionID int64, entries []Entry) []Key {
 		}
 	}
 
+	// carriedFirst orders defenses left in the reserve: more misses first, then
+	// the place in the last reserve.
+	carriedFirst := func(a, b Entry) (less, decided bool) {
+		if (a.Missed > 0) != (b.Missed > 0) {
+			return a.Missed > 0, true
+		}
+		if a.Missed == 0 {
+			return false, false
+		}
+		if a.Missed != b.Missed {
+			return a.Missed > b.Missed, true
+		}
+		if a.ReservePlace != b.ReservePlace {
+			return a.ReservePlace < b.ReservePlace, true
+		}
+		return false, false
+	}
+
 	// A student's own defenses: carried ones first, then newer labs. The index is the round.
 	byUser := map[int64][]Entry{}
 	for _, e := range onTime {
@@ -81,11 +103,8 @@ func Order(sessionID int64, entries []Entry) []Key {
 	for _, list := range byUser {
 		sort.Slice(list, func(i, j int) bool {
 			a, b := list[i], list[j]
-			if (a.Carried > 0) != (b.Carried > 0) {
-				return a.Carried > 0
-			}
-			if a.Carried != b.Carried {
-				return a.Carried < b.Carried
+			if less, ok := carriedFirst(a, b); ok {
+				return less
 			}
 			if a.Lab != b.Lab {
 				return a.Lab > b.Lab
@@ -99,11 +118,11 @@ func Order(sessionID int64, entries []Entry) []Key {
 
 	sort.Slice(onTime, func(i, j int) bool {
 		a, b := onTime[i], onTime[j]
-		if (a.Carried > 0) != (b.Carried > 0) {
-			return a.Carried > 0
+		if less, ok := carriedFirst(a, b); ok {
+			return less
 		}
-		if a.Carried > 0 {
-			return a.Carried < b.Carried
+		if a.Missed > 0 && b.Missed > 0 {
+			return a.UserID < b.UserID
 		}
 		ra, rb := round[Key{a.UserID, a.LabID}], round[Key{b.UserID, b.LabID}]
 		if ra != rb {

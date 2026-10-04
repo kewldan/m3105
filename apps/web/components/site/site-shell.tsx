@@ -6,6 +6,7 @@ import { UserProvider } from "@/components/site/user-provider";
 import { cookieHeader } from "@/lib/api/cookies";
 import { getMe, getSettings } from "@/lib/api/public";
 import type { MeResponse, SettingsResponse } from "@/lib/api/types";
+import { isGroupMember } from "@/lib/group";
 
 const FALLBACK: SettingsResponse = {
   settings: {
@@ -61,6 +62,7 @@ async function loadSite(): Promise<SettingsResponse> {
  */
 export async function SiteShell({ children }: { children: ReactNode }) {
   const [site, me] = await Promise.all([loadSite(), loadMe()]);
+  const member = isGroupMember(me, site.settings.groupName);
   return (
     <UserProvider initial={me}>
       <a
@@ -69,7 +71,7 @@ export async function SiteShell({ children }: { children: ReactNode }) {
       >
         К содержимому
       </a>
-      <SiteHeader site={site} />
+      <SiteHeader site={site} member={member} />
       <main
         id="content"
         className="container-page flex-1 py-6 sm:py-8 lg:py-10 print:max-w-none print:p-0"
@@ -78,6 +80,7 @@ export async function SiteShell({ children }: { children: ReactNode }) {
       </main>
       <SiteFooter
         settings={site.settings}
+        member={member}
         pageLinks={site.navPages.map((p) => ({
           href: `/p/${p.slug}`,
           label: p.title,

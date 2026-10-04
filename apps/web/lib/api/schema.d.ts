@@ -314,6 +314,8 @@ export type PublicUser = {
   id: number;
   name: string;
   photoUrl: string;
+  /** Группа, например `М3105`; пусто до подтверждения аккаунта */
+  group: string;
 };
 
 export type LabRef = {
@@ -337,6 +339,8 @@ export type QueueEntry = {
   reserve: boolean;
   /** Осталась в резерве прошлой сдачи, поэтому идёт первой */
   carried: boolean;
+  /** Сколько сдач подряд защита оставалась в резерве; больше — раньше */
+  missed: number;
   /** Запись после заморозки, поэтому в конце */
   late: boolean;
 };
@@ -389,6 +393,8 @@ export type Comment = {
   authorId: number;
   authorName: string;
   authorPhotoUrl: string;
+  /** Группа автора, например `М3105`; пусто до подтверждения */
+  authorGroup: string;
   attachments: Attachment[];
   /** Комментарий текущего студента */
   mine: boolean;
@@ -404,15 +410,13 @@ export type Post = {
   /** Цена в рублях */
   price: number | null;
   rating: number | null;
-  /** `members` — только для вошедших студентов */
-  visibility: "public" | "members";
-  /** Пометка 18+; сайт размывает текст до подтверждения возраста */
-  nsfw: boolean;
   createdAt: DateTime;
   updatedAt: DateTime;
   authorId: number;
   authorName: string;
   authorPhotoUrl: string;
+  /** Группа автора, например `М3105` */
+  authorGroup: string;
   likesCount: number;
   commentsCount: number;
   attachments: Attachment[];
@@ -429,9 +433,6 @@ export type PostInput = {
   price?: number | null;
   /** Обязательна для шавермы */
   rating?: number | null;
-  visibility?: "public" | "members";
-  /** При true видимость принудительно становится members */
-  nsfw?: boolean;
   /** Файлы поста по порядку. При обновлении без поля файлы не меняются, пустой список убирает все */
   attachmentIds?: string[];
 };

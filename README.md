@@ -241,8 +241,6 @@ erDiagram
         int2 rating "может быть пустым"
         timestamptz created_at
         timestamptz updated_at
-        text visibility
-        bool nsfw
     }
     practice_sessions {
         int8 id PK

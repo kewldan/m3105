@@ -593,6 +593,20 @@ func TestStudentAccounts(t *testing.T) {
 	if !slices.Equal(qb, []entry{{petya, lab2ID}, {masha, lab1ID}}) || viewB["queue"].([]any)[0].(map[string]any)["carried"] != true {
 		t.Fatalf("carry-over from the reserve failed: %v", viewB)
 	}
+	// Два пропуска подряд важнее одного: на B оставляем в резерве обе лабы Петра
+	// (лаба 2 пропущена уже второй раз, лаба 1 — впервые и стоит в резерве выше).
+	// На следующей сдаче C лаба 2 идёт первой.
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice/%d", sessB), map[string]any{"subjectId": subjectID, "startsAt": later, "capacity": 1}, 200)
+	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessB), map[string]any{"labIds": []int64{lab2ID, lab1ID}}, 200)
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice/%d/signups/order", sessB), ord(entry{masha, lab1ID}, entry{petya, lab1ID}, entry{petya, lab2ID}), 200)
+	sessC := int64(admin.do("POST", "/api/v1/admin/practice", map[string]any{"subjectId": subjectID, "startsAt": time.Now().Add(60 * time.Hour).UTC().Format(time.RFC3339), "capacity": 10}, 201)["id"].(float64))
+	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessC), map[string]any{"labIds": []int64{lab1ID}}, 200)
+	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessC), map[string]any{"labIds": []int64{lab1ID, lab2ID}}, 200)
+	qc, viewC := queueOf(anon, fmt.Sprintf("/api/v1/practice/%d", sessC), "queue")
+	if !slices.Equal(qc, []entry{{petya, lab2ID}, {petya, lab1ID}, {masha, lab1ID}}) || viewC["queue"].([]any)[0].(map[string]any)["missed"] != 2.0 {
+		t.Fatalf("missed twice must go before missed once: %v", viewC)
+	}
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/practice/%d", sessC), nil, 200)
 	tg.do("DELETE", fmt.Sprintf("/api/v1/practice/%d/signups", sessA), nil, 200)
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/practice/%d", sessB), nil, 200)
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/practice/%d", sessA), nil, 200)
@@ -616,7 +630,15 @@ func TestStudentAccounts(t *testing.T) {
 	other := newClient(t)
 	other.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Вася Пупкин"}, 200)
 	other.do("DELETE", fmt.Sprintf("/api/v1/comments/%d", cmID), nil, 403)
-	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, "Вася Пупкин")), map[string]any{"approved": true}, 200)
+	// Посты видят только подтверждённые студенты группы сайта (М3105).
+	other.do("GET", "/api/v1/posts?kind=joke", nil, 403)
+	vasya := userIDByName(t, admin, "Вася Пупкин")
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", vasya), map[string]any{"groupName": "М3115", "approved": true}, 200)
+	if res := other.do("GET", "/api/v1/posts?kind=joke", nil, 403); res["code"] != "not_member" {
+		t.Fatalf("student of another group must get not_member: %v", res)
+	}
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", vasya), map[string]any{"groupName": "m3105", "approved": true}, 200)
+	anon.do("GET", "/api/v1/posts?kind=joke", nil, 401)
 
 	// Posts: shawarma reviews need a rating, jokes are plain text; likes toggle; the author edits, the admin moderates.
 	u.do("POST", "/api/v1/posts", map[string]any{"kind": "shawarma", "title": "Шаверма у метро", "body": "Норм"}, 422)
@@ -629,28 +651,14 @@ func TestStudentAccounts(t *testing.T) {
 		t.Fatalf("joke should drop rating and be mine: %v", joke)
 	}
 
-	// 18+ и «только для своих»: nsfw принудительно делает пост members-only,
-	// анонимам не видны ни он сам, ни его комментарии, админ видит всё.
-	nsfw := u.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Очень непристойный анекдот", "nsfw": true}, 201)
-	nsfwID := int64(nsfw["id"].(float64))
-	if nsfw["nsfw"] != true || nsfw["visibility"] != "members" {
-		t.Fatalf("nsfw post must be members-only: %v", nsfw)
+	// Комментарии к постам и сами посты чужим не видны.
+	anon.do("GET", fmt.Sprintf("/api/v1/comments/post/%d", jokeID), nil, 404)
+	other.do("GET", fmt.Sprintf("/api/v1/comments/post/%d", jokeID), nil, 200)
+	if joke["authorGroup"] != "М3105" {
+		t.Fatalf("post must carry the author's group: %v", joke)
 	}
-	u.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Секрет", "visibility": "secret"}, 422)
-	if feed := anon.list("/api/v1/posts?kind=joke", 200); len(feed) != 1 || feed[0]["id"] == nsfw["id"] {
-		t.Fatalf("anonymous must not see members-only jokes: %v", feed)
-	}
-	if feed := other.list("/api/v1/posts?kind=joke", 200); len(feed) != 2 {
-		t.Fatalf("signed-in student must see members-only jokes: %v", feed)
-	}
-	anon.do("GET", fmt.Sprintf("/api/v1/comments/post/%d", nsfwID), nil, 404)
-	other.do("GET", fmt.Sprintf("/api/v1/comments/post/%d", nsfwID), nil, 200)
-	if all := admin.list("/api/v1/admin/posts?kind=joke", 200); len(all) != 2 {
-		t.Fatalf("admin must see every joke: %v", all)
-	}
-	u.do("DELETE", fmt.Sprintf("/api/v1/posts/%d", nsfwID), nil, 200)
-	anon.do("GET", "/api/v1/posts", nil, 422)
-	if feed := anon.list("/api/v1/posts?kind=shawarma", 200); len(feed) != 1 || feed[0]["likesCount"] != 0.0 || feed[0]["mine"] != false {
+	other.do("GET", "/api/v1/posts", nil, 422)
+	if feed := other.list("/api/v1/posts?kind=shawarma", 200); len(feed) != 1 || feed[0]["likesCount"] != 0.0 || feed[0]["mine"] != false {
 		t.Fatalf("shawarma feed wrong: %v", feed)
 	}
 	anon.do("PUT", fmt.Sprintf("/api/v1/posts/%d/like", shID), nil, 401)
@@ -669,7 +677,7 @@ func TestStudentAccounts(t *testing.T) {
 		t.Fatalf("edit failed or kind changed: %v", edited)
 	}
 	other.do("POST", fmt.Sprintf("/api/v1/comments/post/%d", shID), map[string]string{"body": "Согласен"}, 201)
-	if top := anon.list("/api/v1/posts?kind=shawarma&sort=top", 200); top[0]["commentsCount"] != 1.0 {
+	if top := other.list("/api/v1/posts?kind=shawarma&sort=top", 200); top[0]["commentsCount"] != 1.0 {
 		t.Fatalf("comments count wrong: %v", top)
 	}
 	if ac := admin.list("/api/v1/admin/comments", 200); len(ac) != 2 || ac[0]["targetPath"] == nil {
@@ -683,7 +691,7 @@ func TestStudentAccounts(t *testing.T) {
 		t.Fatalf("admin posts wrong: %v", all)
 	}
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/posts/%d", shID), nil, 200)
-	if left := anon.list("/api/v1/posts?kind=shawarma", 200); len(left) != 0 {
+	if left := other.list("/api/v1/posts?kind=shawarma", 200); len(left) != 0 {
 		t.Fatalf("post not deleted: %v", left)
 	}
 	anon.do("GET", fmt.Sprintf("/api/v1/comments/post/%d", shID), nil, 404)

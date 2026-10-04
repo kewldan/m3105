@@ -80,11 +80,22 @@ type PublicUser struct {
 	ID       int64  `db:"id" json:"id"`
 	Name     string `db:"name" json:"name"`
 	PhotoURL string `db:"photo_url" json:"photoUrl"`
+	// Group is the study group, e.g. "М3105"; empty until the account is confirmed.
+	Group string `db:"group_name" json:"group"`
 }
 
 // Public strips private fields.
 func (u User) Public() PublicUser {
-	return PublicUser{ID: u.ID, Name: u.Name, PhotoURL: u.PhotoURL}
+	return PublicUser{ID: u.ID, Name: u.Name, PhotoURL: u.PhotoURL, Group: u.GroupName}
+}
+
+// SameGroup compares group names ignoring case, spaces and a Latin "M" typed
+// instead of the Cyrillic "М".
+func SameGroup(a, b string) bool {
+	norm := func(s string) string {
+		return strings.ReplaceAll(strings.ToUpper(strings.Join(strings.Fields(s), "")), "M", "М")
+	}
+	return norm(a) != "" && norm(a) == norm(b)
 }
 
 // AdminUser adds activity counters for the admin panel.
@@ -196,6 +207,7 @@ type SignupRow struct {
 	UserID      int64     `db:"user_id" json:"userId"`
 	UserName    string    `db:"user_name" json:"userName"`
 	PhotoURL    string    `db:"photo_url" json:"photoUrl"`
+	UserGroup   string    `db:"user_group" json:"userGroup"`
 	LabID       int64     `db:"lab_id" json:"labId"`
 	LabNumber   int       `db:"lab_number" json:"labNumber"`
 	LabTitle    string    `db:"lab_title" json:"labTitle"`
@@ -218,6 +230,8 @@ type QueueEntry struct {
 	Reserve bool `json:"reserve"`
 	// Carried: left in the reserve last time, so it goes first now.
 	Carried bool `json:"carried"`
+	// Missed is how many sessions in a row it was left in the reserve (0 if not carried).
+	Missed int `json:"missed"`
 	// Late: signed up after the freeze, so it went to the end.
 	Late bool `json:"late"`
 }

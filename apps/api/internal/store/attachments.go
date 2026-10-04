@@ -80,14 +80,15 @@ type AttachmentAccess struct {
 	models.Attachment
 	UserID *int64                 `db:"user_id"`
 	Place  models.AttachmentPlace `db:"place"`
-	// Visibility of the post the file belongs to, directly or via a comment.
-	Visibility models.PostVisibility `db:"visibility"`
+	// GroupOnly: the file belongs to a post or a comment under a post, which
+	// only students of the site's group may see.
+	GroupOnly bool `db:"group_only"`
 }
 
-// GetAttachmentAccess loads a file with its owner and visibility.
+// GetAttachmentAccess loads a file with its owner and where it lives.
 func (s *Store) GetAttachmentAccess(ctx context.Context, id string) (AttachmentAccess, error) {
 	return one[AttachmentAccess](ctx, s.db, `SELECT `+attachmentCols+`, a.user_id, `+attachmentPlace+` AS place,
-		COALESCE(p.visibility, pc.visibility, 'public') AS visibility
+		(p.id IS NOT NULL OR pc.id IS NOT NULL) AS group_only
 		FROM attachments a
 		LEFT JOIN posts p ON p.id = a.post_id
 		LEFT JOIN comments c ON c.id = a.comment_id

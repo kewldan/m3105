@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { UserAvatar } from "@/components/admin/user-avatar";
+import { GroupBadge } from "@/components/site/group-badge";
 import { SubjectBadge } from "@/components/site/subject-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -110,13 +111,20 @@ function QueueRow({
         className="mt-0.5"
       />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{e.user.name}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-medium">{e.user.name}</span>
+          <GroupBadge group={e.user.group} />
+        </div>
         <div className="mt-1 flex flex-wrap gap-1">
           <Badge variant="secondary" className="font-normal">
             Лаба {e.lab.number} · {e.lab.title}
           </Badge>
           {e.reserve ? <Badge variant="outline">резерв</Badge> : null}
-          {e.carried ? <Badge variant="outline">перенос</Badge> : null}
+          {e.carried ? (
+            <Badge variant="outline">
+              перенос{e.missed > 1 ? ` ×${e.missed}` : ""}
+            </Badge>
+          ) : null}
           {e.late ? <Badge variant="outline">поздняя</Badge> : null}
         </div>
       </div>
@@ -208,7 +216,7 @@ export function ParticipantsDialog({
   async function copyList() {
     const lines = entries.map(
       (e, i) =>
-        `${i + 1}. ${e.user.name} — лаба ${e.lab.number}${e.reserve ? " (резерв)" : ""}`,
+        `${i + 1}. ${e.user.name}${e.user.group ? ` (${e.user.group})` : ""} — лаба ${e.lab.number}${e.reserve ? " (резерв)" : ""}`,
     );
     const header = session ? `${sessionLabel(session)}\n` : "";
     try {

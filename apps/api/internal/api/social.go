@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -14,9 +15,10 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/userauth"
 )
 
-// Comments and posts written by signed-in students. Reading is public; writing
-// needs the student cookie; authors edit and delete their own entries, admins
-// (separate cookie, /admin routes) moderate everything.
+// Comments and posts written by signed-in students. Comments under notes and
+// labs are public to read; posts (shawarma, jokes), their comments and files
+// are only for confirmed students of the site's group. Authors edit and delete
+// their own entries, admins (separate cookie, /admin routes) moderate everything.
 
 const adminCommentsLimit = 200
 
@@ -40,6 +42,53 @@ func (h *Handler) allowWrite(w http.ResponseWriter, r *http.Request, userID int6
 		return false
 	}
 	return true
+}
+
+// isMember reports whether the viewer is a confirmed student of the site's group,
+// the only people who see posts.
+func (h *Handler) isMember(r *http.Request) (bool, error) {
+	id, ok := userauth.UserID(r.Context())
+	if !ok {
+		return false, nil
+	}
+	user, err := h.store.GetUser(r.Context(), id)
+	if errors.Is(err, httpx.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	sc, err := h.site(r.Context())
+	if err != nil {
+		return false, err
+	}
+	return user.Approved && models.SameGroup(user.GroupName, sc.Settings.GroupName), nil
+}
+
+// requireMember gates posts: 401 without a session, 403 not_member for anyone
+// outside the group (other groups, unconfirmed accounts).
+func (h *Handler) requireMember(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := userauth.UserID(r.Context()); !ok {
+			httpx.Error(w, http.StatusUnauthorized, "unauthorized", "Войдите, чтобы продолжить")
+			return
+		}
+		ok, err := h.isMember(r)
+		if err != nil {
+			httpx.Fail(w, err)
+			return
+		}
+		if !ok {
+			sc, err := h.site(r.Context())
+			if err != nil {
+				httpx.Fail(w, err)
+				return
+			}
+			httpx.Error(w, http.StatusForbidden, "not_member", "Раздел только для студентов группы "+sc.Settings.GroupName)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func forbidden(w http.ResponseWriter, msg string) {
@@ -67,18 +116,16 @@ func (h *Handler) commentTarget(w http.ResponseWriter, r *http.Request) (models.
 		httpx.Fail(w, httpx.ErrNotFound)
 		return "", 0, false
 	}
-	// Комментарии к посту «только для своих» не видны анонимам, как и сам пост.
+	// Комментарии к постам видят только свои, как и сами посты; чужим — 404.
 	if target == models.TargetPost {
-		if viewer, _ := userauth.UserID(r.Context()); viewer == 0 {
-			visibility, err := h.store.PostVisibility(r.Context(), id)
-			if err != nil {
-				httpx.Fail(w, err)
-				return "", 0, false
-			}
-			if visibility != models.VisiblePublic {
-				httpx.Fail(w, httpx.ErrNotFound)
-				return "", 0, false
-			}
+		member, err := h.isMember(r)
+		if err != nil {
+			httpx.Fail(w, err)
+			return "", 0, false
+		}
+		if !member {
+			httpx.Fail(w, httpx.ErrNotFound)
+			return "", 0, false
 		}
 	}
 	return target, id, true
@@ -181,8 +228,6 @@ func (h *Handler) listPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	viewer, _ := userauth.UserID(r.Context())
-	// Посты «только для своих» видит лишь вошедший студент.
-	f.IncludeMembers = viewer != 0
 	items, err := h.store.ListPosts(r.Context(), viewer, f)
 	if err != nil {
 		httpx.Fail(w, err)
@@ -359,7 +404,6 @@ func (h *Handler) adminListPosts(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, &httpx.ValidationError{Fields: map[string]string{"kind": "Неизвестный тип поста"}})
 		return
 	}
-	f.IncludeMembers = true
 	items, err := h.store.ListPosts(r.Context(), 0, f)
 	if err != nil {
 		httpx.Fail(w, err)

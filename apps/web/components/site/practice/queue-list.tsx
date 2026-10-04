@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 
+import { GroupBadge } from "@/components/site/group-badge";
 import { UserAvatar } from "@/components/site/user-avatar";
 import type { QueueEntry } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -38,21 +39,23 @@ export function QueueList({
                 photoUrl={e.user.photoUrl}
                 size="sm"
               />
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-sm",
-                  mine && "font-medium",
-                )}
-              >
-                {e.user.name}
-                {mine ? " (вы)" : ""}
+              <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className={cn("truncate text-sm", mine && "font-medium")}>
+                  {e.user.name}
+                  {mine ? " (вы)" : ""}
+                </span>
+                <GroupBadge group={e.user.group} />
               </span>
               {e.carried ? (
                 <span
                   className="shrink-0 rounded-full bg-sky-500/12 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300"
-                  title="В прошлый раз была в резерве, поэтому идёт первой"
+                  title={
+                    e.missed > 1
+                      ? `Оставалась в резерве ${e.missed} сдачи подряд, поэтому идёт раньше остальных переносов`
+                      : "В прошлый раз была в резерве, поэтому идёт первой"
+                  }
                 >
-                  перенос
+                  перенос{e.missed > 1 ? ` ×${e.missed}` : ""}
                 </span>
               ) : null}
               {e.late ? (

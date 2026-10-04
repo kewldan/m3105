@@ -422,10 +422,9 @@ paths:
       description: |
         Пользовательские посты одной ленты. `POST /posts` с `PostInput` создаёт пост от имени студента,
         `PUT`/`DELETE /posts/{id}` меняют и удаляют свой пост, `PUT`/`DELETE /posts/{id}/like` ставят и снимают лайк.
-        Поля `liked` и `mine` считаются для студента, если передана кука `edu_user`.
-        Без куки отдаются только посты с `visibility: public`: `members` видят лишь вошедшие студенты,
-        и посты с `nsfw: true` всегда `members`. Комментарии к скрытому посту анонимам тоже недоступны (404),
-        как и файлы такого поста.
+        Только для подтверждённых студентов группы сайта (`settings.groupName`) с кукой `edu_user`:
+        без входа — 401, остальным — 403 `not_member`. Комментарии к постам и файлы постов чужим
+        отдаются как 404. Поля `liked` и `mine` считаются для вошедшего студента.
       operationId: listPosts
       parameters:
         - name: kind
@@ -910,7 +909,8 @@ components:
         id: { type: integer }
         name: { type: string }
         photoUrl: { type: string }
-      required: [id, name, photoUrl]
+        group: { type: string, description: "Группа, например `М3105`; пусто до подтверждения аккаунта" }
+      required: [id, name, photoUrl, group]
 
     LabRef:
       type: object
@@ -939,8 +939,9 @@ components:
         lab: { $ref: "#/components/schemas/LabRef" }
         reserve: { type: boolean, description: "За пределами `capacity`: примут, если останется время" }
         carried: { type: boolean, description: "Осталась в резерве прошлой сдачи, поэтому идёт первой" }
+        missed: { type: integer, description: "Сколько сдач подряд защита оставалась в резерве; больше — раньше" }
         late: { type: boolean, description: "Запись после заморозки, поэтому в конце" }
-      required: [user, lab, reserve, carried, late]
+      required: [user, lab, reserve, carried, missed, late]
 
     PracticeSession:
       allOf:
@@ -1007,11 +1008,12 @@ components:
         authorId: { type: integer }
         authorName: { type: string }
         authorPhotoUrl: { type: string }
+        authorGroup: { type: string, description: "Группа автора, например `М3105`; пусто до подтверждения" }
         attachments:
           type: array
           items: { $ref: "#/components/schemas/Attachment" }
         mine: { type: boolean, description: Комментарий текущего студента }
-      required: [id, targetType, targetId, body, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, attachments, mine]
+      required: [id, targetType, targetId, body, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, authorGroup, attachments, mine]
 
     Post:
       type: object
@@ -1023,13 +1025,12 @@ components:
         address: { type: string }
         price: { type: [integer, "null"], description: Цена в рублях }
         rating: { type: [integer, "null"], minimum: 1, maximum: 5 }
-        visibility: { type: string, enum: [public, members], description: "`members` — только для вошедших студентов" }
-        nsfw: { type: boolean, description: Пометка 18+; сайт размывает текст до подтверждения возраста }
         createdAt: { $ref: "#/components/schemas/DateTime" }
         updatedAt: { $ref: "#/components/schemas/DateTime" }
         authorId: { type: integer }
         authorName: { type: string }
         authorPhotoUrl: { type: string }
+        authorGroup: { type: string, description: "Группа автора, например `М3105`" }
         likesCount: { type: integer }
         commentsCount: { type: integer }
         attachments:
@@ -1037,7 +1038,7 @@ components:
           items: { $ref: "#/components/schemas/Attachment" }
         liked: { type: boolean }
         mine: { type: boolean }
-      required: [id, kind, title, body, address, price, rating, visibility, nsfw, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, likesCount, commentsCount, attachments, liked, mine]
+      required: [id, kind, title, body, address, price, rating, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, authorGroup, likesCount, commentsCount, attachments, liked, mine]
 
     PostInput:
       type: object
@@ -1048,8 +1049,6 @@ components:
         address: { type: string, maxLength: 200 }
         price: { type: [integer, "null"] }
         rating: { type: [integer, "null"], minimum: 1, maximum: 5, description: Обязательна для шавермы }
-        visibility: { type: string, enum: [public, members], default: public }
-        nsfw: { type: boolean, default: false, description: При true видимость принудительно становится members }
         attachmentIds:
           type: array
           maxItems: 6

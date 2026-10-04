@@ -1,17 +1,19 @@
 import Link from "next/link";
 
-import { type NavLink, PRIMARY_LINKS } from "@/components/site/nav-config";
+import { type NavLink, primaryLinks } from "@/components/site/nav-config";
 import type { Settings } from "@/lib/api/types";
 
 export function SiteFooter({
   settings,
+  member,
   pageLinks = [],
 }: {
   settings: Settings;
+  member: boolean;
   pageLinks?: NavLink[];
 }) {
   const year = new Date().getFullYear();
-  const links = [...PRIMARY_LINKS, ...pageLinks];
+  const links = [...primaryLinks(member), ...pageLinks];
   return (
     <footer className="mt-auto border-t bg-muted/30 print:hidden">
       <div className="container-page flex flex-col gap-5 py-8">

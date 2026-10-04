@@ -17,6 +17,7 @@ import {
   isPending,
   PendingNotice,
 } from "@/components/site/auth/pending-notice";
+import { GroupBadge } from "@/components/site/group-badge";
 import { UserAvatar } from "@/components/site/user-avatar";
 import { useUser } from "@/components/site/user-provider";
 import { Button } from "@/components/ui/button";
@@ -174,9 +175,10 @@ export function CommentsSection({
                 className="mt-0.5 shrink-0"
               />
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
-                  <span className="font-medium text-foreground">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
                     {c.authorName}
+                    <GroupBadge group={c.authorGroup} />
                   </span>
                   <span
                     className="text-muted-foreground"

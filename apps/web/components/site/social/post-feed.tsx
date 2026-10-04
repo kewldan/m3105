@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  FlameIcon,
-  LaughIcon,
-  LockIcon,
-  PlusIcon,
-  UtensilsIcon,
-} from "lucide-react";
+import { FlameIcon, LaughIcon, PlusIcon, UtensilsIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -19,7 +13,6 @@ import {
 } from "@/components/site/auth/pending-notice";
 import { EmptyState } from "@/components/site/empty-state";
 import { socialErrorMessage } from "@/components/site/social/comments-section";
-import { NsfwToggle } from "@/components/site/social/nsfw";
 import { PostCard } from "@/components/site/social/post-card";
 import { PostDialog } from "@/components/site/social/post-dialog";
 import { useUser } from "@/components/site/user-provider";
@@ -31,7 +24,7 @@ import { userApi } from "@/lib/api/user";
 
 const COPY: Record<
   PostKind,
-  { add: string; emptyTitle: string; emptyText: string; guestHint?: string }
+  { add: string; emptyTitle: string; emptyText: string }
 > = {
   shawarma: {
     add: "Добавить точку",
@@ -43,8 +36,6 @@ const COPY: Record<
     add: "Рассказать анекдот",
     emptyTitle: "Анекдотов пока нет",
     emptyText: "Будьте первым, кто рассмешит группу.",
-    guestHint:
-      "Часть анекдотов спрятана: «только для своих» и 18+ показываем тем, кто вошёл через Telegram.",
   },
 };
 
@@ -129,24 +120,8 @@ export function PostFeed({
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="flex items-center gap-1">
-          {posts.some((p) => p.nsfw) ? <NsfwToggle /> : null}
-          {addButton}
-        </div>
+        <div className="flex items-center gap-1">{addButton}</div>
       </div>
-
-      {!me && copy.guestHint ? (
-        <p className="flex flex-wrap items-center gap-1.5 rounded-xl border border-dashed px-3 py-2 text-xs text-muted-foreground">
-          <LockIcon className="size-3.5 shrink-0" aria-hidden />
-          {copy.guestHint}
-          <Link
-            href={`/login?next=${encodeURIComponent(pathname)}`}
-            className="font-medium text-primary hover:underline"
-          >
-            Войти
-          </Link>
-        </p>
-      ) : null}
 
       {loading ? (
         <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">

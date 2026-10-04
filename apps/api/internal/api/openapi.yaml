@@ -581,8 +581,9 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Link" }
         inviteCode: { type: string, description: "В публичных ответах всегда пустая строка" }
+        approvalGroup: { type: string, description: "Группа, которую аккаунт получает при подтверждении; пусто — groupName" }
         updatedAt: { $ref: "#/components/schemas/DateTime" }
-      required: [siteTitle, groupName, description, semesterStart, semesterEnd, firstWeekParity, timezone, links, inviteCode, updatedAt]
+      required: [siteTitle, groupName, description, semesterStart, semesterEnd, firstWeekParity, timezone, links, inviteCode, approvalGroup, updatedAt]
 
     Week:
       type: object

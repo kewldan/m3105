@@ -38,7 +38,7 @@ export function UserDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: AdminUser | null;
-  /** Group from the site settings, offered when the account has none. */
+  /** Group given on confirmation (settings), offered when the account has none. */
   defaultGroup: string;
   onSaved: () => void;
 }) {

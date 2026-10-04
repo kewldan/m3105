@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/config"
 	"github.com/kewldan/edu3105/apps/api/internal/db"
 	"github.com/kewldan/edu3105/apps/api/internal/files"
+	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/session"
 	"github.com/kewldan/edu3105/apps/api/internal/store"
 	"github.com/kewldan/edu3105/apps/api/internal/userauth"
@@ -659,6 +661,7 @@ func TestStudentAccounts(t *testing.T) {
 	// rejected, none at all creates a pending account for the admin to confirm.
 	settings := admin.do("GET", "/api/v1/admin/settings", nil, 200)
 	settings["inviteCode"] = "secret"
+	settings["approvalGroup"] = "М3105-2"
 	admin.do("PUT", "/api/v1/admin/settings", settings, 200)
 	pub := anon.do("GET", "/api/v1/settings", nil, 200)
 	if pub["auth"].(map[string]any)["inviteRequired"] != true || pub["settings"].(map[string]any)["inviteCode"] != "" {
@@ -666,13 +669,28 @@ func TestStudentAccounts(t *testing.T) {
 	}
 	newbie := newClient(t)
 	newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость", "inviteCode": "wrong"}, 403)
-	if got := newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость"}, 200)["user"].(map[string]any); got["approved"] != false || got["groupName"] != "М3105" {
-		t.Fatalf("pending account wrong: %v", got)
+	pending := newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость"}, 200)["user"].(map[string]any)
+	if pending["approved"] != false || pending["groupName"] != "" {
+		t.Fatalf("pending account wrong: %v", pending)
 	}
 	invited := newClient(t)
-	if got := invited.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гостья", "inviteCode": "secret"}, 200)["user"].(map[string]any); got["approved"] != true {
-		t.Fatalf("invited account not approved: %v", got)
+	if got := invited.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гостья", "inviteCode": "secret"}, 200)["user"].(map[string]any); got["approved"] != true || got["groupName"] != "М3105-2" {
+		t.Fatalf("invited account wrong: %v", got)
 	}
+
+	// Confirmation from the bot's button: once, with the group from the settings.
+	st := store.New(testPool)
+	pendingID := int64(pending["id"].(float64))
+	if got, ok, err := st.ApproveUser(context.Background(), pendingID, "М3105-2"); err != nil || !ok || !got.Approved || got.GroupName != "М3105-2" {
+		t.Fatalf("approve: %v %v %+v", err, ok, got)
+	}
+	if _, ok, err := st.ApproveUser(context.Background(), pendingID, "другая"); err != nil || ok {
+		t.Fatalf("second approve must be a no-op: %v %v", err, ok)
+	}
+	if _, _, err := st.ApproveUser(context.Background(), 999999, "М3105-2"); !errors.Is(err, httpx.ErrNotFound) {
+		t.Fatalf("approve missing user: %v", err)
+	}
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%v", pendingID), map[string]any{"displayName": "", "groupName": "", "approved": false}, 200)
 	u.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Петя Сидоров"}, 200) // existing account, no code needed
 
 	// Admin user management.

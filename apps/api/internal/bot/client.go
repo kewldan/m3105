@@ -78,12 +78,25 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 
 // Update is the subset of Telegram updates the bot handles.
 type Update struct {
-	ID      int64    `json:"update_id"`
+	ID            int64          `json:"update_id"`
+	Message       *Message       `json:"message"`
+	CallbackQuery *CallbackQuery `json:"callback_query"`
+}
+
+// CallbackQuery is a press on an inline keyboard button.
+type CallbackQuery struct {
+	ID   string `json:"id"`
+	Data string `json:"data"`
+	From struct {
+		ID int64 `json:"id"`
+	} `json:"from"`
+	// Message is the bot's message with the button; nil when it is too old.
 	Message *Message `json:"message"`
 }
 
 // Message is an incoming message.
 type Message struct {
+	ID   int64  `json:"message_id"`
 	Text string `json:"text"`
 	Chat struct {
 		ID   int64  `json:"id"`
@@ -100,7 +113,7 @@ type Message struct {
 func (c *Client) GetUpdates(ctx context.Context, offset int64, timeoutSec int) ([]Update, error) {
 	var out []Update
 	err := c.call(ctx, "getUpdates", map[string]any{
-		"offset": offset, "timeout": timeoutSec, "allowed_updates": []string{"message"},
+		"offset": offset, "timeout": timeoutSec, "allowed_updates": []string{"message", "callback_query"},
 	}, &out)
 	return out, err
 }
@@ -139,6 +152,31 @@ func (c *Client) SendHTML(ctx context.Context, chatID int64, text string, opts S
 		}
 	}
 	return nil
+}
+
+// EditHTML replaces the text of a sent message; the inline keyboard goes away
+// unless opts carry a new one.
+func (c *Client) EditHTML(ctx context.Context, chatID, messageID int64, text string, opts SendOptions) error {
+	params := map[string]any{
+		"chat_id": chatID, "message_id": messageID, "text": text, "parse_mode": "HTML",
+		"link_preview_options": map[string]any{"is_disabled": opts.DisablePreview},
+	}
+	if opts.ReplyMarkup != nil {
+		params["reply_markup"] = opts.ReplyMarkup
+	}
+	return c.call(ctx, "editMessageText", params, nil)
+}
+
+// RemoveKeyboard drops the inline keyboard of a sent message.
+func (c *Client) RemoveKeyboard(ctx context.Context, chatID, messageID int64) error {
+	return c.call(ctx, "editMessageReplyMarkup", map[string]any{
+		"chat_id": chatID, "message_id": messageID, "reply_markup": map[string]any{"inline_keyboard": [][]any{}},
+	}, nil)
+}
+
+// AnswerCallback stops the button's spinner and shows a short toast.
+func (c *Client) AnswerCallback(ctx context.Context, id, text string) error {
+	return c.call(ctx, "answerCallbackQuery", map[string]any{"callback_query_id": id, "text": text}, nil)
 }
 
 // Command is an entry of the "/" menu.

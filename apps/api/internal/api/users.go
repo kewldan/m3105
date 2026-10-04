@@ -141,7 +141,7 @@ func (h *Handler) telegramLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // finishTelegram opens or creates the account for verified Telegram data.
-// New accounts join the site's group and wait for an admin to confirm them;
+// New accounts wait for an admin to confirm them and get the group then;
 // a correct invite code confirms right away, a wrong one is rejected so the
 // student can retry instead of ending up with a pending account.
 func (h *Handler) finishTelegram(w http.ResponseWriter, r *http.Request, d userauth.TelegramData, invite string) {
@@ -166,9 +166,14 @@ func (h *Handler) finishTelegram(w http.ResponseWriter, r *http.Request, d usera
 			return
 		}
 		tgID := d.ID
+		// The group is given on confirmation: right away with the invite code, else by the admin.
+		group := ""
+		if approved {
+			group = st.DefaultApprovalGroup()
+		}
 		user, err = h.store.CreateUser(ctx, store.NewUser{
 			WebauthnID: handle, Name: d.DisplayName(), TelegramID: &tgID, TelegramUsername: d.Username, PhotoURL: d.PhotoURL,
-			GroupName: st.GroupName, Approved: approved,
+			GroupName: group, Approved: approved,
 		})
 		if err != nil {
 			httpx.Fail(w, err)

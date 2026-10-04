@@ -57,6 +57,8 @@ export type Settings = {
   links: Link[];
   /** В публичных ответах всегда пустая строка */
   inviteCode: string;
+  /** Группа, которую аккаунт получает при подтверждении; пусто — groupName */
+  approvalGroup: string;
   updatedAt: DateTime;
 };
 

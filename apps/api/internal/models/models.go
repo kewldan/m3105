@@ -86,7 +86,18 @@ type Settings struct {
 	Timezone        string      `db:"timezone" json:"timezone"`
 	Links           []Link      `db:"links" json:"links"`
 	InviteCode      string      `db:"invite_code" json:"inviteCode"`
-	UpdatedAt       time.Time   `db:"updated_at" json:"updatedAt"`
+	// ApprovalGroup is given to an account without a group when it is confirmed;
+	// empty means GroupName.
+	ApprovalGroup string    `db:"approval_group" json:"approvalGroup"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updatedAt"`
+}
+
+// DefaultApprovalGroup is the group a confirmed account gets when it has none.
+func (s Settings) DefaultApprovalGroup() string {
+	if s.ApprovalGroup != "" {
+		return s.ApprovalGroup
+	}
+	return s.GroupName
 }
 
 // Validate normalises and checks settings input.
@@ -97,11 +108,15 @@ func (s *Settings) Validate() error {
 	s.Description = strings.TrimSpace(s.Description)
 	s.Timezone = strings.TrimSpace(s.Timezone)
 	s.InviteCode = strings.TrimSpace(s.InviteCode)
+	s.ApprovalGroup = strings.TrimSpace(s.ApprovalGroup)
 	if s.SiteTitle == "" {
 		ve.Add("siteTitle", "Укажите название сайта")
 	}
 	if s.GroupName == "" {
 		ve.Add("groupName", "Укажите название группы")
+	}
+	if len([]rune(s.ApprovalGroup)) > 40 {
+		ve.Add("approvalGroup", "Не длиннее 40 символов")
 	}
 	if s.FirstWeekParity != "odd" && s.FirstWeekParity != "even" {
 		ve.Add("firstWeekParity", "Чётность первой недели: odd или even")

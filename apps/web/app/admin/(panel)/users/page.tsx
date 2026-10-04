@@ -33,7 +33,7 @@ export default function UsersPage() {
   const [approving, setApproving] = useState<number | null>(null);
 
   const pending = data?.filter((u) => !u.approved).length ?? 0;
-  const defaultGroup = settings?.groupName ?? "";
+  const defaultGroup = settings?.approvalGroup || settings?.groupName || "";
 
   async function approve(user: AdminUser) {
     setApproving(user.id);

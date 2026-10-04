@@ -82,6 +82,19 @@ func (s *Store) ListUsers(ctx context.Context) ([]models.AdminUser, error) {
 		FROM users u ORDER BY u.created_at DESC`)
 }
 
+// ApproveUser confirms a pending account and gives it the group when it has none.
+// ok is false when the account was already confirmed; a missing account is ErrNotFound.
+func (s *Store) ApproveUser(ctx context.Context, id int64, group string) (user models.User, ok bool, err error) {
+	tag, err := s.db.Exec(ctx, `UPDATE users SET approved_at = now(),
+		group_name = CASE WHEN group_name = '' THEN $2 ELSE group_name END
+		WHERE id = $1 AND approved_at IS NULL`, id, group)
+	if err != nil {
+		return models.User{}, false, wrap(err)
+	}
+	user, err = s.GetUser(ctx, id)
+	return user, tag.RowsAffected() > 0, err
+}
+
 // DeleteUser removes an account and everything bound to it.
 func (s *Store) DeleteUser(ctx context.Context, id int64) error {
 	return s.exec(ctx, `DELETE FROM users WHERE id = $1`, id)

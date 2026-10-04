@@ -18,6 +18,7 @@ const FALLBACK: SettingsResponse = {
     timezone: "Europe/Moscow",
     links: [],
     inviteCode: "",
+    approvalGroup: "",
     updatedAt: "",
   },
   week: {

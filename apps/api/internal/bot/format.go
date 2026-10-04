@@ -182,6 +182,21 @@ func labsMessage(site string, labs []store.BotLab, now time.Time, loc *time.Loca
 
 // newUserMessage tells the admin about a new student account.
 func newUserMessage(site string, u models.User) string {
+	if u.Approved {
+		return userCard(site, u, "✅ Подтверждён кодом доступа.")
+	}
+	return userCard(site, u, "⏳ Ждёт подтверждения: до этого не может отмечать лабы, записываться и писать.")
+}
+
+// approvedUserMessage replaces newUserMessage after the admin pressed the button.
+func approvedUserMessage(site string, u models.User, now bool) string {
+	if now {
+		return userCard(site, u, "✅ Подтверждён.")
+	}
+	return userCard(site, u, "✅ Уже был подтверждён раньше.")
+}
+
+func userCard(site string, u models.User, status string) string {
 	var b strings.Builder
 	b.WriteString("👤 <b>Новый студент на сайте</b>\n\n")
 	b.WriteString("<b>" + esc(u.Name) + "</b>")
@@ -192,11 +207,7 @@ func newUserMessage(site string, u models.User) string {
 	if u.GroupName != "" {
 		b.WriteString("Группа: " + esc(u.GroupName) + "\n")
 	}
-	if u.Approved {
-		b.WriteString("\n✅ Подтверждён кодом доступа.")
-	} else {
-		b.WriteString("\n⏳ Ждёт подтверждения: до этого не может отмечать лабы, записываться и писать.")
-	}
+	b.WriteString("\n" + status)
 	fmt.Fprintf(&b, "\n\n<a href=\"%s/admin/users\">Открыть «Студентов» в админке</a>", strings.TrimRight(site, "/"))
 	return b.String()
 }

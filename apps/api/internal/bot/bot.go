@@ -22,6 +22,8 @@ type Options struct {
 	DigestWindow time.Duration
 	// Poll enables long polling for commands; notifications work regardless.
 	Poll bool
+	// AdminChatID is the only chat allowed to press inline buttons (account approval).
+	AdminChatID int64
 }
 
 // Bot ties the Telegram client to the store.
@@ -96,6 +98,10 @@ func (b *Bot) Run(ctx context.Context) {
 		}
 		for _, u := range updates {
 			offset = u.ID + 1
+			if u.CallbackQuery != nil {
+				b.callback(ctx, u.CallbackQuery)
+				continue
+			}
 			if u.Message == nil || u.Message.From == nil || u.Message.Chat.Type != "private" {
 				continue
 			}

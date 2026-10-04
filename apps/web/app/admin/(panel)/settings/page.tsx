@@ -38,6 +38,7 @@ const schema = z.object({
   timezone: z.string().min(1, "Выберите часовой пояс"),
   links: z.array(z.object({ title: z.string(), url: z.string() })),
   inviteCode: z.string().trim(),
+  approvalGroup: z.string().trim().max(40, "Не длиннее 40 символов"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -53,6 +54,7 @@ function toForm(s: Settings): FormValues {
     timezone: s.timezone,
     links: s.links ?? [],
     inviteCode: s.inviteCode ?? "",
+    approvalGroup: s.approvalGroup ?? "",
   };
 }
 
@@ -72,6 +74,7 @@ export default function SettingsPage() {
       timezone: "Europe/Moscow",
       links: [],
       inviteCode: "",
+      approvalGroup: "",
     },
   });
   const { reset } = form;
@@ -284,7 +287,7 @@ export default function SettingsPage() {
 
           <FormSection
             title="Вход студентов"
-            description="Аккаунты создаются при первом входе через Telegram, паролей нет. Новый аккаунт ждёт подтверждения в разделе «Студенты», там же задаётся имя и фамилия."
+            description="Аккаунты создаются при первом входе через Telegram, паролей нет. Новый аккаунт ждёт подтверждения в разделе «Студенты» или кнопкой в сообщении бота админу, имя и фамилия задаются в «Студентах»."
           >
             <FormField
               label="Код доступа"
@@ -298,6 +301,20 @@ export default function SettingsPage() {
                 placeholder="например, m3105-2026"
                 {...form.register("inviteCode")}
                 aria-invalid={!!errors.inviteCode || undefined}
+              />
+            </FormField>
+            <FormField
+              label="Группа при подтверждении"
+              htmlFor="approvalGroup"
+              description="Ставится аккаунту без группы, когда его подтверждают: в «Студентах», кнопкой в Telegram или кодом доступа. Пусто — название группы сайта."
+              error={errors.approvalGroup?.message}
+            >
+              <Input
+                id="approvalGroup"
+                autoComplete="off"
+                placeholder={form.watch("groupName") || "М3105"}
+                {...form.register("approvalGroup")}
+                aria-invalid={!!errors.approvalGroup || undefined}
               />
             </FormField>
             <div className="rounded-xl border bg-muted/40 p-4 text-sm">

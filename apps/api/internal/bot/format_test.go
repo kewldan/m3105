@@ -140,4 +140,12 @@ func TestNewUserMessage(t *testing.T) {
 	if !strings.Contains(msg, "Подтверждён кодом доступа") || strings.Contains(msg, "t.me") || strings.Contains(msg, "Группа") {
 		t.Errorf("approved message without username and group:\n%s", msg)
 	}
+
+	u.GroupName = "М3105-2"
+	if msg := approvedUserMessage("https://m3105.ru", u, true); !strings.Contains(msg, "✅ Подтверждён.") || !strings.Contains(msg, "Группа: М3105-2") {
+		t.Errorf("approved from the button:\n%s", msg)
+	}
+	if kb := approveKeyboard(42)["inline_keyboard"].([][]map[string]string); kb[0][0]["callback_data"] != "approve:42" {
+		t.Errorf("keyboard: %v", kb)
+	}
 }

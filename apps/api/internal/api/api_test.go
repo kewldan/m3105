@@ -493,7 +493,7 @@ func TestStudentAccounts(t *testing.T) {
 	full := anon.do("GET", fmt.Sprintf("/api/v1/practice/%d", sessID), nil, 200)
 	q := full["queue"].([]any)
 	if full["full"] != true || len(q) != 2 || q[0].(map[string]any)["reserve"] != false || q[1].(map[string]any)["reserve"] != true {
-		t.Fatalf("expected one defence in the main list and one in the reserve: %v", full)
+		t.Fatalf("expected one defense in the main list and one in the reserve: %v", full)
 	}
 	meNow := u.do("GET", "/api/v1/me/", nil, 200)
 	if len(meNow["signups"].([]any)) != 1 {

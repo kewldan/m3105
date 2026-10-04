@@ -210,11 +210,11 @@ type Participant struct {
 	Labs []LabRef   `json:"labs"`
 }
 
-// QueueEntry is one defence in a session's queue.
+// QueueEntry is one defense in a session's queue.
 type QueueEntry struct {
 	User PublicUser `json:"user"`
 	Lab  LabRef     `json:"lab"`
-	// Reserve: beyond the number of defences the teacher takes; taken if time allows.
+	// Reserve: beyond the number of defenses the teacher takes; taken if time allows.
 	Reserve bool `json:"reserve"`
 	// Carried: left in the reserve last time, so it goes first now.
 	Carried bool `json:"carried"`
@@ -225,15 +225,15 @@ type QueueEntry struct {
 // PracticeSessionView is a session with its queue, public to everyone.
 type PracticeSessionView struct {
 	PracticeSession
-	// Queue is the defences in hand-in order.
+	// Queue is the defenses in hand-in order.
 	Queue []QueueEntry `json:"queue"`
 	// FreezesAt is when the order stops being reshuffled by new signups.
 	FreezesAt time.Time `json:"freezesAt"`
 	Frozen    bool      `json:"frozen"`
-	// Participants are the students in the order of their first defence.
+	// Participants are the students in the order of their first defense.
 	Participants []Participant `json:"participants"`
 	MyLabIDs     []int64       `json:"myLabIds"`
-	// Full: the main list is taken, new defences go to the reserve.
+	// Full: the main list is taken, new defenses go to the reserve.
 	Full          bool     `json:"full"`
 	Past          bool     `json:"past"`
 	AvailableLabs []LabRef `json:"availableLabs"`

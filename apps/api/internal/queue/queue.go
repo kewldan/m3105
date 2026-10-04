@@ -1,9 +1,9 @@
-// Package queue orders lab defences at a practice session. The rules, as agreed
+// Package queue orders lab defenses at a practice session. The rules, as agreed
 // with the group:
 //
-//  1. The queue is made of defences: one student with one lab. A student who
+//  1. The queue is made of defenses: one student with one lab. A student who
 //     brings two labs defends the second one after everybody's first.
-//  2. Defences left in the reserve of the previous session of the subject (signed
+//  2. Defenses left in the reserve of the previous session of the subject (signed
 //     up beyond the teacher's capacity) go first, in the order they stood there.
 //  3. Then round by round: newer labs first, ties broken by a lottery that is
 //     fixed for a (session, student) pair, so signing up early gives nothing and
@@ -13,9 +13,9 @@
 package queue
 
 import (
-	"encoding/binary"
 	"hash/fnv"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -28,7 +28,7 @@ func FreezeAt(startsAt time.Time, loc *time.Location) time.Time {
 	return time.Date(d.Year(), d.Month(), d.Day()-1, FreezeHour, 0, 0, 0, loc)
 }
 
-// Entry is one defence: a student with one lab.
+// Entry is one defense: a student with one lab.
 type Entry struct {
 	UserID int64
 	LabID  int64
@@ -41,16 +41,16 @@ type Entry struct {
 	SignedAt time.Time
 }
 
-// Key identifies a defence inside one session.
+// Key identifies a defense inside one session.
 type Key struct{ UserID, LabID int64 }
 
 // draw is a pseudo-random number fixed for the pair.
 func draw(sessionID, userID int64) uint64 {
 	h := fnv.New64a()
-	var b [16]byte
-	binary.LittleEndian.PutUint64(b[:8], uint64(sessionID))
-	binary.LittleEndian.PutUint64(b[8:], uint64(userID))
-	_, _ = h.Write(b[:])
+	b := strconv.AppendInt(nil, sessionID, 10)
+	b = append(b, ':')
+	b = strconv.AppendInt(b, userID, 10)
+	_, _ = h.Write(b)
 	// splitmix64 finaliser: FNV of nearby ids differs only in a few bits.
 	x := h.Sum64()
 	x ^= x >> 30
@@ -61,7 +61,7 @@ func draw(sessionID, userID int64) uint64 {
 	return x
 }
 
-// Order returns the defences in hand-in order.
+// Order returns the defenses in hand-in order.
 func Order(sessionID int64, entries []Entry) []Key {
 	onTime, late := []Entry{}, []Entry{}
 	for _, e := range entries {
@@ -72,7 +72,7 @@ func Order(sessionID int64, entries []Entry) []Key {
 		}
 	}
 
-	// A student's own defences: carried ones first, then newer labs. The index is the round.
+	// A student's own defenses: carried ones first, then newer labs. The index is the round.
 	byUser := map[int64][]Entry{}
 	for _, e := range onTime {
 		byUser[e.UserID] = append(byUser[e.UserID], e)

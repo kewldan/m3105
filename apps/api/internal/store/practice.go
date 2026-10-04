@@ -102,7 +102,7 @@ func (s *Store) ListSubjectLabRefs(ctx context.Context, subjectID int64) ([]mode
 // ReplaceSignups sets the user's labs for a session (empty list removes the signup).
 // Labs the student keeps keep their place; new ones get the next queue number,
 // which puts them at the end of a frozen or manual queue. There is no seat limit:
-// defences beyond the capacity form the reserve.
+// defenses beyond the capacity form the reserve.
 func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, labIDs []int64) error {
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
@@ -137,7 +137,7 @@ func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, lab
 }
 
 // ReorderSignups sets the queue order of a session by hand. keys must be exactly
-// the defences currently in the queue. The queue becomes manual: later signups
+// the defenses currently in the queue. The queue becomes manual: later signups
 // go to the end.
 func (s *Store) ReorderSignups(ctx context.Context, sessionID int64, keys []queue.Key) error {
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})

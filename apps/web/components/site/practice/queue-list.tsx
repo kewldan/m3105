@@ -4,7 +4,7 @@ import { UserAvatar } from "@/components/site/user-avatar";
 import type { QueueEntry } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
-/** Defences in hand-in order; the reserve starts after the teacher's capacity. */
+/** Defenses in hand-in order; the reserve starts after the teacher's capacity. */
 export function QueueList({
   queue,
   meId,

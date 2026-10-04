@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -11,14 +12,14 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/queue"
 )
 
-// QueuedSignup is a defence in its place in the queue.
+// QueuedSignup is a defense in its place in the queue.
 type QueuedSignup struct {
 	models.SignupRow
 	Carried bool
 	Late    bool
 }
 
-// carriedFrom maps defences left in the reserve of the subject's previous session
+// carriedFrom maps defenses left in the reserve of the subject's previous session
 // to their place in that reserve. Only a stored (frozen or manual) order counts:
 // a session still being reshuffled has no reserve yet.
 func carriedFrom(ctx context.Context, q querier, sess models.PracticeSession) (map[queue.Key]int, error) {
@@ -28,7 +29,7 @@ func carriedFrom(ctx context.Context, q querier, sess models.PracticeSession) (m
 	var stored bool
 	err := q.QueryRow(ctx, `SELECT id, capacity, queue_manual OR queue_frozen_at IS NOT NULL FROM practice_sessions
 		WHERE subject_id = $1 AND starts_at < $2 ORDER BY starts_at DESC, id DESC LIMIT 1`, sess.SubjectID, sess.StartsAt).Scan(&prevID, &capacity, &stored)
-	if err == pgx.ErrNoRows || (err == nil && (capacity == nil || !stored)) {
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (capacity == nil || !stored)) {
 		return out, nil
 	}
 	if err != nil {

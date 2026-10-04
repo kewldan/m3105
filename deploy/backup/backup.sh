@@ -32,6 +32,7 @@ tg_text() {
 		log "не удалось отправить сообщение в Telegram"
 }
 
+# tg_doc шлёт архив без звука: он приходит каждый день, а сбои идут через tg_text со звуком.
 tg_doc() {
 	if ! tg_ready; then
 		log "Telegram не настроен, архив остался только в $BACKUP_DIR"
@@ -39,7 +40,7 @@ tg_doc() {
 	fi
 	out=$(curl -sS -m 900 -X POST "https://api.telegram.org/bot$TOKEN/sendDocument" \
 		--form-string "chat_id=$CHAT_ID" --form-string "parse_mode=HTML" --form-string "caption=$2" \
-		-F "document=@$1" 2>&1) || out="curl: $out"
+		--form-string "disable_notification=true" -F "document=@$1" 2>&1) || out="curl: $out"
 	case "$out" in
 	'{"ok":true'*) return 0 ;;
 	*)

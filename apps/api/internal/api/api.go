@@ -136,6 +136,7 @@ func (h *Handler) Router() http.Handler {
 		r.Route("/me", func(r chi.Router) {
 			r.Use(userauth.Require)
 			r.Get("/", h.me)
+			r.Put("/profile", h.updateProfile)
 			r.With(h.requireApproved).Put("/labs/{id}/done", h.setLabDone(true))
 			r.With(h.requireApproved).Delete("/labs/{id}/done", h.setLabDone(false))
 			r.Delete("/passkeys/{id}", h.deletePasskey)

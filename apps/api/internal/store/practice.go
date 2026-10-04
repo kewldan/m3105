@@ -2,18 +2,19 @@ package store
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/models"
+	"github.com/kewldan/edu3105/apps/api/internal/queue"
 )
 
 const practiceCols = `ps.id, ps.subject_id, ps.starts_at, ps.ends_at, ps.location, ps.capacity, ps.note, ps.created_at, ps.updated_at,
 	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
-	(SELECT count(DISTINCT g.user_id) FROM practice_signups g WHERE g.session_id = ps.id)::int AS signups_count`
+	(SELECT count(DISTINCT g.user_id) FROM practice_signups g WHERE g.session_id = ps.id)::int AS signups_count,
+	ps.queue_manual, (ps.queue_frozen_at IS NOT NULL) AS queue_frozen`
 
 const practiceFrom = ` FROM practice_sessions ps JOIN subjects s ON s.id = ps.subject_id`
 
@@ -84,7 +85,7 @@ func (s *Store) ListSignupsForSessions(ctx context.Context, sessionIDs []int64) 
 	if len(sessionIDs) == 0 {
 		return []models.SignupRow{}, nil
 	}
-	return many[models.SignupRow](ctx, s.db, `SELECT `+signupCols+signupFrom+` WHERE g.session_id = ANY($1) ORDER BY g.queue_pos, g.user_id, l.number`, sessionIDs)
+	return many[models.SignupRow](ctx, s.db, `SELECT `+signupCols+signupFrom+` WHERE g.session_id = ANY($1) ORDER BY g.queue_pos, g.id`, sessionIDs)
 }
 
 // ListUserSignups returns everything a user signed up for.
@@ -98,11 +99,10 @@ func (s *Store) ListSubjectLabRefs(ctx context.Context, subjectID int64) ([]mode
 		WHERE l.subject_id = $1 AND l.status = 'published' ORDER BY l.number, l.title`, subjectID)
 }
 
-// ErrSessionFull is returned when the capacity would be exceeded.
-var ErrSessionFull = errors.New("session is full")
-
 // ReplaceSignups sets the user's labs for a session (empty list removes the signup).
-// Capacity is enforced on distinct users inside a transaction.
+// Labs the student keeps keep their place; new ones get the next queue number,
+// which puts them at the end of a frozen or manual queue. There is no seat limit:
+// defences beyond the capacity form the reserve.
 func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, labIDs []int64) error {
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
@@ -111,55 +111,35 @@ func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, lab
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var subjectID int64
-	var capacity *int
-	if err := tx.QueryRow(ctx, `SELECT subject_id, capacity FROM practice_sessions WHERE id = $1 FOR UPDATE`, sessionID).Scan(&subjectID, &capacity); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT subject_id FROM practice_sessions WHERE id = $1 FOR UPDATE`, sessionID).Scan(&subjectID); err != nil {
 		return wrap(err)
 	}
-	// Правка набора лаб не должна отправлять студента в конец очереди.
-	var pos *int64
-	if err := tx.QueryRow(ctx, `SELECT min(queue_pos) FROM practice_signups WHERE session_id = $1 AND user_id = $2`, sessionID, userID).Scan(&pos); err != nil {
+	for _, labID := range labIDs {
+		var ok bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM labs WHERE id = $1 AND subject_id = $2 AND status = 'published')`, labID, subjectID).Scan(&ok); err != nil {
+			return wrap(err)
+		}
+		if !ok {
+			return &httpx.ValidationError{Fields: map[string]string{"labIds": "Лаба не относится к этому предмету"}}
+		}
+	}
+	if labIDs == nil {
+		labIDs = []int64{}
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM practice_signups WHERE session_id = $1 AND user_id = $2 AND NOT (lab_id = ANY($3))`, sessionID, userID, labIDs); err != nil {
 		return wrap(err)
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM practice_signups WHERE session_id = $1 AND user_id = $2`, sessionID, userID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO practice_signups (session_id, user_id, lab_id)
+		SELECT $1, $2, unnest($3::bigint[]) ON CONFLICT DO NOTHING`, sessionID, userID, labIDs); err != nil {
 		return wrap(err)
-	}
-	if len(labIDs) > 0 {
-		if capacity != nil {
-			var others int
-			if err := tx.QueryRow(ctx, `SELECT count(DISTINCT user_id) FROM practice_signups WHERE session_id = $1`, sessionID).Scan(&others); err != nil {
-				return wrap(err)
-			}
-			if others >= *capacity {
-				return ErrSessionFull
-			}
-		}
-		if pos == nil {
-			var next int64
-			if err := tx.QueryRow(ctx, `SELECT nextval('practice_queue_seq')`).Scan(&next); err != nil {
-				return wrap(err)
-			}
-			pos = &next
-		}
-		for _, labID := range labIDs {
-			var ok bool
-			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM labs WHERE id = $1 AND subject_id = $2 AND status = 'published')`, labID, subjectID).Scan(&ok); err != nil {
-				return wrap(err)
-			}
-			if !ok {
-				return &httpx.ValidationError{Fields: map[string]string{"labIds": "Лаба не относится к этому предмету"}}
-			}
-			if _, err := tx.Exec(ctx, `INSERT INTO practice_signups (session_id, user_id, lab_id, queue_pos) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, sessionID, userID, labID, *pos); err != nil {
-				return wrap(err)
-			}
-		}
 	}
 	return wrap(tx.Commit(ctx))
 }
 
-// ReorderSignups sets the queue order of a session's students. userIDs must be
-// exactly the students currently signed up; the queue positions they already
-// hold are redistributed, so later signups still land at the end.
-func (s *Store) ReorderSignups(ctx context.Context, sessionID int64, userIDs []int64) error {
+// ReorderSignups sets the queue order of a session by hand. keys must be exactly
+// the defences currently in the queue. The queue becomes manual: later signups
+// go to the end.
+func (s *Store) ReorderSignups(ctx context.Context, sessionID int64, keys []queue.Key) error {
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return wrap(err)
@@ -169,39 +149,43 @@ func (s *Store) ReorderSignups(ctx context.Context, sessionID int64, userIDs []i
 	if _, err := tx.Exec(ctx, `SELECT 1 FROM practice_sessions WHERE id = $1 FOR UPDATE`, sessionID); err != nil {
 		return wrap(err)
 	}
-	rows, err := tx.Query(ctx, `SELECT user_id, min(queue_pos) FROM practice_signups WHERE session_id = $1 GROUP BY user_id ORDER BY 2`, sessionID)
+	rows, err := tx.Query(ctx, `SELECT user_id, lab_id FROM practice_signups WHERE session_id = $1`, sessionID)
 	if err != nil {
 		return wrap(err)
 	}
-	current := map[int64]bool{}
-	positions := []int64{}
-	for rows.Next() {
-		var uid, pos int64
-		if err := rows.Scan(&uid, &pos); err != nil {
-			rows.Close()
-			return wrap(err)
-		}
-		current[uid] = true
-		positions = append(positions, pos)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
+	current, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (queue.Key, error) {
+		var k queue.Key
+		return k, r.Scan(&k.UserID, &k.LabID)
+	})
+	if err != nil {
 		return wrap(err)
 	}
-	seen := map[int64]bool{}
-	for _, uid := range userIDs {
-		if !current[uid] || seen[uid] {
-			return &httpx.ValidationError{Fields: map[string]string{"userIds": "Список устарел, обновите очередь"}}
+	stale := &httpx.ValidationError{Fields: map[string]string{"entries": "Список устарел, обновите очередь"}}
+	have := map[queue.Key]bool{}
+	for _, k := range current {
+		have[k] = true
+	}
+	seen := map[queue.Key]bool{}
+	for _, k := range keys {
+		if !have[k] || seen[k] {
+			return stale
 		}
-		seen[uid] = true
+		seen[k] = true
 	}
-	if len(userIDs) != len(current) {
-		return &httpx.ValidationError{Fields: map[string]string{"userIds": "Список устарел, обновите очередь"}}
+	if len(keys) != len(current) {
+		return stale
 	}
-	if _, err := tx.Exec(ctx, `UPDATE practice_signups g SET queue_pos = v.pos
-		FROM unnest($2::bigint[], $3::bigint[]) AS v(uid, pos)
-		WHERE g.session_id = $1 AND g.user_id = v.uid`, sessionID, userIDs, positions); err != nil {
+	if err := writeQueue(ctx, tx, sessionID, keys); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE practice_sessions SET queue_manual = true WHERE id = $1`, sessionID); err != nil {
 		return wrap(err)
 	}
 	return wrap(tx.Commit(ctx))
+}
+
+// AutoQueue drops the admin's manual order: the queue follows the rules again
+// (and is frozen anew if its freeze time has passed).
+func (s *Store) AutoQueue(ctx context.Context, sessionID int64) error {
+	return s.exec(ctx, `UPDATE practice_sessions SET queue_manual = false, queue_frozen_at = NULL WHERE id = $1`, sessionID)
 }

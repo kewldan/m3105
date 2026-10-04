@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/models"
+	"github.com/kewldan/edu3105/apps/api/internal/queue"
 	"github.com/kewldan/edu3105/apps/api/internal/store"
 	"github.com/kewldan/edu3105/apps/api/internal/userauth"
 )
@@ -103,6 +105,25 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	id, ok := userauth.UserID(r.Context())
 	if !ok {
 		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "Не авторизован")
+		return
+	}
+	h.respondMe(w, r, id)
+}
+
+// updateProfile lets students set their own first and last name.
+func (h *Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
+	id, _ := userauth.UserID(r.Context())
+	var in models.ProfileInput
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := in.Validate(); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := h.store.SetDisplayName(r.Context(), id, in.DisplayName); err != nil {
+		httpx.Fail(w, err)
 		return
 	}
 	h.respondMe(w, r, id)
@@ -447,46 +468,57 @@ func (h *Handler) setLabDone(done bool) http.HandlerFunc {
 
 // ---- practice sessions ----
 
-func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSession, now time.Time) ([]models.PracticeSessionView, error) {
+// freezeQueues stores the order of sessions past their freeze time. A failure
+// (say, two readers racing) only postpones it to the next read, so it is logged.
+func (h *Handler) freezeQueues(ctx context.Context, loc *time.Location) {
+	if err := h.store.FreezeQueues(ctx, loc); err != nil {
+		slog.Warn("practice queues not frozen", "err", err)
+	}
+}
+
+func queueEntry(r store.QueuedSignup, capacity *int, i int) models.QueueEntry {
+	return models.QueueEntry{
+		User:    models.PublicUser{ID: r.UserID, Name: r.UserName, PhotoURL: r.PhotoURL},
+		Lab:     models.LabRef{ID: r.LabID, Number: r.LabNumber, Title: r.LabTitle, Slug: r.LabSlug, SubjectSlug: r.SubjectSlug},
+		Reserve: capacity != nil && i >= *capacity,
+		Carried: r.Carried,
+		Late:    r.Late,
+	}
+}
+
+func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSession, sc siteContext) ([]models.PracticeSessionView, error) {
 	ctx := r.Context()
 	userID, signedIn := userauth.UserID(ctx)
-	ids := make([]int64, 0, len(sessions))
-	for _, s := range sessions {
-		ids = append(ids, s.ID)
-	}
-	rows, err := h.store.ListSignupsForSessions(ctx, ids)
+	queues, err := h.store.Queues(ctx, sessions, sc.Loc)
 	if err != nil {
 		return nil, err
 	}
 	labsBySubject := map[int64][]models.LabRef{}
 	views := make([]models.PracticeSessionView, 0, len(sessions))
 	for _, s := range sessions {
-		v := models.PracticeSessionView{PracticeSession: s, Participants: []models.Participant{}, MyLabIDs: []int64{}, AvailableLabs: []models.LabRef{}}
-		v.Past = s.StartsAt.Before(now)
+		v := models.PracticeSessionView{PracticeSession: s, Queue: []models.QueueEntry{}, Participants: []models.Participant{}, MyLabIDs: []int64{}, AvailableLabs: []models.LabRef{}}
+		v.Past = s.StartsAt.Before(sc.Now)
 		if s.EndsAt != nil {
-			v.Past = s.EndsAt.Before(now)
+			v.Past = s.EndsAt.Before(sc.Now)
 		}
-		order := []int64{}
-		byUser := map[int64]*models.Participant{}
-		for _, row := range rows {
-			if row.SessionID != s.ID {
-				continue
-			}
-			p, ok := byUser[row.UserID]
+		v.FreezesAt = queue.FreezeAt(s.StartsAt, sc.Loc)
+		v.Frozen = !v.FreezesAt.After(sc.Now)
+		byUser := map[int64]int{}
+		for i, row := range queues[s.ID] {
+			e := queueEntry(row, s.Capacity, i)
+			v.Queue = append(v.Queue, e)
+			idx, ok := byUser[row.UserID]
 			if !ok {
-				p = &models.Participant{User: models.PublicUser{ID: row.UserID, Name: row.UserName, PhotoURL: row.PhotoURL}, Labs: []models.LabRef{}}
-				byUser[row.UserID] = p
-				order = append(order, row.UserID)
+				v.Participants = append(v.Participants, models.Participant{User: e.User, Labs: []models.LabRef{}})
+				idx = len(v.Participants) - 1
+				byUser[row.UserID] = idx
 			}
-			p.Labs = append(p.Labs, models.LabRef{ID: row.LabID, Number: row.LabNumber, Title: row.LabTitle, Slug: row.LabSlug, SubjectSlug: row.SubjectSlug})
+			v.Participants[idx].Labs = append(v.Participants[idx].Labs, e.Lab)
 			if signedIn && row.UserID == userID {
 				v.MyLabIDs = append(v.MyLabIDs, row.LabID)
 			}
 		}
 		if signedIn {
-			for _, uid := range order {
-				v.Participants = append(v.Participants, *byUser[uid])
-			}
 			labs, ok := labsBySubject[s.SubjectID]
 			if !ok {
 				labs, err = h.store.ListSubjectLabRefs(ctx, s.SubjectID)
@@ -497,9 +529,7 @@ func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSessi
 			}
 			v.AvailableLabs = labs
 		}
-		if s.Capacity != nil && s.SignupsCount >= *s.Capacity && len(v.MyLabIDs) == 0 {
-			v.Full = true
-		}
+		v.Full = s.Capacity != nil && len(v.Queue) >= *s.Capacity
 		views = append(views, v)
 	}
 	return views, nil
@@ -511,6 +541,7 @@ func (h *Handler) listPractice(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
+	h.freezeQueues(r.Context(), sc.Loc)
 	f := store.PracticeFilter{SubjectSlug: r.URL.Query().Get("subject")}
 	if r.URL.Query().Get("past") == "" {
 		from := sc.Now
@@ -521,7 +552,7 @@ func (h *Handler) listPractice(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	views, err := h.practiceViews(r, sessions, sc.Now)
+	views, err := h.practiceViews(r, sessions, sc)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -536,12 +567,22 @@ func (h *Handler) getPractice(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
+	h.respondPractice(w, r, id)
+}
+
+func (h *Handler) respondPractice(w http.ResponseWriter, r *http.Request, id int64) {
+	sc, err := h.site(r.Context())
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	h.freezeQueues(r.Context(), sc.Loc)
 	sess, err := h.store.GetPracticeSession(r.Context(), id)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	views, err := h.practiceViews(r, []models.PracticeSession{sess}, time.Now())
+	views, err := h.practiceViews(r, []models.PracticeSession{sess}, sc)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -579,25 +620,15 @@ func (h *Handler) setPracticeSignup(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, &httpx.ValidationError{Fields: map[string]string{"_": "Эта сдача уже прошла"}})
 		return
 	}
+	// Заморозить до записи: запись после 20:00 накануне должна встать в конец.
+	if sc, err := h.site(ctx); err == nil {
+		h.freezeQueues(ctx, sc.Loc)
+	}
 	if err := h.store.ReplaceSignups(ctx, id, userID, in.LabIDs); err != nil {
-		if errors.Is(err, store.ErrSessionFull) {
-			httpx.Error(w, http.StatusConflict, "full", "Мест на эту сдачу больше нет")
-			return
-		}
 		httpx.Fail(w, err)
 		return
 	}
-	sess, err = h.store.GetPracticeSession(ctx, id)
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	views, err := h.practiceViews(r, []models.PracticeSession{sess}, time.Now())
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	httpx.JSON(w, http.StatusOK, views[0])
+	h.respondPractice(w, r, id)
 }
 
 // ---- admin ----
@@ -673,7 +704,25 @@ func (h *Handler) adminReorderSignups(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	if err := h.store.ReorderSignups(r.Context(), id, in.UserIDs); err != nil {
+	keys := make([]queue.Key, len(in.Entries))
+	for i, e := range in.Entries {
+		keys[i] = queue.Key{UserID: e.UserID, LabID: e.LabID}
+	}
+	if err := h.store.ReorderSignups(r.Context(), id, keys); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	h.writeAdminSignups(w, r, id)
+}
+
+// adminAutoQueue drops the manual order and lets the server order the queue again.
+func (h *Handler) adminAutoQueue(w http.ResponseWriter, r *http.Request) {
+	id, err := httpx.IDParam(r)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := h.store.AutoQueue(r.Context(), id); err != nil {
 		httpx.Fail(w, err)
 		return
 	}
@@ -681,30 +730,32 @@ func (h *Handler) adminReorderSignups(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) writeAdminSignups(w http.ResponseWriter, r *http.Request, id int64) {
+	sc, err := h.site(r.Context())
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	h.freezeQueues(r.Context(), sc.Loc)
 	sess, err := h.store.GetPracticeSession(r.Context(), id)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	rows, err := h.store.ListSignupsForSessions(r.Context(), []int64{id})
+	queues, err := h.store.Queues(r.Context(), []models.PracticeSession{sess}, sc.Loc)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	order := []int64{}
-	byUser := map[int64]*models.Participant{}
-	for _, row := range rows {
-		p, ok := byUser[row.UserID]
-		if !ok {
-			p = &models.Participant{User: models.PublicUser{ID: row.UserID, Name: row.UserName, PhotoURL: row.PhotoURL}, Labs: []models.LabRef{}}
-			byUser[row.UserID] = p
-			order = append(order, row.UserID)
-		}
-		p.Labs = append(p.Labs, models.LabRef{ID: row.LabID, Number: row.LabNumber, Title: row.LabTitle, Slug: row.LabSlug, SubjectSlug: row.SubjectSlug})
+	entries := make([]models.QueueEntry, 0, len(queues[id]))
+	for i, row := range queues[id] {
+		entries = append(entries, queueEntry(row, sess.Capacity, i))
 	}
-	participants := make([]models.Participant, 0, len(order))
-	for _, uid := range order {
-		participants = append(participants, *byUser[uid])
-	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"session": sess, "participants": participants})
+	freezesAt := queue.FreezeAt(sess.StartsAt, sc.Loc)
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"session":     sess,
+		"queue":       entries,
+		"queueManual": sess.QueueManual,
+		"freezesAt":   freezesAt,
+		"frozen":      !freezesAt.After(sc.Now),
+	})
 }

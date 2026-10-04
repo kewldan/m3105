@@ -159,12 +159,11 @@ export function SignupButton({
             <ul className="max-h-80 space-y-2 overflow-y-auto">
               {sessions.map((s) => {
                 const has = s.myLabIds.includes(labId);
-                const blocked = s.full && s.myLabIds.length === 0;
                 return (
                   <li key={s.id}>
                     <button
                       type="button"
-                      disabled={busy !== null || blocked}
+                      disabled={busy !== null}
                       onClick={() => choose(s)}
                       className={cn(
                         "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors outline-none hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60",
@@ -190,7 +189,7 @@ export function SignupButton({
                           <span className="inline-flex items-center gap-1">
                             <UsersRoundIcon className="size-3" aria-hidden />
                             {s.capacity != null
-                              ? `${s.signupsCount} из ${s.capacity}`
+                              ? `${s.queue.length} из ${s.capacity} защит`
                               : s.signupsCount}
                           </span>
                         </div>
@@ -202,9 +201,9 @@ export function SignupButton({
                           className="size-5 text-emerald-600"
                           aria-hidden
                         />
-                      ) : blocked ? (
-                        <span className="text-xs text-destructive">
-                          Мест нет
+                      ) : s.full ? (
+                        <span className="text-xs text-muted-foreground">
+                          в резерв
                         </span>
                       ) : null}
                     </button>

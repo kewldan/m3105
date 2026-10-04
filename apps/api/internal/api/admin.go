@@ -162,6 +162,7 @@ func (h *Handler) mountAdmin(r chi.Router) {
 	r.Route("/practice", func(r chi.Router) {
 		r.Get("/{id}/signups", h.adminPracticeSignups)
 		r.Put("/{id}/signups/order", h.adminReorderSignups)
+		r.Post("/{id}/signups/auto", h.adminAutoQueue)
 		mount[models.PracticeSession, models.PracticeSessionInput](r, crud[models.PracticeSession, models.PracticeSessionInput]{
 			list: func(ctx context.Context, r *http.Request) (any, error) {
 				return st.ListPracticeSessions(ctx, store.PracticeFilter{})

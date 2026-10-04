@@ -20,6 +20,7 @@ export type NoteResponse = Schema.NoteResponse;
 export type Page = Schema.Page;
 export type Parity = Schema.Parity;
 export type Participant = Schema.Participant;
+export type QueueEntry = Schema.QueueEntry;
 export type Post = Schema.Post;
 export type PostInput = Schema.PostInput;
 export type PracticeListResponse = Schema.PracticeListResponse;

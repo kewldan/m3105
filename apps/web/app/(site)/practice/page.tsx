@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/site/page-header";
 import { PracticeList } from "@/components/site/practice/practice-list";
+import { QueueRules } from "@/components/site/practice/queue-rules";
 import { cookieHeader } from "@/lib/api/cookies";
 import { getPractice, getSettings } from "@/lib/api/public";
 import { pageMetadata } from "@/lib/seo";
@@ -33,10 +34,11 @@ export default async function PracticePage({
         title="Сдачи"
         description={
           data.signedIn
-            ? "Выберите пару и отметьте лабы, которые принесёте. Одногруппники видят, кто записан."
-            : "Пары, на которых принимают лабораторные. Войдите, чтобы записаться и увидеть участников."
+            ? "Выберите пару и отметьте лабы, которые принесёте. Очередь видна всем, правила — ниже."
+            : "Пары, на которых принимают лабораторные, и очередь на каждую. Войдите, чтобы записаться."
         }
       />
+      <QueueRules />
       <PracticeList
         initial={data}
         tz={site.settings.timezone}

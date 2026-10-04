@@ -190,15 +190,15 @@ export function PracticeDialog({
           />
         </FormField>
         <FormField
-          label="Мест"
+          label="Защит за пару"
           htmlFor="pr-capacity"
-          description="Сколько студентов можно записать. Пусто — без лимита."
+          description="Сколько защит преподаватель успевает принять; остальные записи идут в резерв и в следующий раз встают первыми. Пусто — без резерва."
           error={errors.capacity?.message}
         >
           <Input
             id="pr-capacity"
             inputMode="numeric"
-            placeholder="без лимита"
+            placeholder="10"
             {...form.register("capacity")}
             aria-invalid={!!errors.capacity || undefined}
           />

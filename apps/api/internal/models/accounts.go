@@ -15,7 +15,7 @@ type User struct {
 	Name string `db:"name" json:"name"`
 	// TelegramName is refreshed from Telegram on every login.
 	TelegramName string `db:"telegram_name" json:"telegramName"`
-	// DisplayName is the permanent override set by an admin (e.g. "Имя Фамилия").
+	// DisplayName is "Имя Фамилия" set by the student or an admin; it overrides TelegramName.
 	DisplayName string `db:"display_name" json:"displayName"`
 	// GroupName is the study group the account belongs to; confirmed by an admin.
 	GroupName        string     `db:"group_name" json:"groupName"`
@@ -47,6 +47,27 @@ func (in *AdminUserInput) Validate() error {
 	}
 	if len([]rune(in.GroupName)) > 40 {
 		ve.Add("groupName", "Не длиннее 40 символов")
+	}
+	if !ve.Empty() {
+		return ve
+	}
+	return nil
+}
+
+// ProfileInput is what students can change about themselves.
+type ProfileInput struct {
+	DisplayName string `json:"displayName"`
+}
+
+// Validate normalises and checks the payload. Empty resets to the Telegram name.
+func (in *ProfileInput) Validate() error {
+	ve := httpx.NewValidation()
+	in.DisplayName = strings.Join(strings.Fields(in.DisplayName), " ")
+	switch n := len([]rune(in.DisplayName)); {
+	case n > 80:
+		ve.Add("displayName", "Не длиннее 80 символов")
+	case n > 0 && len(strings.Fields(in.DisplayName)) < 2:
+		ve.Add("displayName", "Укажите имя и фамилию")
 	}
 	if !ve.Empty() {
 		return ve
@@ -103,6 +124,10 @@ type PracticeSession struct {
 	SubjectIcon      string `db:"subject_icon" json:"subjectIcon"`
 	// SignupsCount is the number of distinct students signed up.
 	SignupsCount int `db:"signups_count" json:"signupsCount"`
+	// QueueManual: the admin has set the order by hand.
+	QueueManual bool `db:"queue_manual" json:"-"`
+	// QueueFrozen: the order has been frozen and stored in queue_pos.
+	QueueFrozen bool `db:"queue_frozen" json:"-"`
 }
 
 // PracticeSessionInput is the admin create/update payload.
@@ -140,14 +165,17 @@ func (in *PracticeSessionInput) Validate() error {
 
 // SignupOrderInput is the admin payload that sets the queue order of a session.
 type SignupOrderInput struct {
-	UserIDs []int64 `json:"userIds"`
+	Entries []struct {
+		UserID int64 `json:"userId"`
+		LabID  int64 `json:"labId"`
+	} `json:"entries"`
 }
 
 // Validate checks the payload.
 func (in *SignupOrderInput) Validate() error {
-	if len(in.UserIDs) == 0 {
+	if len(in.Entries) == 0 {
 		ve := httpx.NewValidation()
-		ve.Add("userIds", "Список пуст")
+		ve.Add("entries", "Список пуст")
 		return ve
 	}
 	return nil
@@ -182,14 +210,33 @@ type Participant struct {
 	Labs []LabRef   `json:"labs"`
 }
 
-// PracticeSessionView is a session with participants (names only for signed-in users).
+// QueueEntry is one defence in a session's queue.
+type QueueEntry struct {
+	User PublicUser `json:"user"`
+	Lab  LabRef     `json:"lab"`
+	// Reserve: beyond the number of defences the teacher takes; taken if time allows.
+	Reserve bool `json:"reserve"`
+	// Carried: left in the reserve last time, so it goes first now.
+	Carried bool `json:"carried"`
+	// Late: signed up after the freeze, so it went to the end.
+	Late bool `json:"late"`
+}
+
+// PracticeSessionView is a session with its queue, public to everyone.
 type PracticeSessionView struct {
 	PracticeSession
-	Participants  []Participant `json:"participants"`
-	MyLabIDs      []int64       `json:"myLabIds"`
-	Full          bool          `json:"full"`
-	Past          bool          `json:"past"`
-	AvailableLabs []LabRef      `json:"availableLabs"`
+	// Queue is the defences in hand-in order.
+	Queue []QueueEntry `json:"queue"`
+	// FreezesAt is when the order stops being reshuffled by new signups.
+	FreezesAt time.Time `json:"freezesAt"`
+	Frozen    bool      `json:"frozen"`
+	// Participants are the students in the order of their first defence.
+	Participants []Participant `json:"participants"`
+	MyLabIDs     []int64       `json:"myLabIds"`
+	// Full: the main list is taken, new defences go to the reserve.
+	Full          bool     `json:"full"`
+	Past          bool     `json:"past"`
+	AvailableLabs []LabRef `json:"availableLabs"`
 }
 
 // MySignup is a signup as seen from the student's profile.

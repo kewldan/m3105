@@ -58,6 +58,9 @@ export const userApi = {
       method: "POST",
       body,
     }),
+  /** Имя и фамилия; пустая строка возвращает имя из Telegram. */
+  updateProfile: (body: { displayName: string }) =>
+    apiClient<MeResponse>("/me/profile", { method: "PUT", body }),
   deletePasskey: (id: string) =>
     apiClient<MeResponse>(`/me/passkeys/${encodeURIComponent(id)}`, {
       method: "DELETE",

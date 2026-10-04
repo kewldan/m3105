@@ -21,7 +21,13 @@ type Store struct {
 // New constructs a Store.
 func New(db *pgxpool.Pool) *Store { return &Store{db: db} }
 
-func one[T any](ctx context.Context, db *pgxpool.Pool, q string, args ...any) (T, error) {
+// querier is what the pool and a transaction have in common.
+type querier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func one[T any](ctx context.Context, db querier, q string, args ...any) (T, error) {
 	rows, err := db.Query(ctx, q, args...)
 	if err != nil {
 		var zero T
@@ -31,7 +37,7 @@ func one[T any](ctx context.Context, db *pgxpool.Pool, q string, args ...any) (T
 	return v, wrap(err)
 }
 
-func many[T any](ctx context.Context, db *pgxpool.Pool, q string, args ...any) ([]T, error) {
+func many[T any](ctx context.Context, db querier, q string, args ...any) ([]T, error) {
 	rows, err := db.Query(ctx, q, args...)
 	if err != nil {
 		return nil, wrap(err)

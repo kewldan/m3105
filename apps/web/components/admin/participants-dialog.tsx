@@ -17,7 +17,12 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CopyIcon, GripVerticalIcon, UsersIcon } from "lucide-react";
+import {
+  CopyIcon,
+  GripVerticalIcon,
+  ShuffleIcon,
+  UsersIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -43,7 +48,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@/lib/admin/use-query";
 import { adminApi } from "@/lib/api/admin";
-import type { Participant, PracticeSession } from "@/lib/api/types";
+import type { PracticeSession, QueueEntry } from "@/lib/api/types";
 import { fmtDateTime, fmtTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -54,12 +59,14 @@ function sessionLabel(s: PracticeSession): string {
   return `${s.subjectShortName || s.subjectName} · ${range}${s.location ? ` · ${s.location}` : ""}`;
 }
 
+const entryId = (e: QueueEntry) => `${e.user.id}:${e.lab.id}`;
+
 function QueueRow({
-  participant: p,
+  entry: e,
   index,
   disabled,
 }: {
-  participant: Participant;
+  entry: QueueEntry;
   index: number;
   disabled: boolean;
 }) {
@@ -71,7 +78,7 @@ function QueueRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: p.user.id, disabled });
+  } = useSortable({ id: entryId(e), disabled });
   return (
     <li
       ref={setNodeRef}
@@ -79,13 +86,14 @@ function QueueRow({
       className={cn(
         "relative flex items-start gap-2 bg-background px-3 py-2.5",
         isDragging && "z-10 rounded-lg shadow-lg ring-1 ring-border",
+        e.reserve && "bg-muted/40",
       )}
     >
       <button
         type="button"
         ref={setActivatorNodeRef}
         disabled={disabled}
-        aria-label={`Переместить: ${p.user.name}`}
+        aria-label={`Переместить: ${e.user.name}, лаба ${e.lab.number}`}
         className="mt-1 cursor-grab touch-none text-muted-foreground hover:text-foreground disabled:cursor-default disabled:opacity-50"
         {...attributes}
         {...listeners}
@@ -96,19 +104,20 @@ function QueueRow({
         {index + 1}
       </span>
       <UserAvatar
-        name={p.user.name}
-        photoUrl={p.user.photoUrl}
+        name={e.user.name}
+        photoUrl={e.user.photoUrl}
         size="sm"
         className="mt-0.5"
       />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{p.user.name}</div>
+        <div className="truncate text-sm font-medium">{e.user.name}</div>
         <div className="mt-1 flex flex-wrap gap-1">
-          {p.labs.map((l) => (
-            <Badge key={l.id} variant="secondary" className="font-normal">
-              Лаба {l.number} · {l.title}
-            </Badge>
-          ))}
+          <Badge variant="secondary" className="font-normal">
+            Лаба {e.lab.number} · {e.lab.title}
+          </Badge>
+          {e.reserve ? <Badge variant="outline">резерв</Badge> : null}
+          {e.carried ? <Badge variant="outline">перенос</Badge> : null}
+          {e.late ? <Badge variant="outline">поздняя</Badge> : null}
         </div>
       </div>
     </li>
@@ -133,11 +142,30 @@ export function ParticipantsDialog({
     String(sessionId),
   );
 
-  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [entries, setEntries] = useState<QueueEntry[]>([]);
+  const [manual, setManual] = useState(false);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    setParticipants(data?.participants ?? []);
+    setEntries(data?.queue ?? []);
+    setManual(data?.queueManual ?? false);
   }, [data]);
+
+  async function resetAuto() {
+    if (sessionId <= 0) return;
+    setSaving(true);
+    try {
+      const res = await adminApi.practice.autoQueue(sessionId);
+      setEntries(res.queue);
+      setManual(res.queueManual);
+      toast.success("Очередь пересчитана");
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Не удалось пересчитать очередь",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -148,21 +176,22 @@ export function ParticipantsDialog({
 
   async function onDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id || sessionId <= 0) return;
-    const from = participants.findIndex((p) => p.user.id === active.id);
-    const to = participants.findIndex((p) => p.user.id === over.id);
+    const from = entries.findIndex((e) => entryId(e) === active.id);
+    const to = entries.findIndex((e) => entryId(e) === over.id);
     if (from < 0 || to < 0) return;
-    const previous = participants;
-    const next = arrayMove(participants, from, to);
-    setParticipants(next);
+    const previous = entries;
+    const next = arrayMove(entries, from, to);
+    setEntries(next);
     setSaving(true);
     try {
       const res = await adminApi.practice.reorder(
         sessionId,
-        next.map((p) => p.user.id),
+        next.map((e) => ({ userId: e.user.id, labId: e.lab.id })),
       );
-      setParticipants(res.participants);
+      setEntries(res.queue);
+      setManual(res.queueManual);
     } catch (e) {
-      setParticipants(previous);
+      setEntries(previous);
       toast.error(
         e instanceof Error ? e.message : "Не удалось сохранить очередь",
       );
@@ -172,14 +201,14 @@ export function ParticipantsDialog({
   }
   const seats = session
     ? session.capacity != null
-      ? `${participants.length} из ${session.capacity}`
-      : `${participants.length} · без лимита`
+      ? `${entries.length} из ${session.capacity} защит`
+      : `${entries.length} · без резерва`
     : "";
 
   async function copyList() {
-    const lines = participants.map(
-      (p) =>
-        `${p.user.name} — ${p.labs.map((l) => `Лаба ${l.number}`).join(", ")}`,
+    const lines = entries.map(
+      (e, i) =>
+        `${i + 1}. ${e.user.name} — лаба ${e.lab.number}${e.reserve ? " (резерв)" : ""}`,
     );
     const header = session ? `${sessionLabel(session)}\n` : "";
     try {
@@ -224,7 +253,7 @@ export function ParticipantsDialog({
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-2/3" />
           </div>
-        ) : participants.length === 0 ? (
+        ) : entries.length === 0 ? (
           <Empty className="border border-dashed py-8">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -245,14 +274,14 @@ export function ParticipantsDialog({
               onDragEnd={onDragEnd}
             >
               <SortableContext
-                items={participants.map((p) => p.user.id)}
+                items={entries.map(entryId)}
                 strategy={verticalListSortingStrategy}
               >
                 <ol className="max-h-[60dvh] divide-y overflow-y-auto rounded-xl border">
-                  {participants.map((p, i) => (
+                  {entries.map((e, i) => (
                     <QueueRow
-                      key={p.user.id}
-                      participant={p}
+                      key={entryId(e)}
+                      entry={e}
                       index={i}
                       disabled={saving}
                     />
@@ -260,11 +289,31 @@ export function ParticipantsDialog({
                 </ol>
               </SortableContext>
             </DndContext>
-            {participants.length > 1 ? (
-              <p className="text-xs text-muted-foreground">
-                Очередь по времени записи; перетащите за ручку, чтобы изменить
-                порядок сдачи.
-              </p>
+            {entries.length > 1 ? (
+              manual ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    Порядок задан вручную, новые записи встают в конец.
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={saving}
+                    onClick={resetAuto}
+                  >
+                    <ShuffleIcon data-icon="inline-start" />
+                    Автоматически
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {data?.frozen
+                    ? "Порядок заморожен, новые записи встают в конец."
+                    : `До ${fmtDateTime(data?.freezesAt ?? "")} порядок пересчитывается при каждой записи.`}{" "}
+                  Перетащите за ручку, чтобы задать порядок вручную.
+                </p>
+              )
             ) : null}
           </>
         )}
@@ -274,7 +323,7 @@ export function ParticipantsDialog({
             type="button"
             variant="outline"
             onClick={copyList}
-            disabled={participants.length === 0}
+            disabled={entries.length === 0}
           >
             <CopyIcon data-icon="inline-start" />
             Скопировать список

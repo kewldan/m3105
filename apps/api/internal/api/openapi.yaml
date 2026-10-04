@@ -352,8 +352,8 @@ paths:
       tags: [practice]
       summary: Занятия для сдачи лаб
       description: |
-        По умолчанию только будущие. Для анонимных запросов `participants`, `myLabIds` и `availableLabs` пустые,
-        `signedIn` равно `false`; вошедшие студенты видят участников и могут записаться (см. `docs/api.md`).
+        По умолчанию только будущие. `queue` — очередь защит, видна всем; правила — в `docs/api.md`.
+        Для анонимных запросов `myLabIds` и `availableLabs` пустые, `signedIn` равно `false`.
       operationId: listPractice
       parameters:
         - $ref: "#/components/parameters/SubjectFilter"
@@ -931,6 +931,17 @@ components:
           items: { $ref: "#/components/schemas/LabRef" }
       required: [user, labs]
 
+    QueueEntry:
+      type: object
+      description: Одна защита в очереди — студент с одной лабой
+      properties:
+        user: { $ref: "#/components/schemas/PublicUser" }
+        lab: { $ref: "#/components/schemas/LabRef" }
+        reserve: { type: boolean, description: "За пределами `capacity`: примут, если останется время" }
+        carried: { type: boolean, description: "Осталась в резерве прошлой сдачи, поэтому идёт первой" }
+        late: { type: boolean, description: "Запись после заморозки, поэтому в конце" }
+      required: [user, lab, reserve, carried, late]
+
     PracticeSession:
       allOf:
         - $ref: "#/components/schemas/SubjectJoin"
@@ -941,7 +952,7 @@ components:
             startsAt: { $ref: "#/components/schemas/DateTime" }
             endsAt: { oneOf: [{ $ref: "#/components/schemas/DateTime" }, { type: "null" }] }
             location: { type: string }
-            capacity: { oneOf: [{ type: integer }, { type: "null" }], description: "`null` = без ограничения" }
+            capacity: { oneOf: [{ type: integer }, { type: "null" }], description: "Сколько защит примут за пару; остальные — резерв. `null` = без резерва" }
             note: { type: string }
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
@@ -953,20 +964,26 @@ components:
         - $ref: "#/components/schemas/PracticeSession"
         - type: object
           properties:
+            queue:
+              type: array
+              items: { $ref: "#/components/schemas/QueueEntry" }
+              description: Защиты в порядке сдачи
+            freezesAt: { $ref: "#/components/schemas/DateTime" }
+            frozen: { type: boolean, description: "Порядок заморожен: новые записи встают в конец" }
             participants:
               type: array
               items: { $ref: "#/components/schemas/Participant" }
-              description: Только для вошедших студентов, иначе пусто
+              description: Студенты в порядке их первой защиты
             myLabIds:
               type: array
               items: { type: integer }
-            full: { type: boolean, description: "Мест нет" }
+            full: { type: boolean, description: "Основной список заполнен, новые защиты идут в резерв" }
             past: { type: boolean, description: "Занятие уже прошло" }
             availableLabs:
               type: array
               items: { $ref: "#/components/schemas/LabRef" }
               description: Опубликованные лабы предмета, только для вошедших
-          required: [participants, myLabIds, full, past, availableLabs]
+          required: [queue, freezesAt, frozen, participants, myLabIds, full, past, availableLabs]
 
     PracticeListResponse:
       type: object

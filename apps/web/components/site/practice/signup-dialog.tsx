@@ -24,7 +24,6 @@ import { cn } from "@/lib/utils";
 
 export function signupErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.code === "full") return "Мест на эту сдачу больше нет";
     if (err.status === 401) return "Войдите, чтобы записаться";
     return err.fields.labIds ?? err.fields._ ?? err.message;
   }

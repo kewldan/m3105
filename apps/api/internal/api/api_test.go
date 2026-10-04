@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -454,6 +455,14 @@ func TestStudentAccounts(t *testing.T) {
 		t.Fatalf("display name lost: %v", got)
 	}
 
+	// Студент сам задаёт имя и фамилию; одно слово не принимается, пустое — сброс.
+	u.do("PUT", "/api/v1/me/profile", map[string]string{"displayName": "Петя"}, 422)
+	if got := u.do("PUT", "/api/v1/me/profile", map[string]string{"displayName": "  Пётр   Сидоров "}, 200)["user"].(map[string]any); got["name"] != "Пётр Сидоров" {
+		t.Fatalf("profile name not saved: %v", got)
+	}
+	anon0 := newClient(t)
+	anon0.do("PUT", "/api/v1/me/profile", map[string]string{"displayName": "Кто То"}, 401)
+
 	// Practice session with capacity 1.
 	starts := time.Now().Add(3 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	sess := admin.do("POST", "/api/v1/admin/practice", map[string]any{"subjectId": subjectID, "startsAt": starts, "location": "412", "capacity": 1}, 201)
@@ -478,12 +487,13 @@ func TestStudentAccounts(t *testing.T) {
 	if len(view["myLabIds"].([]any)) != 1 {
 		t.Fatalf("replace failed: %v", view["myLabIds"])
 	}
-	// Second student (confirmed by the admin) hits the capacity limit.
+	// Second student (confirmed by the admin) goes to the reserve: there is no seat limit.
 	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, "Маша Иванова")), map[string]any{"approved": true}, 200)
-	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab1ID}}, 409)
-	full := tg.do("GET", fmt.Sprintf("/api/v1/practice/%d", sessID), nil, 200)
-	if full["full"] != true || len(full["participants"].([]any)) != 1 {
-		t.Fatalf("expected full session with one participant: %v", full)
+	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab1ID}}, 200)
+	full := anon.do("GET", fmt.Sprintf("/api/v1/practice/%d", sessID), nil, 200)
+	q := full["queue"].([]any)
+	if full["full"] != true || len(q) != 2 || q[0].(map[string]any)["reserve"] != false || q[1].(map[string]any)["reserve"] != true {
+		t.Fatalf("expected one defence in the main list and one in the reserve: %v", full)
 	}
 	meNow := u.do("GET", "/api/v1/me/", nil, 200)
 	if len(meNow["signups"].([]any)) != 1 {
@@ -510,37 +520,82 @@ func TestStudentAccounts(t *testing.T) {
 	if !inCal {
 		t.Fatalf("practice session missing from calendar: %v", cal["items"])
 	}
-	// Admin sees who is coming, then cancels; user cancels own signup.
-	who := admin.do("GET", fmt.Sprintf("/api/v1/admin/practice/%d/signups", sessID), nil, 200)
-	if len(who["participants"].([]any)) != 1 {
-		t.Fatalf("admin signups wrong: %v", who)
-	}
-	// The queue is FIFO; the admin can reorder it, and re-signing keeps the place.
-	capBig := int(10)
-	admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice/%d", sessID), map[string]any{"subjectId": subjectID, "startsAt": starts, "location": "412", "capacity": capBig}, 200)
-	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab1ID}}, 200)
-	names := func() []string {
-		out := []string{}
-		for _, p := range admin.do("GET", fmt.Sprintf("/api/v1/admin/practice/%d/signups", sessID), nil, 200)["participants"].([]any) {
-			out = append(out, p.(map[string]any)["user"].(map[string]any)["name"].(string))
-		}
-		return out
-	}
-	if got := names(); len(got) != 2 || got[0] != "Пётр Сидоров" || got[1] != "Маша Иванова" {
-		t.Fatalf("queue is not FIFO: %v", got)
-	}
+	// Очередь из защит: Пётр несёт лабы 2 и 1, Маша — лабу 1. Новее лаба раньше,
+	// вторая лаба Петра — после первых лаб всех.
+	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab2ID, lab1ID}}, 200)
 	petya, masha := userIDByName(t, admin, "Пётр Сидоров"), userIDByName(t, admin, "Маша Иванова")
+	type entry struct{ user, lab int64 }
+	queueOf := func(c *client, path, key string) ([]entry, map[string]any) {
+		res := c.do("GET", path, nil, 200)
+		out := []entry{}
+		for _, e := range res[key].([]any) {
+			m := e.(map[string]any)
+			out = append(out, entry{int64(m["user"].(map[string]any)["id"].(float64)), int64(m["lab"].(map[string]any)["id"].(float64))})
+		}
+		return out, res
+	}
+	adminQueue := func() []entry {
+		q, _ := queueOf(admin, fmt.Sprintf("/api/v1/admin/practice/%d/signups", sessID), "queue")
+		return q
+	}
+	want := []entry{{petya, lab2ID}, {masha, lab1ID}, {petya, lab1ID}}
+	if got := adminQueue(); !slices.Equal(got, want) {
+		t.Fatalf("queue = %v, want %v", got, want)
+	}
+	if got, _ := queueOf(anon, fmt.Sprintf("/api/v1/practice/%d", sessID), "queue"); !slices.Equal(got, want) {
+		t.Fatalf("anonymous visitor sees %v, want %v", got, want)
+	}
+	// The admin can reorder by hand; then edits keep the place and new labs go to the end.
 	orderURL := fmt.Sprintf("/api/v1/admin/practice/%d/signups/order", sessID)
-	admin.do("PUT", orderURL, map[string]any{"userIds": []int64{masha, petya}}, 200)
-	if got := names(); got[0] != "Маша Иванова" {
-		t.Fatalf("reorder ignored: %v", got)
+	ord := func(es ...entry) map[string]any {
+		out := []map[string]int64{}
+		for _, e := range es {
+			out = append(out, map[string]int64{"userId": e.user, "labId": e.lab})
+		}
+		return map[string]any{"entries": out}
 	}
-	admin.do("PUT", orderURL, map[string]any{"userIds": []int64{masha}}, 422)
-	admin.do("PUT", orderURL, map[string]any{"userIds": []int64{masha, masha}}, 422)
-	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab1ID}}, 200)
-	if got := names(); got[0] != "Маша Иванова" {
-		t.Fatalf("editing labs lost the place in the queue: %v", got)
+	reordered := admin.do("PUT", orderURL, ord(entry{masha, lab1ID}, entry{petya, lab1ID}, entry{petya, lab2ID}), 200)
+	if reordered["queueManual"] != true {
+		t.Fatalf("manual reorder is not remembered: %v", reordered)
 	}
+	admin.do("PUT", orderURL, ord(entry{masha, lab1ID}), 422)
+	admin.do("PUT", orderURL, ord(entry{masha, lab1ID}, entry{masha, lab1ID}, entry{petya, lab2ID}), 422)
+	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab2ID}}, 200)
+	if got := adminQueue(); !slices.Equal(got, []entry{{masha, lab1ID}, {petya, lab2ID}}) {
+		t.Fatalf("editing labs broke the manual queue: %v", got)
+	}
+	auto := admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/signups/auto", sessID), nil, 200)
+	if auto["queueManual"] != false {
+		t.Fatalf("auto queue failed: %v", auto)
+	}
+	if got := adminQueue(); !slices.Equal(got, []entry{{petya, lab2ID}, {masha, lab1ID}}) {
+		t.Fatalf("auto queue = %v", got)
+	}
+
+	// Заморозка и перенос: сдача A через два часа уже заморожена (20:00 накануне
+	// прошло), записи в неё поздние и идут по времени записи.
+	one := 1
+	soon := time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)
+	sessA := int64(admin.do("POST", "/api/v1/admin/practice", map[string]any{"subjectId": subjectID, "startsAt": soon, "capacity": one}, 201)["id"].(float64))
+	later := time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)
+	sessB := int64(admin.do("POST", "/api/v1/admin/practice", map[string]any{"subjectId": subjectID, "startsAt": later, "capacity": 10}, 201)["id"].(float64))
+	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessA), map[string]any{"labIds": []int64{lab1ID}}, 200)
+	viewA := u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessA), map[string]any{"labIds": []int64{lab2ID}}, 200)
+	qa := viewA["queue"].([]any)
+	if viewA["frozen"] != true || len(qa) != 2 || qa[0].(map[string]any)["late"] != true ||
+		int64(qa[0].(map[string]any)["user"].(map[string]any)["id"].(float64)) != masha {
+		t.Fatalf("late signups must keep their order after the freeze: %v", viewA)
+	}
+	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessB), map[string]any{"labIds": []int64{lab2ID}}, 200)
+	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessB), map[string]any{"labIds": []int64{lab1ID}}, 200)
+	// Маша записалась в A первой, Пётр остался в резерве и на B идёт первым по переносу.
+	qb, viewB := queueOf(anon, fmt.Sprintf("/api/v1/practice/%d", sessB), "queue")
+	if !slices.Equal(qb, []entry{{petya, lab2ID}, {masha, lab1ID}}) || viewB["queue"].([]any)[0].(map[string]any)["carried"] != true {
+		t.Fatalf("carry-over from the reserve failed: %v", viewB)
+	}
+	tg.do("DELETE", fmt.Sprintf("/api/v1/practice/%d/signups", sessA), nil, 200)
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/practice/%d", sessB), nil, 200)
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/practice/%d", sessA), nil, 200)
 	u.do("DELETE", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), nil, 200)
 	if got := u.do("GET", "/api/v1/me/", nil, 200); len(got["signups"].([]any)) != 0 {
 		t.Fatalf("cancel failed: %v", got["signups"])

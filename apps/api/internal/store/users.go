@@ -73,6 +73,11 @@ func (s *Store) UpdateUserProfile(ctx context.Context, id int64, in models.Admin
 	return s.GetUser(ctx, id)
 }
 
+// SetDisplayName stores the name the student chose; empty falls back to Telegram.
+func (s *Store) SetDisplayName(ctx context.Context, id int64, name string) error {
+	return s.exec(ctx, `UPDATE users SET display_name = $2 WHERE id = $1`, id, name)
+}
+
 // ListUsers returns all accounts with counters (admin).
 func (s *Store) ListUsers(ctx context.Context) ([]models.AdminUser, error) {
 	return many[models.AdminUser](ctx, s.db, `SELECT `+userCols+`,

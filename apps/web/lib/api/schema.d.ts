@@ -329,13 +329,25 @@ export type Participant = {
   labs: LabRef[];
 };
 
+/** Одна защита в очереди — студент с одной лабой */
+export type QueueEntry = {
+  user: PublicUser;
+  lab: LabRef;
+  /** За пределами `capacity`: примут, если останется время */
+  reserve: boolean;
+  /** Осталась в резерве прошлой сдачи, поэтому идёт первой */
+  carried: boolean;
+  /** Запись после заморозки, поэтому в конце */
+  late: boolean;
+};
+
 export type PracticeSession = SubjectJoin & {
   id: number;
   subjectId: number;
   startsAt: DateTime;
   endsAt: DateTime | null;
   location: string;
-  /** `null` = без ограничения */
+  /** Сколько защит примут за пару; остальные — резерв. `null` = без резерва */
   capacity: number | null;
   note: string;
   createdAt: DateTime;
@@ -345,10 +357,15 @@ export type PracticeSession = SubjectJoin & {
 };
 
 export type PracticeSessionView = PracticeSession & {
-  /** Только для вошедших студентов, иначе пусто */
+  /** Защиты в порядке сдачи */
+  queue: QueueEntry[];
+  freezesAt: DateTime;
+  /** Порядок заморожен: новые записи встают в конец */
+  frozen: boolean;
+  /** Студенты в порядке их первой защиты */
   participants: Participant[];
   myLabIds: number[];
-  /** Мест нет */
+  /** Основной список заполнен, новые защиты идут в резерв */
   full: boolean;
   /** Занятие уже прошло */
   past: boolean;

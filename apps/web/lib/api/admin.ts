@@ -18,12 +18,12 @@ import type {
   OverviewResponse,
   Page,
   PageInput,
-  Participant,
   Post,
   PostInput,
   PostKind,
   PracticeSession,
   PracticeSessionInput,
+  QueueEntry,
   Quiz,
   QuizInput,
   QuizQuestion,
@@ -37,6 +37,15 @@ import type {
 } from "./types";
 
 // Browser-side client for the password-protected admin API.
+
+/** Очередь сдачи; `queueManual` — порядок задан админом вручную. */
+export type PracticeQueue = {
+  session: PracticeSession;
+  queue: QueueEntry[];
+  queueManual: boolean;
+  freezesAt: string;
+  frozen: boolean;
+};
 
 export const authApi = {
   login: (password: string) =>
@@ -109,15 +118,18 @@ export const adminApi = {
   practice: {
     ...resource<PracticeSession, PracticeSessionInput>("/admin/practice"),
     signups: (id: number) =>
-      apiClient<{ session: PracticeSession; participants: Participant[] }>(
-        `/admin/practice/${id}/signups`,
-      ),
-    /** Новый порядок очереди: id всех записавшихся студентов. */
-    reorder: (id: number, userIds: number[]) =>
-      apiClient<{ session: PracticeSession; participants: Participant[] }>(
-        `/admin/practice/${id}/signups/order`,
-        { method: "PUT", body: { userIds } },
-      ),
+      apiClient<PracticeQueue>(`/admin/practice/${id}/signups`),
+    /** Новый порядок очереди: все защиты сдачи. Очередь становится ручной. */
+    reorder: (id: number, entries: { userId: number; labId: number }[]) =>
+      apiClient<PracticeQueue>(`/admin/practice/${id}/signups/order`, {
+        method: "PUT",
+        body: { entries },
+      }),
+    /** Забыть ручной порядок и пересчитать очередь автоматически. */
+    autoQueue: (id: number) =>
+      apiClient<PracticeQueue>(`/admin/practice/${id}/signups/auto`, {
+        method: "POST",
+      }),
   },
   settings: {
     get: () => apiClient<Settings>("/admin/settings"),

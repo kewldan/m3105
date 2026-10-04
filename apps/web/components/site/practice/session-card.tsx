@@ -15,13 +15,13 @@ import {
   isPending,
   PendingNotice,
 } from "@/components/site/auth/pending-notice";
+import { QueueList } from "@/components/site/practice/queue-list";
 import { SignupDialog } from "@/components/site/practice/signup-dialog";
 import { SubjectBadge } from "@/components/site/subject-badge";
-import { UserAvatar } from "@/components/site/user-avatar";
 import { useUser } from "@/components/site/user-provider";
 import { Button } from "@/components/ui/button";
 import type { PracticeSessionView } from "@/lib/api/types";
-import { fmtTime, plural } from "@/lib/format";
+import { fmtDateTime, fmtTime, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** One practice session with seats, participants and the signup control. */
@@ -42,7 +42,7 @@ export function SessionCard({
   const mine = session.myLabIds.length > 0;
   const seatsLeft =
     session.capacity != null
-      ? Math.max(0, session.capacity - session.signupsCount)
+      ? Math.max(0, session.capacity - session.queue.length)
       : null;
 
   return (
@@ -70,9 +70,9 @@ export function SessionCard({
                 Вы записаны
               </span>
             ) : null}
-            {session.full && !mine ? (
-              <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                Мест нет
+            {session.full && !session.past ? (
+              <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                Дальше — резерв
               </span>
             ) : null}
             {session.past ? (
@@ -96,7 +96,7 @@ export function SessionCard({
             <span className="inline-flex items-center gap-1.5 text-muted-foreground">
               <UsersRoundIcon className="size-4" aria-hidden />
               {session.capacity != null
-                ? `${session.signupsCount} из ${session.capacity}`
+                ? `${session.queue.length} из ${session.capacity} ${plural(session.capacity, "защиты", "защит", "защит")}`
                 : `${session.signupsCount} ${plural(session.signupsCount, "человек", "человека", "человек")}`}
               {seatsLeft != null && seatsLeft > 0 && !session.past
                 ? ` · свободно ${seatsLeft}`
@@ -126,7 +126,6 @@ export function SessionCard({
               <Button
                 type="button"
                 variant={mine ? "outline" : "default"}
-                disabled={session.full && !mine}
                 onClick={() => setOpen(true)}
               >
                 {mine ? "Изменить запись" : "Записаться"}
@@ -144,40 +143,22 @@ export function SessionCard({
         ) : null}
       </div>
 
-      {me ? (
-        session.participants.length > 0 ? (
-          <ul className="mt-4 divide-y overflow-hidden rounded-xl border bg-muted/30">
-            {session.participants.map((p, i) => (
-              <li key={p.user.id} className="flex items-center gap-3 px-3 py-2">
-                <span className="w-5 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-                  {i + 1}
-                </span>
-                <UserAvatar
-                  name={p.user.name}
-                  photoUrl={p.user.photoUrl}
-                  size="sm"
-                />
-                <span
-                  className={cn(
-                    "min-w-0 flex-1 truncate text-sm",
-                    me.user.id === p.user.id && "font-medium",
-                  )}
-                >
-                  {p.user.name}
-                  {me.user.id === p.user.id ? " (вы)" : ""}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {p.labs.map((l) => `№${l.number}`).join(", ")}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-4 text-xs text-muted-foreground">
-            Пока никто не записался.
-          </p>
-        )
-      ) : null}
+      {session.queue.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          <QueueList queue={session.queue} meId={me?.user.id} />
+          {!session.past ? (
+            <p className="text-xs text-muted-foreground">
+              {session.frozen
+                ? "Порядок заморожен: новые записи встают в конец."
+                : `Порядок окончательный с ${fmtDateTime(session.freezesAt, tz)}; до этого его может поменять новая запись.`}
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Пока никто не записался.
+        </p>
+      )}
 
       {me ? (
         <SignupDialog

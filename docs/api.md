@@ -77,10 +77,11 @@
 | GET | `/auth/user/me` | `{ user, completedLabIds, signups, passkeys }` |
 | POST | `/auth/user/logout` | |
 | PUT / DELETE | `/me/labs/{labId}/done` | отметить лабу сделанной / снять отметку |
+| PUT | `/me/profile` | `{ displayName }` — имя и фамилия (минимум два слова; пустая строка — снова имя из Telegram) |
 | DELETE | `/me/passkeys/{id}` | |
-| GET | `/practice?subject=&past=1` | `{ sessions, now, signedIn }`; участники и `availableLabs` только для вошедших |
+| GET | `/practice?subject=&past=1` | `{ sessions, now, signedIn }`; очередь (`queue`) видна всем, `availableLabs` — только вошедшим |
 | GET | `/practice/{id}` | одна сдача |
-| PUT | `/practice/{id}/signups` | `{ labIds }` — записаться с выбранными лабами (пустой список = отменить); 409 `full`, если мест нет |
+| PUT | `/practice/{id}/signups` | `{ labIds }` — записаться с выбранными лабами (пустой список = отменить); лимита нет, сверх `capacity` — резерв |
 | DELETE | `/practice/{id}/signups` | отменить запись |
 | GET | `/comments/{target}/{id}` | комментарии к `note`, `lab` или `post` (публично); `mine` для своих |
 | POST | `/comments/{target}/{id}` | `{ body, attachmentIds? }` — до 2000 символов; конспект или лаба должны быть опубликованы; с файлами текст можно не писать |
@@ -94,7 +95,24 @@
 Антиспам: один аккаунт может создать не больше 10 комментариев и постов за 12 часов, дальше 429 `rate_limited` (константы `socialWriteLimit` и `socialWriteWindow` в `api/social.go`).
 
 Админка: `GET /admin/users`, `PUT /admin/users/{id}` (`{ displayName, groupName, approved }` — имя и фамилия, группа, подтверждение), `DELETE /admin/users/{id}`, CRUD `/admin/practice`
-(сдачи: предмет, дата, аудитория, вместимость, заметка), `GET /admin/practice/{id}/signups`.
+(сдачи: предмет, дата, аудитория, сколько защит примут за пару, заметка), `GET /admin/practice/{id}/signups`
+(`{ session, queue, queueManual, freezesAt, frozen }`), `PUT /admin/practice/{id}/signups/order`
+(`{ entries: [{ userId, labId }] }` — ручной порядок всех защит, дальше новые записи встают в конец),
+`POST /admin/practice/{id}/signups/auto` (вернуть порядок по правилам).
+
+Очередь сдачи (`internal/queue`, `store/practice_queue.go`) состоит из защит — студент с одной лабой:
+
+1. Первыми идут защиты, оставшиеся в резерве предыдущей сдачи того же предмета (места сверх `capacity`
+   в её сохранённом порядке), в том же порядке.
+2. Дальше по кругам: у каждого студента сначала его самая новая лаба, вторая — после первых лаб всех.
+   Внутри круга новее лаба раньше, при равенстве — жребий, закреплённый за парой (сдача, студент).
+   Время записи на место не влияет.
+3. В 20:00 накануне (`queue.FreezeAt`, таймзона из настроек) порядок замораживается: при первом чтении
+   или записи после этого момента он пишется в `queue_pos` (`queue_frozen_at`). Поздние записи получают
+   следующий номер из последовательности и встают в конец по времени записи; отмена только сдвигает
+   остальных. До заморозки порядок считается на лету и в базу не пишется.
+4. Ручная перестановка в админке (`queue_manual`) тоже сохраняет порядок, дальше только дописываем.
+
 Модерация: `GET /admin/comments` (последние 200 с `targetTitle` и `targetPath`), `PUT /admin/comments/{id}`
 (`{ body, attachmentIds? }` — текст и файлы любого комментария), `DELETE /admin/comments/{id}`,
 `GET /admin/posts?kind=`, `PUT /admin/posts/{id}`, `DELETE /admin/posts/{id}` — админ правит и удаляет любые посты и комментарии.

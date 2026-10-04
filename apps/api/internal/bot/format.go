@@ -179,3 +179,24 @@ func labsMessage(site string, labs []store.BotLab, now time.Time, loc *time.Loca
 	}
 	return b.String()
 }
+
+// newUserMessage tells the admin about a new student account.
+func newUserMessage(site string, u models.User) string {
+	var b strings.Builder
+	b.WriteString("👤 <b>Новый студент на сайте</b>\n\n")
+	b.WriteString("<b>" + esc(u.Name) + "</b>")
+	if u.TelegramUsername != "" {
+		fmt.Fprintf(&b, " · <a href=\"https://t.me/%s\">@%s</a>", esc(u.TelegramUsername), esc(u.TelegramUsername))
+	}
+	b.WriteString("\n")
+	if u.GroupName != "" {
+		b.WriteString("Группа: " + esc(u.GroupName) + "\n")
+	}
+	if u.Approved {
+		b.WriteString("\n✅ Подтверждён кодом доступа.")
+	} else {
+		b.WriteString("\n⏳ Ждёт подтверждения: до этого не может отмечать лабы, записываться и писать.")
+	}
+	fmt.Fprintf(&b, "\n\n<a href=\"%s/admin/users\">Открыть «Студентов» в админке</a>", strings.TrimRight(site, "/"))
+	return b.String()
+}

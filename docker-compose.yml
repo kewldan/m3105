@@ -62,6 +62,8 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       BOT_DIGEST_HOUR: ${BOT_DIGEST_HOUR:-10}
+      # Чат админа для служебных сообщений (новые студенты); по умолчанию тот же, что для бэкапов.
+      ADMIN_CHAT_ID: ${ADMIN_CHAT_ID:-${BACKUP_CHAT_ID:-}}
       WEB_URL: http://web:3000
       REVALIDATE_TOKEN: ${REVALIDATE_TOKEN:-}
       # Вложения: бакет в MinIO создаётся при первом старте.

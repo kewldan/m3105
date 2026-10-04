@@ -174,6 +174,7 @@ func (h *Handler) finishTelegram(w http.ResponseWriter, r *http.Request, d usera
 			httpx.Fail(w, err)
 			return
 		}
+		h.admin.NewUser(user)
 	case err != nil:
 		httpx.Fail(w, err)
 		return

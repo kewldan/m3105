@@ -119,3 +119,25 @@ func TestParseCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestNewUserMessage(t *testing.T) {
+	u := models.User{ID: 7, Name: "Иван <Петров>", TelegramUsername: "ivan_p", GroupName: "М3105"}
+	msg := newUserMessage("https://m3105.ru/", u)
+	for _, want := range []string{
+		"Иван &lt;Петров&gt;",
+		`<a href="https://t.me/ivan_p">@ivan_p</a>`,
+		"Группа: М3105",
+		"Ждёт подтверждения",
+		`<a href="https://m3105.ru/admin/users">`,
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message has no %q:\n%s", want, msg)
+		}
+	}
+
+	u.Approved, u.TelegramUsername, u.GroupName = true, "", ""
+	msg = newUserMessage("https://m3105.ru", u)
+	if !strings.Contains(msg, "Подтверждён кодом доступа") || strings.Contains(msg, "t.me") || strings.Contains(msg, "Группа") {
+		t.Errorf("approved message without username and group:\n%s", msg)
+	}
+}

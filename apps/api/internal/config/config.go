@@ -44,6 +44,9 @@ type Config struct {
 	// Telegram bot notifications.
 	BotPoll       bool
 	BotDigestHour int
+	// AdminChatID is the admin's Telegram chat for service messages (new students).
+	// Zero — no messages.
+	AdminChatID int64
 
 	// Сброс кеша фронтенда: адрес Next во внутренней сети и общий секрет.
 	// Пусто — кеш живёт только по TTL.
@@ -90,6 +93,13 @@ func Load() (Config, error) {
 	cfg.DevLogin = getenvBool("DEV_LOGIN", cfg.Env != "production")
 	cfg.BotPoll = getenvBool("BOT_POLL", true)
 	cfg.BotDigestHour = getenvInt("BOT_DIGEST_HOUR", 10)
+	if v := os.Getenv("ADMIN_CHAT_ID"); v != "" {
+		id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err != nil {
+			return cfg, fmt.Errorf("ADMIN_CHAT_ID is a numeric Telegram chat id: %w", err)
+		}
+		cfg.AdminChatID = id
+	}
 	cfg.WebURL = os.Getenv("WEB_URL")
 	cfg.RevalidateToken = os.Getenv("REVALIDATE_TOKEN")
 	cfg.LoginRateWin = getenvDuration("LOGIN_RATE_WINDOW", 15*time.Minute)

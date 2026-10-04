@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/kewldan/edu3105/apps/api/internal/auth"
+	"github.com/kewldan/edu3105/apps/api/internal/bot"
 	"github.com/kewldan/edu3105/apps/api/internal/config"
 	"github.com/kewldan/edu3105/apps/api/internal/files"
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
@@ -37,6 +38,8 @@ type Handler struct {
 	files files.Storage
 	// resizer is nil without imgproxy: previews then fall back to originals.
 	resizer *files.Resizer
+	// admin is nil without a bot token or ADMIN_CHAT_ID; its methods then do nothing.
+	admin *bot.AdminNotifier
 }
 
 // New constructs the handler set. fs may be nil: uploads then answer 503.
@@ -54,6 +57,7 @@ func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.
 		revalidator: revalidate.New(cfg.WebURL, cfg.RevalidateToken),
 		files:       fs,
 		resizer:     resizer,
+		admin:       bot.NewAdminNotifier(cfg.TelegramBotToken, cfg.AdminChatID, cfg.PublicURL),
 	}
 }
 

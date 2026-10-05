@@ -27,9 +27,11 @@ import (
 
 const gpsMarker = "GPSLatitude=59.957N"
 
-func testJPEG(t *testing.T) []byte {
+func testJPEG(t *testing.T) []byte { return testJPEGSize(t, 16, 9) }
+
+func testJPEGSize(t *testing.T, w, h int) []byte {
 	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, 16, 9))
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	img.Set(1, 1, color.RGBA{255, 0, 0, 255})
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, nil); err != nil {

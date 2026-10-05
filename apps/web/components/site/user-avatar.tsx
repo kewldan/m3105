@@ -1,15 +1,8 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { avatarSrc, initials } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 
-/** Initials for a display name: "Аня Смирнова" → "АС". */
-export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? "";
-  const second = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
-  return (first + second).toUpperCase() || "?";
-}
-
-/** Avatar with the Telegram photo or initials fallback. */
+/** Our copy of the Telegram photo; initials while it loads and when there is none. */
 export function UserAvatar({
   name,
   photoUrl,
@@ -23,7 +16,7 @@ export function UserAvatar({
 }) {
   return (
     <Avatar size={size} className={className}>
-      {photoUrl ? <AvatarImage src={photoUrl} alt="" /> : null}
+      {photoUrl ? <AvatarImage src={avatarSrc(photoUrl)} alt="" /> : null}
       <AvatarFallback
         className={cn(
           "bg-primary/10 font-medium text-primary",

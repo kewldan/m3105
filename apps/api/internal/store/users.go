@@ -10,8 +10,12 @@ import (
 // userNameExpr is the name shown on the site: the admin override when set, else the Telegram name.
 const userNameExpr = `COALESCE(NULLIF(u.display_name, ''), u.name)`
 
+// userPhotoExpr is the avatar address: our own copy of the Telegram photo, or
+// empty (the site then draws initials). ?w= on it gives a small preview.
+const userPhotoExpr = `(CASE WHEN u.avatar_id IS NULL THEN '' ELSE '/api/v1/files/' || u.avatar_id || '/avatar' END)`
+
 const userCols = `u.id, u.webauthn_id, ` + userNameExpr + ` AS name, u.name AS telegram_name, u.display_name, u.group_name,
-	(u.approved_at IS NOT NULL) AS approved, u.approved_at, u.telegram_id, u.telegram_username, u.photo_url, u.created_at, u.last_login_at`
+	(u.approved_at IS NOT NULL) AS approved, u.approved_at, u.telegram_id, u.telegram_username, ` + userPhotoExpr + ` AS photo_url, u.created_at, u.last_login_at`
 
 // GetUser fetches a user by id.
 func (s *Store) GetUser(ctx context.Context, id int64) (models.User, error) {

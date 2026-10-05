@@ -34,6 +34,8 @@ const (
 	PlacePost    AttachmentPlace = "post"
 	// PlacePending is a student upload not attached to anything yet.
 	PlacePending AttachmentPlace = "pending"
+	// PlaceAvatar is a student's profile picture: shown to everyone, like the queue it appears in.
+	PlaceAvatar AttachmentPlace = "avatar"
 )
 
 // ContentRef is a text that links to an admin file.

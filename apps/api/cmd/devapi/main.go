@@ -105,6 +105,7 @@ func main() {
 	handler := api.New(st, authSvc, userSvc, cfg, fileStore)
 	if fileStore != nil {
 		go files.RunGC(ctx, st, fileStore)
+		go handler.BackfillAvatars(ctx)
 	}
 	if tg := bot.New(st, bot.Options{Token: cfg.TelegramBotToken, SiteURL: cfg.PublicURL, DigestHour: cfg.BotDigestHour, Poll: cfg.BotPoll, AdminChatID: cfg.AdminChatID}); tg != nil {
 		go tg.Run(ctx)

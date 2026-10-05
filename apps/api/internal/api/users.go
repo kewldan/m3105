@@ -201,11 +201,13 @@ func (h *Handler) finishTelegram(w http.ResponseWriter, r *http.Request, d usera
 			return
 		}
 		h.admin.NewUser(user)
+		h.syncAvatarSoon(ctx, user.ID, d.PhotoURL)
 	case err != nil:
 		httpx.Fail(w, err)
 		return
 	default:
 		_ = h.store.TouchTelegramLogin(ctx, user.ID, d.DisplayName(), d.Username, d.PhotoURL)
+		h.syncAvatarSoon(ctx, user.ID, d.PhotoURL)
 	}
 	if err := h.users.Issue(ctx, w, user.ID); err != nil {
 		httpx.Fail(w, err)

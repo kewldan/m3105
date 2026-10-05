@@ -25,7 +25,7 @@ func attachmentsOf(column, ref string) string {
 }
 
 const attachmentPlace = `CASE WHEN a.comment_id IS NOT NULL THEN 'comment' WHEN a.post_id IS NOT NULL THEN 'post'
-	WHEN a.scope = 'content' THEN 'content' ELSE 'pending' END`
+	WHEN a.scope = 'content' THEN 'content' WHEN a.scope = 'avatar' THEN 'avatar' ELSE 'pending' END`
 
 // Attachment scopes: files linked from MDX texts vs. files of comments and posts.
 const (
@@ -99,7 +99,7 @@ func (s *Store) GetAttachmentAccess(ctx context.Context, id string) (AttachmentA
 // CountUserUploads returns how many files the student uploaded since the given moment.
 func (s *Store) CountUserUploads(ctx context.Context, userID int64, since time.Time) (int, error) {
 	var n int
-	err := s.db.QueryRow(ctx, `SELECT count(*) FROM attachments WHERE user_id = $1 AND created_at >= $2`, userID, since).Scan(&n)
+	err := s.db.QueryRow(ctx, `SELECT count(*) FROM attachments WHERE user_id = $1 AND scope <> 'avatar' AND created_at >= $2`, userID, since).Scan(&n)
 	return n, wrap(err)
 }
 
@@ -136,6 +136,7 @@ func (s *Store) ListAttachments(ctx context.Context, limit int) ([]models.AdminA
 		LEFT JOIN posts p ON p.id = a.post_id
 		LEFT JOIN comments c ON c.id = a.comment_id
 		LEFT JOIN used ON used.id = a.id
+		WHERE a.scope <> 'avatar'
 		ORDER BY a.created_at DESC, a.id LIMIT $1`, limit)
 }
 
@@ -204,4 +205,88 @@ func syncAttachments(ctx context.Context, tx pgx.Tx, column string, targetID int
 		return wrap(err)
 	}
 	return attachTo(ctx, tx, column, targetID, uploader, ids)
+}
+
+// ---- avatars ----
+
+// UserAvatar is the stored copy of a student's Telegram photo and where it came from.
+type UserAvatar struct {
+	ID     string
+	Source string
+}
+
+// GetUserAvatar returns the current avatar of the user (empty ID when none).
+func (s *Store) GetUserAvatar(ctx context.Context, userID int64) (UserAvatar, error) {
+	var a UserAvatar
+	err := s.db.QueryRow(ctx, `SELECT COALESCE(avatar_id, ''), avatar_source FROM users WHERE id = $1`, userID).Scan(&a.ID, &a.Source)
+	if err != nil {
+		return a, wrap(err)
+	}
+	return a, nil
+}
+
+// SetAvatar records a new avatar and drops the previous one. It returns the id
+// of the replaced file so the caller can delete the object.
+func (s *Store) SetAvatar(ctx context.Context, userID int64, source string, in NewAttachment) (string, error) {
+	var old string
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `SELECT COALESCE(avatar_id, '') FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&old); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO attachments (id, name, slug, content_type, size, width, height, sha256, user_id, scope)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'avatar')`,
+			in.ID, in.Name, in.Slug, in.ContentType, in.Size, nullIfZero(in.Width), nullIfZero(in.Height), in.SHA256, userID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE users SET avatar_id = $2, avatar_source = $3 WHERE id = $1`, userID, in.ID, source); err != nil {
+			return err
+		}
+		if old != "" {
+			_, err := tx.Exec(ctx, `DELETE FROM attachments WHERE id = $1`, old)
+			return err
+		}
+		return nil
+	})
+	return old, wrap(err)
+}
+
+// ClearAvatar removes the avatar (the person deleted their Telegram photo) and
+// returns the id of the removed file, empty when there was none.
+func (s *Store) ClearAvatar(ctx context.Context, userID int64) (string, error) {
+	var old string
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `SELECT COALESCE(avatar_id, '') FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&old); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE users SET avatar_id = NULL, avatar_source = '' WHERE id = $1`, userID); err != nil {
+			return err
+		}
+		if old != "" {
+			_, err := tx.Exec(ctx, `DELETE FROM attachments WHERE id = $1`, old)
+			return err
+		}
+		return nil
+	})
+	return old, wrap(err)
+}
+
+// UserPhoto is a student whose Telegram photo has not been copied yet.
+type UserPhoto struct {
+	ID       int64
+	PhotoURL string
+}
+
+// UsersWithoutAvatar lists students that have a Telegram photo address but no
+// stored copy of that very photo; used once at start to fill in existing accounts.
+func (s *Store) UsersWithoutAvatar(ctx context.Context, limit int) ([]UserPhoto, error) {
+	rows, err := s.db.Query(ctx, `SELECT id, photo_url FROM users
+		WHERE photo_url <> '' AND (avatar_id IS NULL OR avatar_source <> photo_url) ORDER BY id LIMIT $1`, limit)
+	if err != nil {
+		return nil, wrap(err)
+	}
+	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (UserPhoto, error) {
+		var u UserPhoto
+		return u, r.Scan(&u.ID, &u.PhotoURL)
+	})
+	return out, wrap(err)
 }

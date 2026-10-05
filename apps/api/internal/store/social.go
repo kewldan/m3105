@@ -13,7 +13,7 @@ import (
 // ---- comments ----
 
 var commentCols = `c.id, c.target_type, c.target_id, c.body, c.created_at, c.updated_at,
-	u.id AS author_id, ` + userNameExpr + ` AS author_name, u.photo_url AS author_photo_url, u.group_name AS author_group,
+	u.id AS author_id, ` + userNameExpr + ` AS author_name, ` + userPhotoExpr + ` AS author_photo_url, u.group_name AS author_group,
 	` + attachmentsOf("comment_id", "c.id") + ` AS attachments`
 
 const commentFrom = ` FROM comments c JOIN users u ON u.id = c.user_id`
@@ -128,7 +128,7 @@ func (s *Store) ListRecentComments(ctx context.Context, limit int) ([]models.Adm
 
 // postCols needs $1 = viewer id (0 for anonymous) to compute "liked".
 var postCols = `p.id, p.kind, p.title, p.body, p.address, p.price, p.rating, p.created_at, p.updated_at,
-	u.id AS author_id, ` + userNameExpr + ` AS author_name, u.photo_url AS author_photo_url, u.group_name AS author_group,
+	u.id AS author_id, ` + userNameExpr + ` AS author_name, ` + userPhotoExpr + ` AS author_photo_url, u.group_name AS author_group,
 	(SELECT count(*) FROM post_likes pl WHERE pl.post_id = p.id)::int AS likes_count,
 	(SELECT count(*) FROM comments c WHERE c.target_type = 'post' AND c.target_id = p.id)::int AS comments_count,
 	EXISTS (SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.user_id = $1) AS liked,

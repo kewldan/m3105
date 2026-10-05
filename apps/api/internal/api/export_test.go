@@ -1,5 +1,7 @@
 package api
 
+import "context"
+
 // SetSocialWriteLimit overrides the anti-spam limit in tests and returns the previous value.
 func SetSocialWriteLimit(n int) int {
 	prev := socialWriteLimit
@@ -16,3 +18,10 @@ func SetUploadLimit(n int) int {
 
 // TagsForPath exposes the cache-tag mapping to the contract test.
 var TagsForPath = tagsForPath
+
+// SetAvatarFetcher replaces the Telegram photo download in tests and returns the previous one.
+func SetAvatarFetcher(fn func(ctx context.Context, url string) ([]byte, error)) func(ctx context.Context, url string) ([]byte, error) {
+	prev := fetchAvatar
+	fetchAvatar = fn
+	return prev
+}

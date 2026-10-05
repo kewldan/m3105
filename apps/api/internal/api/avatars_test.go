@@ -42,7 +42,7 @@ func TestAvatars(t *testing.T) {
 		}
 		return nil, errors.New("telegram is down")
 	})
-	defer api.SetAvatarFetcher(prev)
+	t.Cleanup(func() { api.SetAvatarFetcher(prev) })
 
 	anim := &gif.GIF{}
 	for i := range 2 {

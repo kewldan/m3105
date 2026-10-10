@@ -12,7 +12,6 @@ export function SiteFooter({
   member: boolean;
   pageLinks?: NavLink[];
 }) {
-  const year = new Date().getFullYear();
   const links = [...primaryLinks(member), ...pageLinks];
   return (
     <footer className="mt-auto border-t bg-muted/30 print:hidden">
@@ -35,7 +34,28 @@ export function SiteFooter({
           <span className="font-medium text-foreground">
             {settings.groupName}
           </span>
-          <span>© {year}</span>
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <a
+              href="https://github.com/kewldan/m3105"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-foreground"
+            >
+              Исходный код
+            </a>
+            <span>
+              ©{" "}
+              <a
+                href="https://github.com/kewldan"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-foreground"
+              >
+                Тенишев Даниил
+              </a>{" "}
+              2026
+            </span>
+          </span>
         </div>
       </div>
     </footer>

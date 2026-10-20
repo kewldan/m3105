@@ -33,16 +33,25 @@ function stripFrontmatter(src: string): string {
   return end === -1 ? src : src.slice(end + 5);
 }
 
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
 async function check(file: string): Promise<boolean> {
   const src = stripFrontmatter(readFileSync(file, "utf8"));
   try {
     const { default: MDXContent } = await evaluate(src, {
       ...runtime,
       remarkPlugins: [remarkGfm, remarkMath],
-      rehypePlugins: [
-        rehypeSlug,
-        [rehypeKatex, { strict: true, throwOnError: true }],
-      ],
+      // rehype-katex не бросает исключений: ошибку формулы он кладёт в
+      // сообщения VFile и рисует <span class="katex-error">, поэтому её ищем
+      // в готовом HTML.
+      rehypePlugins: [rehypeSlug, [rehypeKatex, { strict: true }]],
       development: false,
     });
     const html = renderToStaticMarkup(
@@ -54,10 +63,18 @@ async function check(file: string): Promise<boolean> {
     const mathHeadings = headings
       .filter((h) => h.includes("katex"))
       .map((h) => h.replace(/<[^>]+>/g, ""));
+    const mathErrors = [
+      ...html.matchAll(/<span class="katex-error"[^>]*title="([^"]*)"[^>]*>/g),
+    ].map((m) => decodeEntities(m[1]).replace(/\s+/g, " ").slice(0, 160));
     const noSources = !/<h2[^>]*>(Источники|Литература)<\/h2>/.test(html);
+    const ok =
+      mathErrors.length === 0 && mathHeadings.length === 0 && noSources;
     console.log(
-      `OK ${file}: ${src.length} символов, заголовков h2/h3: ${headings.length}`,
+      `${ok ? "OK" : "FAIL"} ${file}: ${src.length} символов, заголовков h2/h3: ${headings.length}`,
     );
+    for (const err of mathErrors) {
+      console.log(`  ОШИБКА В ФОРМУЛЕ: ${err}`);
+    }
     if (mathHeadings.length > 0) {
       console.log(`  ФОРМУЛЫ В ЗАГОЛОВКАХ: ${mathHeadings.join(" | ")}`);
     }
@@ -66,7 +83,7 @@ async function check(file: string): Promise<boolean> {
         "  РАЗДЕЛ «Источники/Литература» — в конспектах его не должно быть",
       );
     }
-    return mathHeadings.length === 0 && noSources;
+    return ok;
   } catch (e) {
     console.log(`FAIL ${file}: ${e instanceof Error ? e.message : String(e)}`);
     return false;

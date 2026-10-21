@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -153,6 +154,33 @@ func TestGrades(t *testing.T) {
 	admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", sourceID), nil, 200)
 	if got := v.do("GET", "/api/v1/me/", nil, 200)["user"].(map[string]any)["isu"]; got != "" {
 		t.Fatalf("unlinked account was linked again: %v", got)
+	}
+
+	// Правка настроек (новый столбец) — не изменение баллов: бот молчит.
+	// Изменение в таблице после этого — изменение.
+	pending := func() int {
+		var n int
+		if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM grade_rows WHERE source_id = $1
+			AND (notified_total IS DISTINCT FROM total OR jsonb_strip_nulls(notified_parts) <> jsonb_strip_nulls(parts))`, sourceID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := pending(); n != 1 {
+		t.Fatalf("score change before the edit: %d pending, want 1", n)
+	}
+	src["columns"] = append(cols, map[string]any{"key": "live", "label": "Лайвкодинг", "header": "Live", "max": 10})
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/grade-sources/%d", sourceID), src, 200)
+	admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", sourceID), nil, 200)
+	if n := pending(); n != 0 {
+		t.Fatalf("settings edit counted as a score change: %d pending", n)
+	}
+	setFakeTab("11", gradesHeader+
+		`1,Грейдов Георгий Ильич,ivan,2,,0,12,"11,04",,,0,12,12,5,"28,04",,"28,04",100001`+"\n"+
+		`2,Баллов Борис Борисович,petr,,2,0,12,"12,96",,,0,12,12,,"24,96",,"24,96",100002`+"\n")
+	admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", sourceID), nil, 200)
+	if n := pending(); n != 1 {
+		t.Fatalf("score change after the edit: %d pending, want 1", n)
 	}
 
 	// Сломанная таблица: старые строки остаются, ошибка видна в админке.

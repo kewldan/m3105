@@ -75,9 +75,15 @@ func (s *Store) MarkGradeSyncFailed(ctx context.Context, id int64, msg string) e
 
 // ReplaceGradeRows makes the source's rows exactly rows. New rows start as
 // already notified, so the first import does not message everyone; changed
-// rows keep their old notified_* for the bot to report the difference.
+// rows keep their old notified_* for the bot to report the difference. The
+// first sync after the settings changed (synced_at is reset) re-baselines
+// every row: a new or renamed column is not a change of scores.
 func (s *Store) ReplaceGradeRows(ctx context.Context, sourceID int64, rows []models.GradeRow) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
+		var baseline bool
+		if err := tx.QueryRow(ctx, `SELECT synced_at IS NULL FROM grade_sources WHERE id = $1 FOR UPDATE`, sourceID).Scan(&baseline); err != nil {
+			return wrap(err)
+		}
 		keys := make([]string, len(rows))
 		batch := &pgx.Batch{}
 		for i, r := range rows {
@@ -86,9 +92,12 @@ func (s *Store) ReplaceGradeRows(ctx context.Context, sourceID int64, rows []mod
 				VALUES ($1,$2,$3,$4,$5,$6,$7,$6,$7)
 				ON CONFLICT (source_id, row_key) DO UPDATE SET isu = EXCLUDED.isu, full_name = EXCLUDED.full_name,
 					group_name = EXCLUDED.group_name, total = EXCLUDED.total, parts = EXCLUDED.parts,
-					changed_at = CASE WHEN grade_rows.total IS DISTINCT FROM EXCLUDED.total OR grade_rows.parts <> EXCLUDED.parts
-						THEN now() ELSE grade_rows.changed_at END`,
-				sourceID, r.RowKey, r.ISU, r.FullName, r.Group, r.Total, r.Parts)
+					changed_at = CASE WHEN grade_rows.total IS DISTINCT FROM EXCLUDED.total
+						OR jsonb_strip_nulls(grade_rows.parts) <> jsonb_strip_nulls(EXCLUDED.parts)
+						THEN now() ELSE grade_rows.changed_at END,
+					notified_total = CASE WHEN $8 THEN EXCLUDED.total ELSE grade_rows.notified_total END,
+					notified_parts = CASE WHEN $8 THEN EXCLUDED.parts ELSE grade_rows.notified_parts END`,
+				sourceID, r.RowKey, r.ISU, r.FullName, r.Group, r.Total, r.Parts, baseline)
 		}
 		if err := tx.SendBatch(ctx, batch).Close(); err != nil {
 			return wrap(err)
@@ -209,7 +218,8 @@ func (s *Store) ListGradeChanges(ctx context.Context) ([]GradeChange, error) {
 		JOIN users u ON u.isu = r.isu AND r.isu <> ''
 		JOIN bot_chats c ON c.telegram_id = u.telegram_id AND c.subscribed
 		WHERE r.notified_total IS NOT NULL
-			AND (r.notified_total IS DISTINCT FROM r.total OR r.notified_parts <> r.parts)
+			AND (r.notified_total IS DISTINCT FROM r.total
+				OR jsonb_strip_nulls(r.notified_parts) <> jsonb_strip_nulls(r.parts))
 		ORDER BY c.chat_id, r.source_id`)
 }
 

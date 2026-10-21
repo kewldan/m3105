@@ -27,6 +27,8 @@ export function PartBars({
         const v = parts[col.key] ?? null;
         const p =
           col.max > 0 && v != null ? Math.min(100, (v / col.max) * 100) : 0;
+        // Сверх максимума — бонус («плюсики» за то, что сверх задания).
+        const bonus = col.max > 0 && v != null && v > col.max ? v - col.max : 0;
         return (
           <li key={col.key} className="space-y-1">
             <div className="flex items-baseline justify-between gap-2 text-xs">
@@ -34,7 +36,19 @@ export function PartBars({
                 {col.label}
               </span>
               <span className="shrink-0 font-medium tabular-nums">
-                {fmtScore(v)}
+                {bonus ? (
+                  <>
+                    {fmtScore(col.max)}
+                    <span
+                      className="ml-1 rounded bg-emerald-500/15 px-1 text-emerald-700 dark:text-emerald-300"
+                      title="Бонус сверх максимума за лабу"
+                    >
+                      +{fmtScore(bonus)}
+                    </span>
+                  </>
+                ) : (
+                  fmtScore(v)
+                )}
                 {col.max > 0 ? (
                   <span className="text-muted-foreground">
                     {" "}

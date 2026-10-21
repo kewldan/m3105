@@ -2,6 +2,7 @@ package grades
 
 import (
 	"encoding/csv"
+	"errors"
 	"strings"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestParseTab(t *testing.T) {
 		t.Fatalf("row 2: %+v", b)
 	}
 
-	if _, err := ParseTab(records(t, ",,2,3\n,M3101,5,0\n"), src, "Статистика"); err != ErrNoHeader {
+	if _, err := ParseTab(records(t, ",,2,3\n,M3101,5,0\n"), src, "Статистика"); !errors.Is(err, ErrNoHeader) {
 		t.Fatalf("service tab: %v", err)
 	}
 }

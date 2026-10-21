@@ -35,22 +35,65 @@ func TestParseTab(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 2 {
+	if len(rows) != 1 {
 		t.Fatalf("got %d rows: %+v", len(rows), rows)
 	}
-	a, b := rows[0], rows[1]
+	a := rows[0]
 	if a.FullName != "Иванов Иван Иванович" || a.ISU != "100001" || a.RowKey != "100001" || a.Group != "М3105" || a.Total != 11.04 {
 		t.Fatalf("row 1: %+v", a)
 	}
 	if *a.Parts["lab1"] != 11.04 || *a.Parts["lab2"] != 0 || a.Parts["exam"] != nil {
 		t.Fatalf("row 1 parts: %+v", a.Parts)
 	}
-	if b.ISU != "" || b.RowKey != "name:петров пётр" || b.Total != 0 {
-		t.Fatalf("row 2: %+v", b)
+
+	// Без столбца ИСУ строка узнаётся по ФИО.
+	noID := src
+	noID.IDColumn = ""
+	rows, err = ParseTab(records(t, "ФИО,Итог\nПетров Пётр,\n"), noID, "M3104")
+	if err != nil || len(rows) != 1 || rows[0].RowKey != "name:петров пётр" || rows[0].Total != 0 || rows[0].Group != "М3104" {
+		t.Fatalf("row without ISU: %+v, %v", rows, err)
 	}
 
 	if _, err := ParseTab(records(t, ",,2,3\n,M3101,5,0\n"), src, "Статистика"); !errors.Is(err, ErrNoHeader) {
 		t.Fatalf("service tab: %v", err)
+	}
+}
+
+// Вёрстка таблицы АиСД: ИСУ в первом столбце без заголовка, группа — строкой
+// над студентами, заголовки с пояснениями в скобках и переносами.
+func TestParseTabSections(t *testing.T) {
+	aisd := models.GradeSource{NameColumn: "ФИО", IDColumn: "#1", TotalColumn: "Итого", Columns: []models.GradeColumn{
+		{Key: "lab0", Header: "ЛР0"}, {Key: "lab1", Header: "ЛР1"}, {Key: "t1", Header: "Т1"},
+	}}
+	rows, err := ParseTab(records(t, ",ФИО,ЛР1 (база),\"Т1\nИнтро\",Итого\n"+
+		",max число баллов,6.00,5.00,100.00\n"+
+		"M3104,,,,\n"+
+		"558001,Иванов Иван Иванович,6.00,4.5,10.5\n"+
+		"M3105,,,,\n"+
+		"561445,Тенишев Даниил Александрович,,5.00,\n"), aisd, "семестр 1 потоки 1-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows: %+v", len(rows), rows)
+	}
+	if rows[0].Group != "М3104" || rows[0].ISU != "558001" || *rows[0].Parts["lab1"] != 6 || *rows[0].Parts["t1"] != 4.5 || rows[0].Total != 10.5 {
+		t.Fatalf("row 1: %+v", rows[0])
+	}
+	if rows[1].Group != "М3105" || rows[1].ISU != "561445" || rows[1].Parts["lab1"] != nil || rows[1].Total != 5 {
+		t.Fatalf("row 2: %+v", rows[1])
+	}
+	if _, ok := rows[1].Parts["lab0"]; ok {
+		t.Fatal("a column missing on the tab must not become a part")
+	}
+}
+
+func TestFindColumn(t *testing.T) {
+	header := []string{"", "ФИО", "ЛР1 (база)", "ЛР10", "Т1\n(интро)", "Итого"}
+	for want, idx := range map[string]int{"#1": 0, "фио": 1, "ЛР1": 2, "ЛР10": 3, "т1": 4, "Т1 (интро)": 4, "ЛР2": -1, "": -1} {
+		if got := findColumn(header, want); got != idx {
+			t.Errorf("%q: got %d, want %d", want, got, idx)
+		}
 	}
 }
 

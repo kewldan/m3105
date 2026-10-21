@@ -48,6 +48,9 @@ type Scope = "group" | "course" | "site" | "groups";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
+// Больше столбцов в строку не влезает: тогда разбивка — только по клику.
+const MAX_INLINE_PARTS = 8;
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border bg-card px-4 py-3">
@@ -196,7 +199,12 @@ function RatingList({
                   </span>
                 ) : null}
               </span>
-              <span className="hidden shrink-0 gap-1 md:flex">
+              <span
+                className={cn(
+                  "hidden shrink-0 gap-1",
+                  source.columns.length <= MAX_INLINE_PARTS && "md:flex",
+                )}
+              >
                 {source.columns.map((col) => (
                   <span
                     key={col.key}

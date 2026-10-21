@@ -73,10 +73,22 @@ func (h *Handler) getMyGrades(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	sources, err := h.store.ListGradeSources(ctx, true)
+	all, err := h.store.ListGradeSources(ctx, true)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
+	}
+	mine, err := h.store.ListGradeSourceIDsByISU(ctx, user.ISU)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	// Таблицы одной группы (английский) видят только те, кто в них есть.
+	sources := make([]models.GradeSource, 0, len(all))
+	for _, s := range all {
+		if !s.MembersOnly || mine[s.ID] {
+			sources = append(sources, s)
+		}
 	}
 	resp := models.GradesResponse{
 		Sources: make([]models.GradeSourceSummary, len(sources)),

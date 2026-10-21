@@ -130,6 +130,19 @@ func TestGrades(t *testing.T) {
 		t.Fatalf("own row not marked: %v", mine)
 	}
 
+	// Таблица одной группы (как английский) видна только тем, кто в ней есть.
+	only := map[string]any{"subjectId": subjectID, "title": "Английский", "spreadsheet": src["spreadsheet"], "tabPattern": "^M3104$",
+		"syncHours": 3, "enabled": true, "membersOnly": true, "nameColumn": "ФИО", "idColumn": "ИСУ", "totalColumn": "", "columns": cols}
+	onlyID := int64(admin.do("POST", "/api/v1/admin/grade-sources", only, 201)["id"].(float64))
+	if res := admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", onlyID), nil, 200); res["rows"] != float64(1) {
+		t.Fatalf("members-only sync: %v", res)
+	}
+	page = u.do("GET", fmt.Sprintf("/api/v1/me/grades?source=%d", onlyID), nil, 200)
+	if page["source"].(map[string]any)["id"] == float64(onlyID) || len(page["sources"].([]any)) != 1 {
+		t.Fatalf("members-only source shown to a student who is not in it: %v", page["sources"])
+	}
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/grade-sources/%d", onlyID), nil, 200)
+
 	// Тот же номер у второго аккаунта — ошибка поля.
 	v := newClient(t)
 	v.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Георгий Грейдов"}, 200)

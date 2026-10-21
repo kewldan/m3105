@@ -57,8 +57,14 @@ function GradeRow({ g }: { g: MyGrade }) {
           ) : null}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <PlaceChip place={g.inGroup} label="в группе" />
-          <PlaceChip place={g.course} label="на курсе" />
+          {g.source.membersOnly ? (
+            <PlaceChip place={g.course} label="в таблице" />
+          ) : (
+            <>
+              <PlaceChip place={g.inGroup} label="в группе" />
+              <PlaceChip place={g.course} label="на курсе" />
+            </>
+          )}
           <PlaceChip place={g.site} label="на сайте" />
         </div>
         <PartBars

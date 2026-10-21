@@ -271,6 +271,8 @@ export type GradeSourceSummary = {
   maxTotal: number;
   columns: GradeColumn[];
   syncedAt: string | null;
+  /** One small group's sheet (English): shown only to students in it; places within the sheet. */
+  membersOnly: boolean;
 };
 
 export type GradeParts = Record<string, number | null>;
@@ -326,6 +328,7 @@ export type GradeSource = {
   columns: AdminGradeColumn[];
   syncHours: number;
   enabled: boolean;
+  membersOnly: boolean;
   syncedAt: string | null;
   syncError: string;
   rowsCount: number;
@@ -353,6 +356,7 @@ export type GradeSourceInput = {
   columns: AdminGradeColumn[];
   syncHours: number;
   enabled: boolean;
+  membersOnly: boolean;
 };
 
 export type GradeSyncResult = {

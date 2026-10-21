@@ -60,10 +60,11 @@ const schema = z.object({
   nameColumn: z.string().trim().min(1, "Укажите столбец"),
   idColumn: z.string().trim(),
   groupColumn: z.string().trim(),
-  totalColumn: z.string().trim().min(1, "Укажите столбец"),
+  totalColumn: z.string().trim(),
   maxTotal: z.string().regex(/^\d+([.,]\d+)?$/, "Число"),
   syncHours: z.string().regex(/^\d+$/, "Целое число"),
   enabled: z.boolean(),
+  membersOnly: z.boolean(),
   columns: z.string().superRefine((v, ctx) => {
     const res = parseColumns(v);
     if (typeof res === "string") ctx.addIssue({ code: "custom", message: res });
@@ -86,6 +87,7 @@ const EMPTY: FormValues = {
   maxTotal: "100",
   syncHours: "3",
   enabled: true,
+  membersOnly: false,
   columns: columnsToText([
     ...[1, 2, 3, 4, 5].map((n) => ({
       key: `lab${n}`,
@@ -132,6 +134,7 @@ export function GradeSourceDialog({
             maxTotal: String(source.maxTotal),
             syncHours: String(source.syncHours),
             enabled: source.enabled,
+            membersOnly: source.membersOnly,
             columns: columnsToText(source.columns),
           }
         : EMPTY,
@@ -153,6 +156,7 @@ export function GradeSourceDialog({
       maxTotal: Number(values.maxTotal.replace(",", ".")),
       syncHours: Number(values.syncHours),
       enabled: values.enabled,
+      membersOnly: values.membersOnly,
       columns,
     };
     try {
@@ -253,7 +257,7 @@ export function GradeSourceDialog({
           <FormField
             label="Итог"
             htmlFor="gs-total"
-            required
+            description="Пусто или пустая ячейка — сумма разбивки."
             error={errors.totalColumn?.message}
           >
             <Input id="gs-total" {...form.register("totalColumn")} />
@@ -335,6 +339,31 @@ export function GradeSourceDialog({
                 />
                 <Label htmlFor="gs-enabled" className="font-normal">
                   {field.value ? "Показывается" : "Скрыт"}
+                </Label>
+              </div>
+            </FormField>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="membersOnly"
+          render={({ field }) => (
+            <FormField
+              label="Кому видно"
+              htmlFor="gs-members"
+              description="Для таблиц одной небольшой группы, например языковой по английскому: остальным источник не показывается, места считаются внутри таблицы."
+              className="sm:col-span-2"
+            >
+              <div className="flex h-9 items-center gap-2">
+                <Switch
+                  id="gs-members"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+                <Label htmlFor="gs-members" className="font-normal">
+                  {field.value
+                    ? "Только тем, кто есть в таблице"
+                    : "Всем подтверждённым студентам"}
                 </Label>
               </div>
             </FormField>

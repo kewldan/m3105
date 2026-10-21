@@ -305,6 +305,7 @@ function MyResult({
   siteRank,
   siteSize,
   source,
+  grouped,
 }: {
   me: RankedEntry;
   ranked: RankedEntry[];
@@ -313,7 +314,19 @@ function MyResult({
   siteRank: number;
   siteSize: number;
   source: GradeSourceSummary;
+  /** False for one group's sheet: no study-group place, the course is the sheet. */
+  grouped: boolean;
 }) {
+  const places = grouped
+    ? [
+        { label: "в группе", rank: me.rank, size: groupSize },
+        { label: "на курсе", rank: courseRank, size: ranked.length },
+        { label: "на сайте", rank: siteRank, size: siteSize },
+      ]
+    : [
+        { label: "в таблице", rank: courseRank, size: ranked.length },
+        { label: "на сайте", rank: siteRank, size: siteSize },
+      ];
   const next = toNextLetter(me.total, source.maxTotal);
   // Курс отсортирован по убыванию: с конца первый, кто выше, — ближайший.
   const nearestAhead = [...ranked].reverse().find((r) => r.total > me.total);
@@ -331,12 +344,13 @@ function MyResult({
           <h2 className="text-lg font-semibold">Ваш результат</h2>
           <LetterChip total={me.total} max={source.maxTotal} />
         </div>
-        <dl className="grid grid-cols-3 gap-2 text-center sm:max-w-md">
-          {[
-            { label: "в группе", rank: me.rank, size: groupSize },
-            { label: "на курсе", rank: courseRank, size: ranked.length },
-            { label: "на сайте", rank: siteRank, size: siteSize },
-          ].map((p) => (
+        <dl
+          className={cn(
+            "grid gap-2 text-center sm:max-w-md",
+            grouped ? "grid-cols-3" : "grid-cols-2",
+          )}
+        >
+          {places.map((p) => (
             <div key={p.label} className="rounded-xl bg-muted/60 px-2 py-2">
               <dt className="text-[11px] text-muted-foreground">{p.label}</dt>
               <dd className="text-lg font-semibold tabular-nums">
@@ -355,9 +369,9 @@ function MyResult({
             ? `До ${next.letter} не хватает ${fmtScore(next.points)}. `
             : "Это уже A — дальше только удержать. "}
           {nearestAhead
-            ? `Чтобы подняться на курсе, нужно ещё ${fmtScore(nearestAhead.total - me.total)}.`
+            ? `Чтобы подняться ${grouped ? "на курсе" : "в таблице"}, нужно ещё ${fmtScore(nearestAhead.total - me.total)}.`
             : courseRank === 1
-              ? "Вы первый на курсе."
+              ? `Вы первый ${grouped ? "на курсе" : "в таблице"}.`
               : ""}
         </p>
       </div>
@@ -375,8 +389,16 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
   const [query, setQuery] = useState("");
   const source = data.source;
   const myGroup = data.myGroup;
-  const hasGroup = data.rows.some((r) => r.group === myGroup);
-  const [scope, setScope] = useState<Scope>(hasGroup ? "group" : "course");
+  // Таблица одной группы (английский): учебные группы в ней не сравниваются.
+  const grouped = !source?.membersOnly;
+  const hasGroup = grouped && data.rows.some((r) => r.group === myGroup);
+  const [pickedScope, setScope] = useState<Scope>(
+    hasGroup ? "group" : "course",
+  );
+  const scope: Scope =
+    !grouped && (pickedScope === "group" || pickedScope === "groups")
+      ? "course"
+      : pickedScope;
 
   const course = useMemo(() => rank(data.rows), [data.rows]);
   const site = useMemo(
@@ -401,7 +423,7 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
       )
     : scoped;
   const totals = scoped.map((r) => r.total);
-  const mine = group.find((r) => r.me);
+  const mine = (grouped ? group : course).find((r) => r.me);
 
   const switchSource = async (id: number) => {
     if (id === source?.id) return;
@@ -410,7 +432,10 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
       const next = await userApi.grades(id);
       setData(next);
       setScope(
-        next.rows.some((r) => r.group === next.myGroup) ? "group" : "course",
+        !next.source?.membersOnly &&
+          next.rows.some((r) => r.group === next.myGroup)
+          ? "group"
+          : "course",
       );
       router.replace(`${pathname}?source=${id}`, { scroll: false });
     } catch {
@@ -471,6 +496,7 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
           siteRank={site.find((r) => r.me)?.rank ?? 0}
           siteSize={site.length}
           source={source}
+          grouped={grouped}
         />
       ) : ctxMe ? (
         <section className="space-y-3 rounded-2xl border border-dashed p-5">
@@ -511,12 +537,16 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
             {hasGroup ? (
               <TabsTrigger value="group">{myGroup}</TabsTrigger>
             ) : null}
-            <TabsTrigger value="course">Курс</TabsTrigger>
-            <TabsTrigger value="site">На сайте</TabsTrigger>
-            <TabsTrigger value="groups">
-              <UsersIcon aria-hidden />
-              Группы
+            <TabsTrigger value="course">
+              {grouped ? "Курс" : "Вся таблица"}
             </TabsTrigger>
+            <TabsTrigger value="site">На сайте</TabsTrigger>
+            {grouped ? (
+              <TabsTrigger value="groups">
+                <UsersIcon aria-hidden />
+                Группы
+              </TabsTrigger>
+            ) : null}
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">

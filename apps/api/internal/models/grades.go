@@ -35,11 +35,13 @@ type GradeSource struct {
 	Columns       []GradeColumn `db:"columns" json:"columns"`
 	SyncHours     int           `db:"sync_hours" json:"syncHours"`
 	Enabled       bool          `db:"enabled" json:"enabled"`
-	SyncedAt      *time.Time    `db:"synced_at" json:"syncedAt"`
-	SyncError     string        `db:"sync_error" json:"syncError"`
-	RowsCount     int           `db:"rows_count" json:"rowsCount"`
-	CreatedAt     time.Time     `db:"created_at" json:"createdAt"`
-	UpdatedAt     time.Time     `db:"updated_at" json:"updatedAt"`
+	// MembersOnly: only students whose ISU is in the sheet see the source.
+	MembersOnly bool       `db:"members_only" json:"membersOnly"`
+	SyncedAt    *time.Time `db:"synced_at" json:"syncedAt"`
+	SyncError   string     `db:"sync_error" json:"syncError"`
+	RowsCount   int        `db:"rows_count" json:"rowsCount"`
+	CreatedAt   time.Time  `db:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time  `db:"updated_at" json:"updatedAt"`
 
 	SubjectSlug  string `db:"subject_slug" json:"subjectSlug"`
 	SubjectName  string `db:"subject_name" json:"subjectName"`
@@ -72,6 +74,7 @@ type GradeSourceInput struct {
 	Columns     []GradeColumn `json:"columns"`
 	SyncHours   int           `json:"syncHours"`
 	Enabled     bool          `json:"enabled"`
+	MembersOnly bool          `json:"membersOnly"`
 
 	// SpreadsheetID is filled by Validate from Spreadsheet.
 	SpreadsheetID string `json:"-"`
@@ -113,9 +116,6 @@ func (in *GradeSourceInput) Validate() error {
 	}
 	if in.NameColumn == "" {
 		ve.Add("nameColumn", "Укажите столбец с ФИО")
-	}
-	if in.TotalColumn == "" {
-		ve.Add("totalColumn", "Укажите столбец с итогом")
 	}
 	if in.MaxTotal <= 0 {
 		in.MaxTotal = 100
@@ -195,6 +195,8 @@ type GradeSourceSummary struct {
 	MaxTotal     float64       `json:"maxTotal"`
 	Columns      []GradeColumn `json:"columns"`
 	SyncedAt     *time.Time    `json:"syncedAt"`
+	// MembersOnly: one small group's sheet; places are counted within it only.
+	MembersOnly bool `json:"membersOnly"`
 }
 
 // Summary strips admin-only settings.
@@ -206,7 +208,7 @@ func (s GradeSource) Summary() GradeSourceSummary {
 	return GradeSourceSummary{
 		ID: s.ID, Title: s.Label(), SubjectSlug: s.SubjectSlug, SubjectName: s.SubjectName,
 		SubjectColor: s.SubjectColor, SubjectIcon: s.SubjectIcon, MaxTotal: s.MaxTotal,
-		Columns: cols, SyncedAt: s.SyncedAt,
+		Columns: cols, SyncedAt: s.SyncedAt, MembersOnly: s.MembersOnly,
 	}
 }
 

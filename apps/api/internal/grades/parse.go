@@ -67,30 +67,46 @@ func sectionGroup(row []string) string {
 	return found
 }
 
-// ParseTab turns a tab into rows. The group of a row comes from the group
-// column, else from the latest section row ("M3105" alone in a row), else from
-// the tab name.
+// findHeader looks for a column title in the header row and then in the rows
+// above it, nearest first: sheets often put a group title ("Total for the
+// semester") a row or two above the row with the names of the columns.
+func findHeader(records [][]string, head int, want string) int {
+	for i := head; i >= 0; i-- {
+		if j := findColumn(records[i], want); j >= 0 {
+			return j
+		}
+	}
+	return -1
+}
+
+// ParseTab turns a tab into rows. The header row is the one with the name
+// column; other titles may sit above it. The group of a row comes from the
+// group column, else from the latest section row ("M3105" alone in a row),
+// else from the tab name. Without a total column the total is the sum of the
+// breakdown.
 func ParseTab(records [][]string, src models.GradeSource, tabName string) ([]models.GradeRow, error) {
 	head := -1
-	for i := 0; i < len(records) && i < headerScan; i++ {
-		if findColumn(records[i], src.NameColumn) >= 0 && findColumn(records[i], src.TotalColumn) >= 0 &&
-			!columnNumberRe.MatchString(src.NameColumn) && !columnNumberRe.MatchString(src.TotalColumn) {
-			head = i
-			break
+	if !columnNumberRe.MatchString(src.NameColumn) {
+		for i := 0; i < len(records) && i < headerScan; i++ {
+			if findColumn(records[i], src.NameColumn) >= 0 &&
+				(src.TotalColumn == "" || findHeader(records, i, src.TotalColumn) >= 0) {
+				head = i
+				break
+			}
 		}
 	}
 	if head < 0 {
 		return nil, ErrNoHeader
 	}
-	header := records[head]
-	nameCol, totalCol := findColumn(header, src.NameColumn), findColumn(header, src.TotalColumn)
-	idCol, groupCol := findColumn(header, src.IDColumn), findColumn(header, src.GroupColumn)
+	col := func(want string) int { return findHeader(records, head, want) }
+	nameCol, totalCol := col(src.NameColumn), col(src.TotalColumn)
+	idCol, groupCol := col(src.IDColumn), col(src.GroupColumn)
 	if src.GroupColumn != "" && groupCol < 0 {
 		return nil, fmt.Errorf("нет столбца %q", src.GroupColumn)
 	}
 	partCols := make([]int, len(src.Columns))
 	for i, c := range src.Columns {
-		partCols[i] = findColumn(header, c.Header)
+		partCols[i] = col(c.Header)
 	}
 
 	cell := func(row []string, j int) string {
@@ -142,7 +158,7 @@ func ParseTab(records [][]string, src models.GradeSource, tabName string) ([]mod
 				sum += *v
 			}
 		}
-		// Итог в таблице ещё не посчитан — сумма разбивки.
+		// Столбца итога нет или он ещё не посчитан — сумма разбивки.
 		if t := ParseNumber(cell(rec, totalCol)); t != nil {
 			row.Total = *t
 		} else {

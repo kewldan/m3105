@@ -88,6 +88,27 @@ func TestParseTabSections(t *testing.T) {
 	}
 }
 
+// Вёрстка таблицы английского: «Total for the semester» и баллы — в строках
+// над строкой с ФИО, итог не заполнен, считаем по разбивке.
+func TestParseTabStackedHeaders(t *testing.T) {
+	eng := models.GradeSource{NameColumn: "FULL NAME", IDColumn: "ISU ID", GroupColumn: "GROUP NUMBER", Columns: []models.GradeColumn{
+		{Key: "hw1", Header: "H/W 1"}, {Key: "test1", Header: "Test 1"}, {Key: "mt1", Header: "Module Test 1"},
+	}}
+	rows, err := ParseTab(records(t, "MANUAL,,,,,weeks 1-16,,,Total for the semester\n"+
+		",,,,,\"H/W 1\nW/B\n(min 5, max 7)\",\"Module Test 1\n(min 6)\",\"Test 1\n(min 1, max 4)\",\n"+
+		",,,,,,,,,70%\n"+
+		"№↓,ISU ID ↓,,FULL NAME ↓,GROUP NUMBER ↓,,,,\n"+
+		"17,561445,,Тенишев Даниил Александрович,M3105,0,,4,0\n"+
+		",,,,,,,,0\n"), eng, "BARS")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].ISU != "561445" || rows[0].Group != "М3105" || rows[0].Total != 4 ||
+		*rows[0].Parts["hw1"] != 0 || *rows[0].Parts["test1"] != 4 || rows[0].Parts["mt1"] != nil {
+		t.Fatalf("rows: %+v", rows)
+	}
+}
+
 func TestFindColumn(t *testing.T) {
 	header := []string{"", "ФИО", "ЛР1 (база)", "ЛР10", "Т1\n(интро)", "Итого"}
 	for want, idx := range map[string]int{"#1": 0, "фио": 1, "ЛР1": 2, "ЛР10": 3, "т1": 4, "Т1 (интро)": 4, "ЛР2": -1, "": -1} {

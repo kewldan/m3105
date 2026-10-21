@@ -161,7 +161,7 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 		}
 	}
 	if len(rows) == 0 {
-		return res, fmt.Errorf("не нашлось ни одной строки: проверьте заголовки %q и %q", src.NameColumn, src.TotalColumn)
+		return res, fmt.Errorf("не нашлось ни одной строки: проверьте заголовок %q", src.NameColumn)
 	}
 	if err := s.store.ReplaceGradeRows(ctx, src.ID, rows); err != nil {
 		return res, err

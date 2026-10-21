@@ -10,7 +10,7 @@ import (
 )
 
 const gradeSourceCols = `g.id, g.subject_id, g.title, g.spreadsheet_id, g.tab_pattern, g.name_column, g.id_column,
-	g.group_column, g.total_column, g.max_total, g.columns, g.sync_hours, g.enabled, g.synced_at, g.sync_error,
+	g.group_column, g.total_column, g.max_total, g.columns, g.sync_hours, g.enabled, g.members_only, g.synced_at, g.sync_error,
 	g.rows_count, g.created_at, g.updated_at, s.slug AS subject_slug, s.name AS subject_name,
 	s.color AS subject_color, s.icon AS subject_icon,
 	(SELECT count(*) FROM grade_rows r JOIN users u ON u.isu = r.isu WHERE r.source_id = g.id AND r.isu <> '')::int AS linked_count`
@@ -32,10 +32,10 @@ func (s *Store) GetGradeSource(ctx context.Context, id int64) (models.GradeSourc
 func (s *Store) CreateGradeSource(ctx context.Context, in *models.GradeSourceInput) (models.GradeSource, error) {
 	var id int64
 	err := s.db.QueryRow(ctx, `INSERT INTO grade_sources (subject_id, title, spreadsheet_id, tab_pattern, name_column,
-		id_column, group_column, total_column, max_total, columns, sync_hours, enabled)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+		id_column, group_column, total_column, max_total, columns, sync_hours, enabled, members_only)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
 		in.SubjectID, in.Title, in.SpreadsheetID, in.TabPattern, in.NameColumn, in.IDColumn, in.GroupColumn,
-		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled).Scan(&id)
+		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly).Scan(&id)
 	if err != nil {
 		return models.GradeSource{}, wrap(err)
 	}
@@ -47,9 +47,9 @@ func (s *Store) CreateGradeSource(ctx context.Context, in *models.GradeSourceInp
 func (s *Store) UpdateGradeSource(ctx context.Context, id int64, in *models.GradeSourceInput) (models.GradeSource, error) {
 	if err := s.exec(ctx, `UPDATE grade_sources SET subject_id = $2, title = $3, spreadsheet_id = $4, tab_pattern = $5,
 		name_column = $6, id_column = $7, group_column = $8, total_column = $9, max_total = $10, columns = $11,
-		sync_hours = $12, enabled = $13, synced_at = NULL, updated_at = now() WHERE id = $1`,
+		sync_hours = $12, enabled = $13, members_only = $14, synced_at = NULL, updated_at = now() WHERE id = $1`,
 		id, in.SubjectID, in.Title, in.SpreadsheetID, in.TabPattern, in.NameColumn, in.IDColumn, in.GroupColumn,
-		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled); err != nil {
+		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly); err != nil {
 		return models.GradeSource{}, err
 	}
 	return s.GetGradeSource(ctx, id)
@@ -108,6 +108,26 @@ func (s *Store) ReplaceGradeRows(ctx context.Context, sourceID int64, rows []mod
 		_, err := tx.Exec(ctx, `UPDATE grade_sources SET synced_at = now(), sync_error = '', rows_count = $2 WHERE id = $1`, sourceID, len(rows))
 		return wrap(err)
 	})
+}
+
+// ListGradeSourceIDsByISU returns the sources that have a row with this ISU.
+func (s *Store) ListGradeSourceIDsByISU(ctx context.Context, isu string) (map[int64]bool, error) {
+	out := map[int64]bool{}
+	if isu == "" {
+		return out, nil
+	}
+	rows, err := s.db.Query(ctx, `SELECT DISTINCT source_id FROM grade_rows WHERE isu = $1`, isu)
+	if err != nil {
+		return nil, wrap(err)
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+	if err != nil {
+		return nil, wrap(err)
+	}
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, nil
 }
 
 // RatedRow is a grade row with the site account it belongs to, if any.

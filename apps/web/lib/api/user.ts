@@ -4,6 +4,7 @@ import { apiClient } from "./client";
 import type {
   Comment,
   CommentTarget,
+  GradesResponse,
   MeResponse,
   PasskeyBeginResponse,
   Post,
@@ -58,9 +59,11 @@ export const userApi = {
       method: "POST",
       body,
     }),
-  /** Имя и фамилия; пустая строка возвращает имя из Telegram. */
-  updateProfile: (body: { displayName: string }) =>
+  /** Имя и фамилия; пустая строка возвращает имя из Telegram. isu не передан — не меняется, "" — отвязать. */
+  updateProfile: (body: { displayName: string; isu?: string }) =>
     apiClient<MeResponse>("/me/profile", { method: "PUT", body }),
+  grades: (source?: number) =>
+    apiClient<GradesResponse>(`/me/grades${source ? `?source=${source}` : ""}`),
   deletePasskey: (id: string) =>
     apiClient<MeResponse>(`/me/passkeys/${encodeURIComponent(id)}`, {
       method: "DELETE",

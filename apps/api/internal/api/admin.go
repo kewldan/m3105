@@ -159,6 +159,8 @@ func (h *Handler) mountAdmin(r chi.Router) {
 	r.Post("/files", h.adminUploadFile)
 	r.Delete("/files/{id}", h.adminDeleteFile)
 
+	r.Route("/grade-sources", h.mountGradeSources)
+
 	r.Route("/practice", func(r chi.Router) {
 		r.Get("/{id}/signups", h.adminPracticeSignups)
 		r.Put("/{id}/signups/order", h.adminReorderSignups)

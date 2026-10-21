@@ -7,6 +7,7 @@ import type {
   Comment,
   CommentTarget,
   FAQItem,
+  GradesResponse,
   HomeResponse,
   Lab,
   MeResponse,
@@ -102,6 +103,17 @@ export async function getMe(
     if (err instanceof ApiError && err.status === 401) return null;
     throw err;
   }
+}
+
+/** Score rating of one source (or the first); personal, never cached. */
+export async function getMyGrades(
+  cookie: string,
+  source?: number,
+): Promise<GradesResponse> {
+  return apiServer<GradesResponse>(
+    `/me/grades${source ? `?source=${source}` : ""}`,
+    { headers: { cookie } },
+  );
 }
 
 /** Practice (lab defence) sessions; pass the Cookie header to get participants. */

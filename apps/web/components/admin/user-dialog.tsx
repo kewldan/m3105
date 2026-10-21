@@ -23,6 +23,10 @@ const schema = z.object({
     .refine((v) => v.length !== 1, "Слишком короткое имя"),
   groupName: z.string().trim().max(40, "Не длиннее 40 символов"),
   approved: z.boolean(),
+  isu: z
+    .string()
+    .trim()
+    .regex(/^(\d{5,7})?$/, "Номер ИСУ — от 5 до 7 цифр"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -44,7 +48,12 @@ export function UserDialog({
 }) {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { displayName: "", groupName: "", approved: false },
+    defaultValues: {
+      displayName: "",
+      groupName: "",
+      approved: false,
+      isu: "",
+    },
   });
   const { reset } = form;
 
@@ -54,6 +63,7 @@ export function UserDialog({
       displayName: user.displayName,
       groupName: user.groupName || defaultGroup,
       approved: user.approved,
+      isu: user.isu,
     });
   }, [open, user, defaultGroup, reset]);
 
@@ -63,6 +73,7 @@ export function UserDialog({
       displayName: values.displayName,
       groupName: values.groupName,
       approved: values.approved,
+      isu: values.isu,
     };
     try {
       await adminApi.users.update(user.id, input);
@@ -143,6 +154,21 @@ export function UserDialog({
           )}
         />
       </FormGrid>
+      <FormField
+        label="Номер ИСУ"
+        htmlFor="user-isu"
+        description="Связывает аккаунт со строкой в таблицах баллов. Пусто — отвязать (и не сопоставлять по имени)."
+        error={errors.isu?.message}
+      >
+        <Input
+          id="user-isu"
+          inputMode="numeric"
+          placeholder="558434"
+          autoComplete="off"
+          {...form.register("isu")}
+          aria-invalid={!!errors.isu || undefined}
+        />
+      </FormField>
     </EntityDialog>
   );
 }

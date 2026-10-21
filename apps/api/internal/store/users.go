@@ -2,8 +2,11 @@ package store
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
+	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/models"
 )
 
@@ -15,7 +18,7 @@ const userNameExpr = `COALESCE(NULLIF(u.display_name, ''), u.name)`
 const userPhotoExpr = `(CASE WHEN u.avatar_id IS NULL THEN '' ELSE '/api/v1/files/' || u.avatar_id || '/avatar' END)`
 
 const userCols = `u.id, u.webauthn_id, ` + userNameExpr + ` AS name, u.name AS telegram_name, u.display_name, u.group_name,
-	(u.approved_at IS NOT NULL) AS approved, u.approved_at, u.telegram_id, u.telegram_username, ` + userPhotoExpr + ` AS photo_url, u.created_at, u.last_login_at`
+	(u.approved_at IS NOT NULL) AS approved, u.approved_at, u.telegram_id, u.telegram_username, ` + userPhotoExpr + ` AS photo_url, COALESCE(u.isu, '') AS isu, u.created_at, u.last_login_at`
 
 // GetUser fetches a user by id.
 func (s *Store) GetUser(ctx context.Context, id int64) (models.User, error) {
@@ -70,16 +73,28 @@ func (s *Store) TouchLogin(ctx context.Context, id int64) error {
 // The confirmation time is kept when the account is already approved.
 func (s *Store) UpdateUserProfile(ctx context.Context, id int64, in models.AdminUserInput) (models.User, error) {
 	if err := s.exec(ctx, `UPDATE users SET display_name = $2, group_name = $3,
-		approved_at = CASE WHEN $4 THEN COALESCE(approved_at, now()) END WHERE id = $1`,
-		id, in.DisplayName, in.GroupName, in.Approved); err != nil {
-		return models.User{}, err
+		approved_at = CASE WHEN $4 THEN COALESCE(approved_at, now()) END,
+		isu = COALESCE($5::text, isu) WHERE id = $1`,
+		id, in.DisplayName, in.GroupName, in.Approved, in.ISU); err != nil {
+		return models.User{}, isuConflict(err)
 	}
 	return s.GetUser(ctx, id)
 }
 
-// SetDisplayName stores the name the student chose; empty falls back to Telegram.
-func (s *Store) SetDisplayName(ctx context.Context, id int64, name string) error {
-	return s.exec(ctx, `UPDATE users SET display_name = $2 WHERE id = $1`, id, name)
+// SetProfile stores the name the student chose (empty falls back to Telegram)
+// and, when isu is not nil, their ISU number (empty unlinks and stops name matching).
+func (s *Store) SetProfile(ctx context.Context, id int64, name string, isu *string) error {
+	err := s.exec(ctx, `UPDATE users SET display_name = $2,
+		isu = COALESCE($3::text, isu) WHERE id = $1`, id, name, isu)
+	return isuConflict(err)
+}
+
+// isuConflict turns a duplicate ISU into a field error the form can show.
+func isuConflict(err error) error {
+	if errors.Is(err, httpx.ErrConflict) && strings.Contains(err.Error(), "isu") {
+		return &httpx.ValidationError{Fields: map[string]string{"isu": "Этот номер ИСУ уже привязан к другому аккаунту"}}
+	}
+	return err
 }
 
 // ListUsers returns all accounts with counters (admin).

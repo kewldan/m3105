@@ -206,6 +206,8 @@ export type User = {
   telegramId: number | null;
   telegramUsername: string;
   photoUrl: string;
+  /** University student number linking the account to score sheets; "" when not set. */
+  isu: string;
   createdAt: string;
   lastLoginAt: string;
 };
@@ -220,6 +222,8 @@ export type AdminUserInput = {
   displayName: string;
   groupName: string;
   approved: boolean;
+  /** Omitted — left as is; "" unlinks. */
+  isu?: string;
 };
 
 export type Passkey = {
@@ -245,6 +249,118 @@ export type MeResponse = {
   completedLabIds: number[];
   signups: MySignup[];
   passkeys: Passkey[];
+  grades: MyGrade[];
+};
+
+// ---- scores from external sheets ----
+
+export type GradeColumn = {
+  key: string;
+  label: string;
+  /** Most the part can give; 0 when unknown. */
+  max: number;
+};
+
+export type GradeSourceSummary = {
+  id: number;
+  title: string;
+  subjectSlug: string;
+  subjectName: string;
+  subjectColor: SubjectColor;
+  subjectIcon: string;
+  maxTotal: number;
+  columns: GradeColumn[];
+  syncedAt: string | null;
+};
+
+export type GradeParts = Record<string, number | null>;
+
+export type GradeEntry = {
+  /** "Фамилия Имя" from the sheet. */
+  name: string;
+  group: string;
+  total: number;
+  parts: GradeParts;
+  changedAt: string;
+  /** Site account the row belongs to. */
+  user: PublicUser | null;
+  me: boolean;
+};
+
+export type GradesResponse = {
+  sources: GradeSourceSummary[];
+  source: GradeSourceSummary | null;
+  rows: GradeEntry[];
+  myGroup: string;
+  /** The account has an ISU number bound. */
+  linked: boolean;
+};
+
+export type Place = { rank: number; size: number };
+
+export type MyGrade = {
+  source: GradeSourceSummary;
+  group: string;
+  total: number;
+  parts: GradeParts;
+  course: Place;
+  inGroup: Place;
+  /** Among students registered on the site. */
+  site: Place;
+  changedAt: string;
+};
+
+export type AdminGradeColumn = GradeColumn & { header: string };
+
+export type GradeSource = {
+  id: number;
+  subjectId: number;
+  title: string;
+  spreadsheetId: string;
+  tabPattern: string;
+  nameColumn: string;
+  idColumn: string;
+  groupColumn: string;
+  totalColumn: string;
+  maxTotal: number;
+  columns: AdminGradeColumn[];
+  syncHours: number;
+  enabled: boolean;
+  syncedAt: string | null;
+  syncError: string;
+  rowsCount: number;
+  createdAt: string;
+  updatedAt: string;
+  subjectSlug: string;
+  subjectName: string;
+  subjectColor: SubjectColor;
+  subjectIcon: string;
+  /** Rows that belong to site accounts. */
+  linkedCount: number;
+};
+
+export type GradeSourceInput = {
+  subjectId: number;
+  title: string;
+  /** Google Sheets link or bare id. */
+  spreadsheet: string;
+  tabPattern: string;
+  nameColumn: string;
+  idColumn: string;
+  groupColumn: string;
+  totalColumn: string;
+  maxTotal: number;
+  columns: AdminGradeColumn[];
+  syncHours: number;
+  enabled: boolean;
+};
+
+export type GradeSyncResult = {
+  tabs: string[];
+  skipped: string[];
+  rows: number;
+  /** Accounts linked by name during this sync. */
+  linked: number;
 };
 
 export type TelegramAuthData = {

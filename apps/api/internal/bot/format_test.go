@@ -149,3 +149,22 @@ func TestNewUserMessage(t *testing.T) {
 		t.Errorf("keyboard: %v", kb)
 	}
 }
+
+func TestGradeChangeMessage(t *testing.T) {
+	f := func(v float64) *float64 { return &v }
+	msg := gradeChangeMessage("https://m3105.ru/", store.GradeChange{
+		SourceID: 3, SubjectName: "Программирование", MaxTotal: 100,
+		Columns:       []models.GradeColumn{{Key: "lab1", Label: "Лаба 1"}, {Key: "lab2", Label: "Лаба 2"}, {Key: "exam", Label: "Экзамен"}},
+		NotifiedTotal: 11.04, Total: 23.04,
+		NotifiedParts: map[string]*float64{"lab1": f(11.04), "lab2": f(0), "exam": nil},
+		Parts:         map[string]*float64{"lab1": f(11.04), "lab2": f(12), "exam": nil},
+	})
+	for _, want := range []string{"📈 <b>Программирование</b>: 11,04 → <b>23,04</b> (+12)", "• Лаба 2: 0 → 12", "https://m3105.ru/grades?source=3"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("no %q in:\n%s", want, msg)
+		}
+	}
+	if strings.Contains(msg, "Лаба 1") || strings.Contains(msg, "Экзамен") {
+		t.Errorf("unchanged parts listed:\n%s", msg)
+	}
+}

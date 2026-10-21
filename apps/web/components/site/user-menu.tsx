@@ -4,6 +4,7 @@ import {
   ClipboardCheckIcon,
   LogInIcon,
   LogOutIcon,
+  TrophyIcon,
   UserRoundIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -100,6 +101,12 @@ export function UserMenu({ className }: { className?: string }) {
           <ClipboardCheckIcon className="size-4" />
           Сдачи
         </DropdownMenuItem>
+        {me.user.approved ? (
+          <DropdownMenuItem render={<Link href="/grades" />}>
+            <TrophyIcon className="size-4" />
+            Баллы
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onLogout} variant="destructive">
           <LogOutIcon className="size-4" />

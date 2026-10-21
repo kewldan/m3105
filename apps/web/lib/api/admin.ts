@@ -11,6 +11,9 @@ import type {
   EventInput,
   FAQInput,
   FAQItem,
+  GradeSource,
+  GradeSourceInput,
+  GradeSyncResult,
   Lab,
   LabInput,
   Note,
@@ -140,6 +143,13 @@ export const adminApi = {
     "/admin/subjects",
   ),
   labs: resource<Lab, LabInput>("/admin/labs"),
+  gradeSources: {
+    ...resource<GradeSource, GradeSourceInput>("/admin/grade-sources"),
+    sync: (id: number) =>
+      apiClient<GradeSyncResult>(`/admin/grade-sources/${id}/sync`, {
+        method: "POST",
+      }),
+  },
   events: resource<Event, EventInput>("/admin/events"),
   faq: resource<FAQItem, FAQInput>("/admin/faq"),
   pages: resource<Page, PageInput>("/admin/pages"),

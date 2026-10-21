@@ -120,6 +120,13 @@ export default function UsersPage() {
         ),
     },
     {
+      id: "isu",
+      header: "ИСУ",
+      sort: (r) => r.isu,
+      className: "tabular-nums",
+      cell: (r) => r.isu || <span className="text-muted-foreground">—</span>,
+    },
+    {
       id: "telegram",
       header: "Telegram",
       sort: (r) => r.telegramUsername || (r.telegramId ? "~" : "—"),

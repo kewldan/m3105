@@ -89,7 +89,11 @@ func (h *Handler) meBundle(r *http.Request, userID int64) (models.MeResponse, er
 	if err != nil {
 		return models.MeResponse{}, err
 	}
-	return models.MeResponse{User: user, CompletedLabIDs: completed, Signups: signups, Passkeys: passkeys}, nil
+	grades, err := h.myGrades(ctx, user.ISU)
+	if err != nil {
+		return models.MeResponse{}, err
+	}
+	return models.MeResponse{User: user, CompletedLabIDs: completed, Signups: signups, Passkeys: passkeys, Grades: grades}, nil
 }
 
 func (h *Handler) respondMe(w http.ResponseWriter, r *http.Request, userID int64) {
@@ -110,7 +114,7 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	h.respondMe(w, r, id)
 }
 
-// updateProfile lets students set their own first and last name.
+// updateProfile lets students set their own first and last name and ISU number.
 func (h *Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
 	id, _ := userauth.UserID(r.Context())
 	var in models.ProfileInput
@@ -122,10 +126,11 @@ func (h *Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	if err := h.store.SetDisplayName(r.Context(), id, in.DisplayName); err != nil {
+	if err := h.store.SetProfile(r.Context(), id, in.DisplayName, in.ISU); err != nil {
 		httpx.Fail(w, err)
 		return
 	}
+	h.linkGradesLater(r.Context())
 	h.respondMe(w, r, id)
 }
 
@@ -666,6 +671,7 @@ func (h *Handler) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
+	h.linkGradesLater(r.Context())
 	httpx.JSON(w, http.StatusOK, user)
 }
 

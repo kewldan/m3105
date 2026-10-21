@@ -57,6 +57,11 @@ type Config struct {
 	Files files.Config
 	// Превью картинок через imgproxy во внутренней сети; пусто — отдаются оригиналы.
 	Imgproxy files.ImgproxyConfig
+
+	// Баллы из Google-таблиц: адрес Google (в тестах — фейковый сервер) и
+	// фоновый синк по расписанию (выключать на всех инстансах, кроме одного).
+	SheetsURL  string
+	GradesSync bool
 }
 
 // Load reads configuration from the environment and validates required values.
@@ -93,6 +98,8 @@ func Load() (Config, error) {
 	cfg.DevLogin = getenvBool("DEV_LOGIN", cfg.Env != "production")
 	cfg.BotPoll = getenvBool("BOT_POLL", true)
 	cfg.BotDigestHour = getenvInt("BOT_DIGEST_HOUR", 10)
+	cfg.SheetsURL = strings.TrimRight(getenv("SHEETS_URL", "https://docs.google.com"), "/")
+	cfg.GradesSync = getenvBool("GRADES_SYNC", true)
 	if v := os.Getenv("ADMIN_CHAT_ID"); v != "" {
 		id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
 		if err != nil {

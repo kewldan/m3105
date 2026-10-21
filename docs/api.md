@@ -74,10 +74,11 @@
 | POST | `/auth/passkey/register/finish` | `{ challengeId, label?, credential }` |
 | POST | `/auth/passkey/login/begin` | `{ challengeId, options }` для discoverable-входа |
 | POST | `/auth/passkey/login/finish` | `{ challengeId, credential }` |
-| GET | `/auth/user/me` | `{ user, completedLabIds, signups, passkeys }` |
+| GET | `/auth/user/me` | `{ user, completedLabIds, signups, passkeys, grades }` |
 | POST | `/auth/user/logout` | |
 | PUT / DELETE | `/me/labs/{labId}/done` | отметить лабу сделанной / снять отметку |
-| PUT | `/me/profile` | `{ displayName }` — имя и фамилия (минимум два слова; пустая строка — снова имя из Telegram) |
+| PUT | `/me/profile` | `{ displayName, isu? }` — имя и фамилия (минимум два слова; пустая строка — снова имя из Telegram) и номер ИСУ (5–7 цифр; без поля не меняется, `""` — отвязать) |
+| GET | `/me/grades?source=` | рейтинг одного источника баллов (по умолчанию первого) — только подтверждённым; см. «Баллы» |
 | DELETE | `/me/passkeys/{id}` | |
 | GET | `/practice?subject=&past=1` | `{ sessions, now, signedIn }`; очередь (`queue`) видна всем, `availableLabs` — только вошедшим |
 | GET | `/practice/{id}` | одна сдача |
@@ -94,7 +95,7 @@
 
 Антиспам: один аккаунт может создать не больше 10 комментариев и постов за 12 часов, дальше 429 `rate_limited` (константы `socialWriteLimit` и `socialWriteWindow` в `api/social.go`).
 
-Админка: `GET /admin/users`, `PUT /admin/users/{id}` (`{ displayName, groupName, approved }` — имя и фамилия, группа, подтверждение), `DELETE /admin/users/{id}`, CRUD `/admin/practice`
+Админка: `GET /admin/users`, `PUT /admin/users/{id}` (`{ displayName, groupName, approved, isu? }` — имя и фамилия, группа, подтверждение, номер ИСУ), `DELETE /admin/users/{id}`, CRUD `/admin/practice`
 (сдачи: предмет, дата, аудитория, сколько защит примут за пару, заметка), `GET /admin/practice/{id}/signups`
 (`{ session, queue, queueManual, freezesAt, frozen }`), `PUT /admin/practice/{id}/signups/order`
 (`{ entries: [{ userId, labId }] }` — ручной порядок всех защит, дальше новые записи встают в конец),
@@ -118,6 +119,32 @@
 Модерация: `GET /admin/comments` (последние 200 с `targetTitle` и `targetPath`), `PUT /admin/comments/{id}`
 (`{ body, attachmentIds? }` — текст и файлы любого комментария), `DELETE /admin/comments/{id}`,
 `GET /admin/posts?kind=`, `PUT /admin/posts/{id}`, `DELETE /admin/posts/{id}` — админ правит и удаляет любые посты и комментарии.
+
+## Баллы
+
+Источник баллов (`grade_sources`) — Google-таблица, открытая по ссылке на просмотр: вкладки — группы,
+строки — студенты, столбцы ищутся по заголовкам (`nameColumn`, `idColumn`, `totalColumn`, `groupColumn`,
+разбивка `columns: [{ key, header, label, max }]`). API берёт список вкладок из HTML-вида таблицы
+(`/htmlview`), каждую вкладку — CSV-экспортом, вкладки без нужных заголовков или не подходящие под
+`tabPattern` пропускает. Синк (`internal/grades`) раз в `syncHours` целиком заменяет строки источника
+(`grade_rows`); при ошибке старые строки остаются, текст ошибки — в `syncError`, повтор через 30 минут.
+Фоновый синк выключается `GRADES_SYNC=false` (при нескольких инстансах API оставить на одном).
+
+Строка связывается с аккаунтом по номеру ИСУ (`users.isu`). Номер ставит студент в профиле, админ или
+автосопоставление после синка и после правки аккаунта: подтверждённому аккаунту без номера (`isu IS NULL`)
+достаётся номер строки, если все слова его имени есть в ФИО, группа совпадает и совпадение единственное
+с обеих сторон. Отвязанный вручную номер хранится как `''` и автоматически не возвращается.
+
+| Метод | Путь | Описание |
+| ----- | ---- | -------- |
+| GET | `/me/grades?source=` | `{ sources, source, rows, myGroup, linked }`: все строки источника (`name` — «Фамилия Имя», без номеров ИСУ), `user` — аккаунт на сайте, `me` — своя строка; места считает фронт |
+| — | `/auth/user/me` → `grades` | свои результаты по источникам с местами `course`, `inGroup`, `site` (среди привязанных аккаунтов) |
+| CRUD | `/admin/grade-sources` | `spreadsheet` принимает ссылку или id таблицы; в ответе `rowsCount`, `linkedCount`, `syncedAt`, `syncError` |
+| POST | `/admin/grade-sources/{id}/sync` | синхронизировать сейчас: `{ tabs, skipped, rows, linked }`, при ошибке 502 `sync_failed` |
+
+Бот сравнивает строки привязанных аккаунтов с тем, что студент видел в прошлый раз (`notified_total`,
+`notified_parts`), и пишет об изменении с разбивкой по столбцам; первый импорт строки уведомлением
+не считается. Команда `/grades` (кнопка «🎓 Баллы») — свои баллы и места.
 
 ## Вложения
 

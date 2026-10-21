@@ -116,10 +116,13 @@ func run(m *testing.M) int {
 	defer os.RemoveAll(testFileDir)
 	imgproxy := fakeImgproxy()
 	defer imgproxy.Close()
+	sheets := fakeSheets()
+	defer sheets.Close()
 	cfg := config.Config{PublicURL: "https://m3105.ru", CookieName: "edu_session", SessionTTL: time.Hour, LoginRateMax: 5, LoginRateWin: time.Minute,
 		UserCookieName: "edu_user", TelegramBotToken: testBotToken, TelegramBotUsername: "m3105_bot", RPID: "m3105.ru", RPOrigins: []string{"https://m3105.ru"}, DevLogin: true,
-		Files:    files.Config{Dir: testFileDir},
-		Imgproxy: files.ImgproxyConfig{URL: imgproxy.URL, Key: testImgproxyKey, Salt: testImgproxySalt}}
+		Files:     files.Config{Dir: testFileDir},
+		SheetsURL: sheets.URL,
+		Imgproxy:  files.ImgproxyConfig{URL: imgproxy.URL, Key: testImgproxyKey, Salt: testImgproxySalt}}
 	sessions := session.NewMemory()
 	au := auth.New(sessions, auth.Options{Password: testPassword, APIToken: testAPIToken, CookieName: cfg.CookieName, TTL: cfg.SessionTTL, RateMax: 5, RateWindow: time.Minute})
 	us, err := userauth.New(sessions, userauth.Options{CookieName: cfg.UserCookieName, TTL: cfg.SessionTTL, RPID: cfg.RPID, RPDisplayName: "М3105", RPOrigins: cfg.RPOrigins})

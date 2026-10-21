@@ -97,6 +97,9 @@ func main() {
 	}
 	st := store.New(pool)
 	handler := api.New(st, authSvc, userSvc, cfg, fileStore)
+	if cfg.GradesSync {
+		go handler.RunGradeSync(ctx)
+	}
 	if fileStore != nil {
 		go files.RunGC(ctx, st, fileStore)
 		go handler.BackfillAvatars(ctx)

@@ -24,8 +24,10 @@ type User struct {
 	TelegramID       *int64     `db:"telegram_id" json:"telegramId"`
 	TelegramUsername string     `db:"telegram_username" json:"telegramUsername"`
 	PhotoURL         string     `db:"photo_url" json:"photoUrl"`
-	CreatedAt        time.Time  `db:"created_at" json:"createdAt"`
-	LastLoginAt      time.Time  `db:"last_login_at" json:"lastLoginAt"`
+	// ISU is the university student number that links the account to score sheets.
+	ISU         string    `db:"isu" json:"isu"`
+	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+	LastLoginAt time.Time `db:"last_login_at" json:"lastLoginAt"`
 }
 
 // AdminUserInput is what an admin can change about an account.
@@ -33,11 +35,14 @@ type AdminUserInput struct {
 	DisplayName string `json:"displayName"`
 	GroupName   string `json:"groupName"`
 	Approved    bool   `json:"approved"`
+	// ISU is left as is when omitted; empty unlinks.
+	ISU *string `json:"isu"`
 }
 
 // Validate normalises and checks the payload.
 func (in *AdminUserInput) Validate() error {
 	ve := httpx.NewValidation()
+	validateISU(ve, in.ISU)
 	in.DisplayName = strings.Join(strings.Fields(in.DisplayName), " ")
 	in.GroupName = strings.TrimSpace(in.GroupName)
 	if n := len([]rune(in.DisplayName)); n > 80 {
@@ -57,11 +62,25 @@ func (in *AdminUserInput) Validate() error {
 // ProfileInput is what students can change about themselves.
 type ProfileInput struct {
 	DisplayName string `json:"displayName"`
+	// ISU is left as is when omitted; empty unlinks.
+	ISU *string `json:"isu"`
+}
+
+func validateISU(ve *httpx.ValidationError, isu *string) {
+	if isu == nil {
+		return
+	}
+	v, ok := NormalizeISU(*isu)
+	*isu = v
+	if !ok {
+		ve.Add("isu", "Номер ИСУ — от 5 до 7 цифр")
+	}
 }
 
 // Validate normalises and checks the payload. Empty resets to the Telegram name.
 func (in *ProfileInput) Validate() error {
 	ve := httpx.NewValidation()
+	validateISU(ve, in.ISU)
 	in.DisplayName = strings.Join(strings.Fields(in.DisplayName), " ")
 	switch n := len([]rune(in.DisplayName)); {
 	case n > 80:
@@ -92,10 +111,7 @@ func (u User) Public() PublicUser {
 // SameGroup compares group names ignoring case, spaces and a Latin "M" typed
 // instead of the Cyrillic "М".
 func SameGroup(a, b string) bool {
-	norm := func(s string) string {
-		return strings.ReplaceAll(strings.ToUpper(strings.Join(strings.Fields(s), "")), "M", "М")
-	}
-	return norm(a) != "" && norm(a) == norm(b)
+	return NormalizeGroup(a) != "" && NormalizeGroup(a) == NormalizeGroup(b)
 }
 
 // AdminUser adds activity counters for the admin panel.
@@ -265,4 +281,5 @@ type MeResponse struct {
 	CompletedLabIDs []int64    `json:"completedLabIds"`
 	Signups         []MySignup `json:"signups"`
 	Passkeys        []Passkey  `json:"passkeys"`
+	Grades          []MyGrade  `json:"grades"`
 }

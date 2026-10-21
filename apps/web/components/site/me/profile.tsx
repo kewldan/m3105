@@ -23,6 +23,8 @@ import { toast } from "sonner";
 import { PendingNotice } from "@/components/site/auth/pending-notice";
 import { EmptyState } from "@/components/site/empty-state";
 import { DoneToggle } from "@/components/site/labs/done-toggle";
+import { ProfileCard as Card } from "@/components/site/me/card";
+import { GradesCard } from "@/components/site/me/grades-card";
 import { NameDialog } from "@/components/site/me/name-dialog";
 import { Stagger, StaggerItem } from "@/components/site/motion";
 import { SubjectBadge } from "@/components/site/subject-badge";
@@ -65,39 +67,11 @@ import {
   fmtTime,
   plural,
 } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 function message(err: unknown): string {
   if (err instanceof PasskeyCancelled) return err.message;
   if (err instanceof ApiError) return err.message;
   return "Что-то пошло не так";
-}
-
-function Card({
-  title,
-  icon: Icon,
-  action,
-  children,
-  className,
-}: {
-  title: string;
-  icon: typeof KeyRoundIcon;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <section className={cn("rounded-2xl border bg-card p-4 sm:p-5", className)}>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold">
-          <Icon className="size-4 text-primary" aria-hidden />
-          {title}
-        </h2>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
 }
 
 /** Signed-in student's profile: name, passkeys, completed labs, signups. */
@@ -257,7 +231,11 @@ export function Profile({
         </section>
       </StaggerItem>
 
-      {me.user.approved ? null : (
+      {me.user.approved ? (
+        <StaggerItem className="lg:col-span-3">
+          <GradesCard me={me} onSaved={setMe} />
+        </StaggerItem>
+      ) : (
         <StaggerItem className="lg:col-span-3">
           <PendingNotice />
         </StaggerItem>

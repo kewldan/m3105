@@ -3,6 +3,8 @@ package bot
 import (
 	"fmt"
 	"html"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -210,4 +212,84 @@ func userCard(site string, u models.User, status string) string {
 	b.WriteString("\n" + status)
 	fmt.Fprintf(&b, "\n\n<a href=\"%s/admin/users\">Открыть «Студентов» в админке</a>", strings.TrimRight(site, "/"))
 	return b.String()
+}
+
+// fmtScore prints 11.04 as "11,04" and 12 as "12".
+func fmtScore(v float64) string {
+	return strings.ReplaceAll(strconv.FormatFloat(math.Round(v*100)/100, 'f', -1, 64), ".", ",")
+}
+
+func fmtPart(v *float64) string {
+	if v == nil {
+		return "—"
+	}
+	return fmtScore(*v)
+}
+
+func gradesURL(site string, sourceID int64) string {
+	return fmt.Sprintf("%s/grades?source=%d", strings.TrimRight(site, "/"), sourceID)
+}
+
+func gradeTitle(title, subject string) string {
+	if title != "" {
+		return title
+	}
+	return subject
+}
+
+// gradeChangeMessage tells a student their score moved, part by part.
+func gradeChangeMessage(site string, c store.GradeChange) string {
+	var sb strings.Builder
+	diff := c.Total - c.NotifiedTotal
+	icon, sign := "📈", "+"
+	if diff < 0 {
+		icon, sign = "📉", "−"
+	}
+	fmt.Fprintf(&sb, "%s <b>%s</b>: %s → <b>%s</b>", icon, esc(gradeTitle(c.Title, c.SubjectName)), fmtScore(c.NotifiedTotal), fmtScore(c.Total))
+	if math.Abs(diff) >= 0.005 {
+		fmt.Fprintf(&sb, " (%s%s)", sign, fmtScore(math.Abs(diff)))
+	}
+	sb.WriteString("\n")
+	for _, col := range c.Columns {
+		before, after := c.NotifiedParts[col.Key], c.Parts[col.Key]
+		if fmtPart(before) == fmtPart(after) {
+			continue
+		}
+		fmt.Fprintf(&sb, "• %s: %s → %s\n", esc(col.Label), fmtPart(before), fmtPart(after))
+	}
+	fmt.Fprintf(&sb, "\n<a href=\"%s\">Рейтинг и разбивка на сайте</a>", gradesURL(site, c.SourceID))
+	return sb.String()
+}
+
+// gradeLine is one subject in the /grades answer.
+type gradeLine struct {
+	Source models.GradeSource
+	Row    store.MyGradeRow
+}
+
+func gradesMessage(site string, lines []gradeLine, linked bool) string {
+	root := strings.TrimRight(site, "/")
+	if !linked {
+		return "🎓 Баллы видны, когда к аккаунту привязан номер ИСУ: <a href=\"" + root + "/me\">укажи его в профиле</a>.\n\nАккаунт на сайте создаётся входом через Telegram."
+	}
+	if len(lines) == 0 {
+		return "🎓 Пока ни в одной таблице с баллами нет строки с твоим номером ИСУ. Проверить номер: <a href=\"" + root + "/me\">профиль</a>."
+	}
+	var sb strings.Builder
+	sb.WriteString("🎓 <b>Твои баллы</b>\n")
+	for _, l := range lines {
+		fmt.Fprintf(&sb, "\n<b>%s</b> — %s из %s (%s)\n", esc(l.Source.Label()), fmtScore(l.Row.Total), fmtScore(l.Source.MaxTotal), models.Letter(l.Row.Total, l.Source.MaxTotal))
+		fmt.Fprintf(&sb, "Место: %d из %d в группе, %d из %d на курсе\n", l.Row.GroupRank, l.Row.GroupSize, l.Row.CourseRank, l.Row.CourseSize)
+		var parts []string
+		for _, col := range l.Source.Columns {
+			if v := l.Row.Parts[col.Key]; v != nil {
+				parts = append(parts, esc(col.Label)+": "+fmtScore(*v))
+			}
+		}
+		if len(parts) > 0 {
+			sb.WriteString(strings.Join(parts, " · ") + "\n")
+		}
+	}
+	sb.WriteString("\n<a href=\"" + root + "/grades\">Рейтинг на сайте</a>")
+	return sb.String()
 }

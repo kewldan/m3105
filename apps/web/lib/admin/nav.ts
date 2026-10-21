@@ -14,6 +14,7 @@ import {
   PaperclipIcon,
   SearchIcon,
   SettingsIcon,
+  TrophyIcon,
   UsersIcon,
 } from "lucide-react";
 
@@ -40,6 +41,7 @@ export const ADMIN_NAV: NavItem[] = [
   { title: "Страницы", href: "/admin/pages", icon: FileTextIcon },
   { title: "Файлы", href: "/admin/files", icon: PaperclipIcon },
   { title: "Студенты", href: "/admin/users", icon: UsersIcon },
+  { title: "Баллы", href: "/admin/grades", icon: TrophyIcon },
   { title: "Посты", href: "/admin/posts", icon: NewspaperIcon },
   { title: "Комментарии", href: "/admin/comments", icon: MessageCircleIcon },
   { title: "Поиск", href: "/admin/search", icon: SearchIcon },

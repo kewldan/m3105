@@ -52,6 +52,7 @@ var commands = []Command{
 	{Command: "start", Description: "Меню и подписка на уведомления"},
 	{Command: "deadlines", Description: "Ближайшие дедлайны несданных лаб"},
 	{Command: "labs", Description: "Все лабы семестра"},
+	{Command: "grades", Description: "Мои баллы и место в рейтинге"},
 	{Command: "notify", Description: "Включить или выключить уведомления"},
 	{Command: "help", Description: "Что умеет бот"},
 }
@@ -60,12 +61,13 @@ const (
 	btnDeadlines = "📅 Дедлайны"
 	btnLabs      = "🧪 Лабы"
 	btnNotify    = "🔔 Уведомления"
+	btnGrades    = "🎓 Баллы"
 	btnSite      = "🌐 Сайт"
 )
 
 var menu = map[string]any{
 	"keyboard": [][]map[string]string{
-		{{"text": btnDeadlines}, {"text": btnLabs}},
+		{{"text": btnDeadlines}, {"text": btnLabs}, {"text": btnGrades}},
 		{{"text": btnNotify}, {"text": btnSite}},
 	},
 	"resize_keyboard": true,
@@ -137,6 +139,8 @@ func (b *Bot) handle(ctx context.Context, m *Message) {
 		err = b.deadlines(ctx, m.Chat.ID, m.From.ID)
 	case "/labs", btnLabs:
 		err = b.labs(ctx, m.Chat.ID, m.From.ID)
+	case "/grades", btnGrades:
+		err = b.grades(ctx, m.Chat.ID, m.From.ID)
 	case "/notify", btnNotify:
 		err = b.toggle(ctx, m)
 	case "/help":
@@ -156,6 +160,7 @@ func helpText(site string) string {
 		"• Сообщает о новых лабах сразу после публикации.\n" +
 		"• Каждое утро напоминает о несданных лабах, у которых дедлайн в ближайшие дни.\n" +
 		"• /deadlines — дедлайны несданных лаб, /labs — все лабы семестра.\n" +
+		"• /grades — баллы и место в рейтинге; когда баллы в таблице меняются, бот пишет сам.\n" +
 		"• /notify — включить или выключить уведомления.\n\n" +
 		"Если войти на <a href=\"" + strings.TrimRight(site, "/") + "/login\">сайте</a> через Telegram и отмечать сданные лабы, бот перестанет напоминать о них."
 }
@@ -256,6 +261,7 @@ func (b *Bot) schedule(ctx context.Context) {
 	for {
 		b.announceNewLabs(ctx)
 		b.sendDigests(ctx)
+		b.notifyGrades(ctx)
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
@@ -341,4 +347,45 @@ func (b *Bot) send(ctx context.Context, chatID int64, msg string) bool {
 	}
 	b.log.Warn("send", "chat", chatID, "err", err)
 	return false
+}
+
+func (b *Bot) grades(ctx context.Context, chatID, telegramID int64) error {
+	isu, err := b.store.GetUserISUByTelegramID(ctx, telegramID)
+	if err != nil && !errors.Is(err, httpx.ErrNotFound) {
+		return err
+	}
+	rows, err := b.store.ListGradesByISU(ctx, isu)
+	if err != nil {
+		return err
+	}
+	sources, err := b.store.ListGradeSources(ctx, true)
+	if err != nil {
+		return err
+	}
+	var lines []gradeLine
+	for _, r := range rows {
+		for _, s := range sources {
+			if s.ID == r.SourceID {
+				lines = append(lines, gradeLine{Source: s, Row: r})
+			}
+		}
+	}
+	return b.api.SendHTML(ctx, chatID, gradesMessage(b.opts.SiteURL, lines, isu != ""), SendOptions{ReplyMarkup: menu, DisablePreview: true})
+}
+
+// notifyGrades tells students about score changes found by the last sync.
+func (b *Bot) notifyGrades(ctx context.Context) {
+	changes, err := b.store.ListGradeChanges(ctx)
+	if err != nil {
+		b.log.Warn("grade changes", "err", err)
+		return
+	}
+	for _, c := range changes {
+		// Mark first, like lab announcements: a crash must not repeat the message.
+		if err := b.store.MarkGradeNotified(ctx, c.SourceID, c.RowKey, c.Total, c.Parts); err != nil {
+			b.log.Warn("mark grade notified", "source", c.SourceID, "err", err)
+			continue
+		}
+		b.send(ctx, c.ChatID, gradeChangeMessage(b.opts.SiteURL, c))
+	}
 }

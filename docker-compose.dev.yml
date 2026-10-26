@@ -33,7 +33,7 @@ services:
 
   # Превью картинок для `make api`: IMGPROXY_URL=http://localhost:8081 в apps/api/.env.
   imgproxy:
-    image: ghcr.io/imgproxy/imgproxy:v4.0.15
+    image: ghcr.io/imgproxy/imgproxy:v4.0.19
     environment:
       IMGPROXY_KEY: 6465762d6b6579
       IMGPROXY_SALT: 6465762d73616c74

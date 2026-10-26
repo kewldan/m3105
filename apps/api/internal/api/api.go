@@ -18,6 +18,7 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/bot"
 	"github.com/kewldan/edu3105/apps/api/internal/buildinfo"
 	"github.com/kewldan/edu3105/apps/api/internal/config"
+	"github.com/kewldan/edu3105/apps/api/internal/cpplint"
 	"github.com/kewldan/edu3105/apps/api/internal/files"
 	"github.com/kewldan/edu3105/apps/api/internal/grades"
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
@@ -46,6 +47,8 @@ type Handler struct {
 	notify *bot.Notifier
 	// grades copies score sheets; also used for a manual sync from the admin panel.
 	grades *grades.Syncer
+	// cpp checks C++ style; nil when neither the service nor local tools are available.
+	cpp cpplint.Service
 }
 
 // New constructs the handler set. fs may be nil: uploads then answer 503.
@@ -66,7 +69,25 @@ func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.
 		admin:       bot.NewAdminNotifier(cfg.TelegramBotToken, cfg.AdminChatID, cfg.PublicURL),
 		notify:      bot.NewNotifier(cfg.TelegramBotToken, cfg.PublicURL),
 		grades:      grades.NewSyncer(st, &grades.Fetcher{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: cfg.SheetsURL}),
+		cpp:         newCppService(cfg),
 	}
+}
+
+// newCppService picks the remote checker, or local tools outside production:
+// in production the tools must not run next to the API's secrets.
+func newCppService(cfg config.Config) cpplint.Service {
+	if cfg.CppLintURL != "" {
+		return cpplint.NewClient(cfg.CppLintURL)
+	}
+	if cfg.Env == "production" {
+		return nil
+	}
+	c, err := cpplint.Find(2)
+	if err != nil {
+		slog.Debug("cpp check disabled", "err", err)
+		return nil
+	}
+	return c
 }
 
 // healthz answers liveness checks and tells which commit is deployed.
@@ -107,6 +128,7 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/quizzes", h.listQuizzes)
 		r.Get("/quizzes/{slug}", h.getQuiz)
 		r.Get("/search", h.search)
+		r.Post("/cpp/check", h.checkCpp)
 		r.Get("/practice", h.listPractice)
 		r.Get("/practice/{id}", h.getPractice)
 		r.With(userauth.Require, h.requireApproved).Put("/practice/{id}/signups", h.setPracticeSignup)

@@ -80,6 +80,8 @@ services:
       IMGPROXY_URL: http://imgproxy:8080
       IMGPROXY_KEY: ${IMGPROXY_KEY:?set IMGPROXY_KEY in .env}
       IMGPROXY_SALT: ${IMGPROXY_SALT:?set IMGPROXY_SALT in .env}
+      # Проверка C++ на странице /cpp.
+      CPPLINT_URL: http://cpplint:8080
       TZ: ${TZ:-Europe/Moscow}
     expose:
       - 8080
@@ -92,6 +94,31 @@ services:
         condition: service_healthy
     networks:
       - backends
+      - cpplint
+
+  # Проверка C++ (clang-format + clang-tidy по Google Style) для страницы /cpp.
+  # Инструменты разбирают чужой код и цитируют прочитанные файлы, поэтому
+  # контейнер пустой: без секретов, без записи на диск, кроме /tmp, и в
+  # отдельной внутренней сети без выхода наружу, где его видит только api.
+  cpplint:
+    image: ghcr.io/kewldan/m3105/cpplint:${IMAGE_TAG:-latest}
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.cpplint
+    restart: unless-stopped
+    environment:
+      CPPLINT_PARALLEL: "2"
+    expose:
+      - 8080
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    pids_limit: 64
+    networks:
+      - cpplint
 
   postgres:
     image: postgres:18-alpine
@@ -212,6 +239,8 @@ services:
 
 networks:
   backends:
+  cpplint:
+    internal: true
   virtual-hosts:
     external: true
 

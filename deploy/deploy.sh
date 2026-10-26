@@ -16,7 +16,7 @@ git clean -fdq
 
 echo "→ тяну образы"
 export IMAGE_TAG
-docker compose pull --quiet web api backup
+docker compose pull --quiet web api backup cpplint
 
 echo "→ поднимаю стек"
 docker compose up -d --remove-orphans

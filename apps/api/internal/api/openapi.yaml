@@ -41,6 +41,8 @@ tags:
     description: Занятия, на которых принимают лабы
   - name: social
     description: Комментарии студентов к конспектам, лабам и постам; ленты «Шаверма» и «Анекдоты»
+  - name: tools
+    description: Инструменты для студентов — проверка C++ по Google Style
   - name: files
     description: Вложения — картинки и файлы в конспектах, лабах, комментариях и постах
 
@@ -341,6 +343,31 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/SearchResult" }
+        "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /cpp/check:
+    post:
+      tags: [tools]
+      summary: Проверка C++ по Google C++ Style Guide
+      description: |
+        Один файл `main.cc`, компилируется как `-std=c++20 -Wall -Wextra`. Возвращает код после
+        `clang-format --style=Google` и замечания `clang-tidy` (проверки `google-*`, имена по Google,
+        `bugprone-*`, `performance-*`, `modernize-*` и др.) плюс строки, которые поменял бы clang-format.
+        Подключать можно только стандартные заголовки: абсолютные пути, `..`, имена из макросов
+        и `#embed` отклоняются (422 `forbidden_include`). Код до 64 КБ (413 `too_large`).
+        Не чаще раза в 2 секунды с одного IP (429).
+      operationId: checkCpp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CppCheckInput" }
+      responses:
+        "200":
+          description: Результат проверки
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CppCheckResult" }
         "4XX": { $ref: "#/components/responses/ClientError" }
 
   /practice:
@@ -1075,6 +1102,52 @@ components:
           items: { type: string }
           description: Файлы поста по порядку. При обновлении без поля файлы не меняются, пустой список убирает все
       required: [kind, body]
+
+    CppCheckInput:
+      type: object
+      properties:
+        code: { type: string, maxLength: 65536 }
+      required: [code]
+
+    CppCheckResult:
+      type: object
+      properties:
+        formatted: { type: string, description: Код после clang-format --style=Google }
+        diagnostics:
+          type: array
+          description: Замечания по порядку строк
+          items: { $ref: "#/components/schemas/CppDiagnostic" }
+        version: { type: string, description: "Версия clang-tidy, например `LLVM version 19.1.7`" }
+      required: [formatted, diagnostics, version]
+
+    CppDiagnostic:
+      type: object
+      description: Замечание. Строки и столбцы с 1, столбцы в UTF-16, как в редакторе браузера
+      properties:
+        line: { type: integer }
+        column: { type: integer }
+        endLine: { type: integer }
+        endColumn: { type: integer }
+        severity: { type: string, enum: [error, warning, info] }
+        message: { type: string, description: Текст clang-tidy (на английском) }
+        check:
+          type: string
+          description: Имя проверки clang-tidy, `clang-format` или пусто у ошибки компиляции
+        fixes:
+          type: array
+          description: Исправление, которое предлагает clang-tidy; пусто, если его нет
+          items: { $ref: "#/components/schemas/CppEdit" }
+      required: [line, column, endLine, endColumn, severity, message, check, fixes]
+
+    CppEdit:
+      type: object
+      properties:
+        line: { type: integer }
+        column: { type: integer }
+        endLine: { type: integer }
+        endColumn: { type: integer }
+        text: { type: string }
+      required: [line, column, endLine, endColumn, text]
 
     Attachment:
       type: object

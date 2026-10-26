@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+# Проверка C++ для страницы /cpp: clang-format и clang-tidy из Debian плюс
+# заголовки libstdc++. Живёт в отдельном контейнере без секретов и без выхода
+# в интернет, потому что разбирает чужой код (см. internal/cpplint).
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/cpplint ./cmd/cpplint
+
+FROM debian:trixie-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends clang-format clang-tidy libstdc++-14-dev \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/cpplint /cpplint
+ENV ADDR=:8080
+EXPOSE 8080
+USER 65532:65532
+ENTRYPOINT ["/cpplint"]

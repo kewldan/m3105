@@ -40,6 +40,9 @@ jobs:
           - image: backup
             context: deploy/backup
             dockerfile: deploy/backup/Dockerfile
+          - image: cpplint
+            context: apps/api
+            dockerfile: apps/api/Dockerfile.cpplint
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4

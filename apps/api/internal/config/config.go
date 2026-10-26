@@ -62,6 +62,10 @@ type Config struct {
 	// фоновый синк по расписанию (выключать на всех инстансах, кроме одного).
 	SheetsURL  string
 	GradesSync bool
+
+	// Проверка C++ на странице /cpp: адрес сервиса cmd/cpplint. Пусто — вне
+	// production clang-format и clang-tidy запускаются прямо из API, если найдены.
+	CppLintURL string
 }
 
 // Load reads configuration from the environment and validates required values.
@@ -100,6 +104,7 @@ func Load() (Config, error) {
 	cfg.BotDigestHour = getenvInt("BOT_DIGEST_HOUR", 10)
 	cfg.SheetsURL = strings.TrimRight(getenv("SHEETS_URL", "https://docs.google.com"), "/")
 	cfg.GradesSync = getenvBool("GRADES_SYNC", true)
+	cfg.CppLintURL = strings.TrimRight(os.Getenv("CPPLINT_URL"), "/")
 	if v := os.Getenv("ADMIN_CHAT_ID"); v != "" {
 		id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
 		if err != nil {

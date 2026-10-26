@@ -25,6 +25,7 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/api"
 	"github.com/kewldan/edu3105/apps/api/internal/auth"
 	"github.com/kewldan/edu3105/apps/api/internal/config"
+	"github.com/kewldan/edu3105/apps/api/internal/cpplint"
 	"github.com/kewldan/edu3105/apps/api/internal/db"
 	"github.com/kewldan/edu3105/apps/api/internal/files"
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
@@ -118,11 +119,14 @@ func run(m *testing.M) int {
 	defer imgproxy.Close()
 	sheets := fakeSheets()
 	defer sheets.Close()
+	cpp := httptest.NewServer(cpplint.Server(fakeCpp{}))
+	defer cpp.Close()
 	cfg := config.Config{PublicURL: "https://m3105.ru", CookieName: "edu_session", SessionTTL: time.Hour, LoginRateMax: 5, LoginRateWin: time.Minute,
 		UserCookieName: "edu_user", TelegramBotToken: testBotToken, TelegramBotUsername: "m3105_bot", RPID: "m3105.ru", RPOrigins: []string{"https://m3105.ru"}, DevLogin: true,
-		Files:     files.Config{Dir: testFileDir},
-		SheetsURL: sheets.URL,
-		Imgproxy:  files.ImgproxyConfig{URL: imgproxy.URL, Key: testImgproxyKey, Salt: testImgproxySalt}}
+		Files:      files.Config{Dir: testFileDir},
+		SheetsURL:  sheets.URL,
+		CppLintURL: cpp.URL,
+		Imgproxy:   files.ImgproxyConfig{URL: imgproxy.URL, Key: testImgproxyKey, Salt: testImgproxySalt}}
 	sessions := session.NewMemory()
 	au := auth.New(sessions, auth.Options{Password: testPassword, APIToken: testAPIToken, CookieName: cfg.CookieName, TTL: cfg.SessionTTL, RateMax: 5, RateWindow: time.Minute})
 	us, err := userauth.New(sessions, userauth.Options{CookieName: cfg.UserCookieName, TTL: cfg.SessionTTL, RPID: cfg.RPID, RPDisplayName: "М3105", RPOrigins: cfg.RPOrigins})

@@ -457,6 +457,42 @@ export type PostInput = {
   attachmentIds?: string[];
 };
 
+export type CppCheckInput = {
+  code: string;
+};
+
+export type CppCheckResult = {
+  /** Код после clang-format --style=Google */
+  formatted: string;
+  /** Замечания по порядку строк */
+  diagnostics: CppDiagnostic[];
+  /** Версия clang-tidy, например `LLVM version 19.1.7` */
+  version: string;
+};
+
+/** Замечание. Строки и столбцы с 1, столбцы в UTF-16, как в редакторе браузера */
+export type CppDiagnostic = {
+  line: number;
+  column: number;
+  endLine: number;
+  endColumn: number;
+  severity: "error" | "warning" | "info";
+  /** Текст clang-tidy (на английском) */
+  message: string;
+  /** Имя проверки clang-tidy, `clang-format` или пусто у ошибки компиляции */
+  check: string;
+  /** Исправление, которое предлагает clang-tidy; пусто, если его нет */
+  fixes: CppEdit[];
+};
+
+export type CppEdit = {
+  line: number;
+  column: number;
+  endLine: number;
+  endColumn: number;
+  text: string;
+};
+
 /** Вложение — картинка или файл */
 export type Attachment = {
   id: string;

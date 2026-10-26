@@ -173,7 +173,7 @@ export function SwapMenu({
       <DropdownMenuContent align="end" className="min-w-56">
         <DropdownMenuGroup>
           <DropdownMenuLabel>
-            Обмен с {entry.user.name} (место {target})
+            Поменяться: {entry.user.name}, место {target}
           </DropdownMenuLabel>
           {mine.map(({ e, place }) => (
             <DropdownMenuItem

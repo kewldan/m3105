@@ -57,7 +57,9 @@ export function fmtScore(v: number | null | undefined): string {
 export type RankedEntry = GradeEntry & { rank: number };
 
 /** Competition ranking ("1, 2, 2, 4") over rows sorted best first. */
-export function rank(rows: GradeEntry[]): RankedEntry[] {
+export function rank<T extends GradeEntry>(
+  rows: T[],
+): (T & { rank: number })[] {
   const sorted = [...rows].sort(
     (a, b) => b.total - a.total || a.name.localeCompare(b.name, "ru"),
   );

@@ -1,6 +1,13 @@
 "use client";
 
-import { CrosshairIcon, SearchIcon, TrophyIcon, UsersIcon } from "lucide-react";
+import {
+  CrosshairIcon,
+  LogInIcon,
+  SearchIcon,
+  TrophyIcon,
+  UsersIcon,
+} from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -45,6 +52,12 @@ import { subjectColor } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
 
 type Scope = "group" | "course" | "site" | "groups";
+
+/**
+ * A row with its index in the response: names repeat (two «Иванов Иван» in
+ * one group), so the index is the only stable key.
+ */
+type Row = RankedEntry & { key: number };
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -157,18 +170,17 @@ function RatingList({
   rows,
   source,
 }: {
-  rows: RankedEntry[];
+  rows: Row[];
   source: GradeSourceSummary;
 }) {
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
   return (
     <ol className="divide-y overflow-hidden rounded-xl border bg-card">
       {rows.map((r) => {
-        const key = `${r.group}:${r.name}`;
-        const expanded = open === key;
+        const expanded = open === r.key;
         return (
           <li
-            key={key}
+            key={r.key}
             id={r.me ? "my-row" : undefined}
             className={cn(
               "scroll-mt-24",
@@ -179,7 +191,7 @@ function RatingList({
               type="button"
               className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50 sm:px-4"
               aria-expanded={expanded}
-              onClick={() => setOpen(expanded ? null : key)}
+              onClick={() => setOpen(expanded ? null : r.key)}
             >
               <span className="w-8 shrink-0 text-center text-sm tabular-nums text-muted-foreground">
                 {MEDALS[r.rank - 1] ?? r.rank}
@@ -400,14 +412,15 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
       ? "course"
       : pickedScope;
 
-  const course = useMemo(() => rank(data.rows), [data.rows]);
-  const site = useMemo(
-    () => rank(data.rows.filter((r) => r.user)),
+  const rows = useMemo(
+    () => data.rows.map((r, key) => ({ ...r, key })),
     [data.rows],
   );
+  const course = useMemo(() => rank(rows), [rows]);
+  const site = useMemo(() => rank(rows.filter((r) => r.user)), [rows]);
   const group = useMemo(
-    () => rank(data.rows.filter((r) => r.group === myGroup)),
-    [data.rows, myGroup],
+    () => rank(rows.filter((r) => r.group === myGroup)),
+    [rows, myGroup],
   );
   const groups = useMemo(
     () => (source ? groupStats(data.rows, source.maxTotal) : []),
@@ -510,7 +523,24 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
           </p>
           <IsuForm me={ctxMe} onSaved={onLinked} />
         </section>
-      ) : null}
+      ) : (
+        <section className="flex flex-col gap-3 rounded-2xl border border-dashed p-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground text-pretty">
+            Войдите через Telegram и укажите номер ИСУ: подсветим вашу строку,
+            покажем место в группе и на курсе, а бот напишет, когда баллы
+            изменятся.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            render={<Link href="/login?next=%2Fgrades" />}
+          >
+            <LogInIcon data-icon="inline-start" />
+            Войти
+          </Button>
+        </section>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
@@ -604,7 +634,7 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
           className="py-8"
         />
       ) : (
-        <RatingList rows={visible} source={source} />
+        <RatingList key={source.id} rows={visible} source={source} />
       )}
 
       <p className="text-xs text-muted-foreground">

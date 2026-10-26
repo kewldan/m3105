@@ -5,7 +5,7 @@ info:
   summary: Публичное API сайта группы М3105
   description: |
     Публичные эндпоинты сайта группы: предметы, лабораторные с дедлайнами, календарь и ICS-фид,
-    конспекты, квизы, ЧаВо, статические страницы, поиск и расписание сдач.
+    конспекты, квизы, ЧаВо, статические страницы, поиск, расписание сдач и рейтинг по баллам.
 
     Все ответы в JSON (кроме `/calendar.ics` и файлов `/files/*`), время в RFC 3339 с таймзоной, даты без времени в формате `YYYY-MM-DD`.
     Возвращаются только опубликованные материалы. Авторизация для этих эндпоинтов не нужна.
@@ -39,6 +39,8 @@ tags:
     description: Поиск по опубликованному
   - name: practice
     description: Занятия, на которых принимают лабы
+  - name: grades
+    description: Баллы из таблиц преподавателей
   - name: social
     description: Комментарии студентов к конспектам, лабам и постам; ленты «Шаверма» и «Анекдоты»
   - name: tools
@@ -369,6 +371,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CppCheckResult" }
         "4XX": { $ref: "#/components/responses/ClientError" }
+
+  /grades:
+    get:
+      tags: [grades]
+      summary: Рейтинг по баллам
+      description: |
+        Все строки одного источника баллов (Google-таблицы преподавателя), по умолчанию первого; правила синка — в `docs/api.md`.
+        Имена — «Фамилия Имя», номера ИСУ наружу не отдаются, места фронт считает сам.
+        Со студенческой кукой `edu_user` своя строка помечена `me`, а `myGroup` — группа студента;
+        без неё `myGroup` — группа сайта. Таблицы одной группы (`membersOnly`) видят только те, кто в них есть.
+      operationId: getGrades
+      parameters:
+        - name: source
+          in: query
+          schema: { type: integer }
+          description: id источника из `sources`; неизвестный — первый
+      responses:
+        "200":
+          description: Рейтинг
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GradesResponse" }
 
   /practice:
     get:
@@ -1032,6 +1056,64 @@ components:
         createdAt: { $ref: "#/components/schemas/DateTime" }
         incoming: { type: boolean, description: "Запрос адресован вошедшему студенту" }
       required: [id, fromUserId, fromLabId, toUserId, toLabId, createdAt, incoming]
+
+    GradeColumn:
+      type: object
+      properties:
+        key: { type: string, description: "Ключ части в `GradeEntry.parts`" }
+        label: { type: string }
+        max: { type: number, description: "Сколько часть даёт максимум; 0 — неизвестно" }
+      required: [key, label, max]
+
+    GradeSourceSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        subjectSlug: { type: string }
+        subjectName: { type: string }
+        subjectColor: { $ref: "#/components/schemas/SubjectColor" }
+        subjectIcon: { type: string }
+        maxTotal: { type: number }
+        columns:
+          type: array
+          items: { $ref: "#/components/schemas/GradeColumn" }
+        syncedAt: { oneOf: [{ $ref: "#/components/schemas/DateTime" }, { type: "null" }] }
+        membersOnly: { type: boolean, description: "Таблица одной группы (английский): места внутри неё, без учебных групп" }
+      required: [id, title, subjectSlug, subjectName, subjectColor, subjectIcon, maxTotal, columns, syncedAt, membersOnly]
+
+    GradeEntry:
+      type: object
+      properties:
+        name: { type: string, description: "«Фамилия Имя» из таблицы" }
+        group: { type: string }
+        total: { type: number }
+        parts:
+          type: object
+          description: Баллы по столбцам `columns`; столбца нет на вкладке — ключа нет, пустая ячейка — `null`
+          additionalProperties: { oneOf: [{ type: number }, { type: "null" }] }
+        changedAt: { $ref: "#/components/schemas/DateTime" }
+        user:
+          description: Аккаунт на сайте, к которому привязана строка
+          oneOf: [{ $ref: "#/components/schemas/PublicUser" }, { type: "null" }]
+        me: { type: boolean, description: Строка текущего студента }
+      required: [name, group, total, parts, changedAt, user, me]
+
+    GradesResponse:
+      type: object
+      properties:
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/GradeSourceSummary" }
+        source:
+          description: Выбранный источник; `null`, если источников нет
+          oneOf: [{ $ref: "#/components/schemas/GradeSourceSummary" }, { type: "null" }]
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/GradeEntry" }
+        myGroup: { type: string, description: "Группа, с которой открыть рейтинг" }
+        linked: { type: boolean, description: "У аккаунта указан номер ИСУ" }
+      required: [sources, source, rows, myGroup, linked]
 
     PracticeListResponse:
       type: object

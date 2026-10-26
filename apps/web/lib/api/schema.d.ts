@@ -397,6 +397,53 @@ export type PracticeSwap = {
   incoming: boolean;
 };
 
+export type GradeColumn = {
+  /** Ключ части в `GradeEntry.parts` */
+  key: string;
+  label: string;
+  /** Сколько часть даёт максимум; 0 — неизвестно */
+  max: number;
+};
+
+export type GradeSourceSummary = {
+  id: number;
+  title: string;
+  subjectSlug: string;
+  subjectName: string;
+  subjectColor: SubjectColor;
+  subjectIcon: string;
+  maxTotal: number;
+  columns: GradeColumn[];
+  syncedAt: DateTime | null;
+  /** Таблица одной группы (английский): места внутри неё, без учебных групп */
+  membersOnly: boolean;
+};
+
+export type GradeEntry = {
+  /** «Фамилия Имя» из таблицы */
+  name: string;
+  group: string;
+  total: number;
+  /** Баллы по столбцам `columns`; столбца нет на вкладке — ключа нет, пустая ячейка — `null` */
+  parts: Record<string, number | null>;
+  changedAt: DateTime;
+  /** Аккаунт на сайте, к которому привязана строка */
+  user: PublicUser | null;
+  /** Строка текущего студента */
+  me: boolean;
+};
+
+export type GradesResponse = {
+  sources: GradeSourceSummary[];
+  /** Выбранный источник; `null`, если источников нет */
+  source: GradeSourceSummary | null;
+  rows: GradeEntry[];
+  /** Группа, с которой открыть рейтинг */
+  myGroup: string;
+  /** У аккаунта указан номер ИСУ */
+  linked: boolean;
+};
+
 export type PracticeListResponse = {
   sessions: PracticeSessionView[];
   now: DateTime;

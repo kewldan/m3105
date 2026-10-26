@@ -63,7 +63,7 @@ export const userApi = {
   updateProfile: (body: { displayName: string; isu?: string }) =>
     apiClient<MeResponse>("/me/profile", { method: "PUT", body }),
   grades: (source?: number) =>
-    apiClient<GradesResponse>(`/me/grades${source ? `?source=${source}` : ""}`),
+    apiClient<GradesResponse>(`/grades${source ? `?source=${source}` : ""}`),
   deletePasskey: (id: string) =>
     apiClient<MeResponse>(`/me/passkeys/${encodeURIComponent(id)}`, {
       method: "DELETE",

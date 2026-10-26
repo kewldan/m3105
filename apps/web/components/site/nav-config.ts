@@ -11,6 +11,7 @@ export const PRIMARY_LINKS: NavLink[] = [
   { href: "/calendar", label: "Календарь" },
   { href: "/labs", label: "Лабы" },
   { href: "/practice", label: "Сдачи" },
+  { href: "/grades", label: "Баллы" },
   { href: "/notes", label: "Конспекты" },
   { href: "/faq", label: "ЧаВо" },
   { href: "/cpp", label: "C++" },

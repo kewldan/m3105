@@ -83,15 +83,18 @@ func TestGrades(t *testing.T) {
 		t.Fatalf("unexpected sync result: %v", res)
 	}
 
-	// Студент группы: до подтверждения рейтинга не видно, после — видно всем подтверждённым.
+	// Рейтинг открыт всем: и гостю без входа, и неподтверждённому аккаунту.
+	if guest := newClient(t).do("GET", "/api/v1/grades", nil, 200); len(guest["rows"].([]any)) != 4 {
+		t.Fatalf("guest rating: %v", guest)
+	}
 	u := newClient(t)
 	u.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Боря Тестов"}, 200)
 	uid := userIDByName(t, admin, "Боря Тестов")
 	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", uid), map[string]any{"displayName": "", "groupName": "", "approved": false}, 200)
-	u.do("GET", "/api/v1/me/grades", nil, 403)
+	u.do("GET", "/api/v1/grades", nil, 200)
 	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", uid), map[string]any{"displayName": "", "groupName": "М3105", "approved": true}, 200)
 
-	page := u.do("GET", "/api/v1/me/grades", nil, 200)
+	page := u.do("GET", "/api/v1/grades", nil, 200)
 	rows := page["rows"].([]any)
 	if len(rows) != 4 || page["linked"] != false {
 		t.Fatalf("unexpected rating: %v", page)
@@ -125,7 +128,7 @@ func TestGrades(t *testing.T) {
 	if got := u.do("PUT", "/api/v1/me/profile", map[string]any{"displayName": "Боря Тестов"}, 200)["user"].(map[string]any)["isu"]; got != "100002" {
 		t.Fatalf("isu lost: %v", got)
 	}
-	page = u.do("GET", fmt.Sprintf("/api/v1/me/grades?source=%d", sourceID), nil, 200)
+	page = u.do("GET", fmt.Sprintf("/api/v1/grades?source=%d", sourceID), nil, 200)
 	if mine := page["rows"].([]any)[0].(map[string]any); mine["me"] != true || mine["user"] == nil {
 		t.Fatalf("own row not marked: %v", mine)
 	}
@@ -137,7 +140,7 @@ func TestGrades(t *testing.T) {
 	if res := admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", onlyID), nil, 200); res["rows"] != float64(1) {
 		t.Fatalf("members-only sync: %v", res)
 	}
-	page = u.do("GET", fmt.Sprintf("/api/v1/me/grades?source=%d", onlyID), nil, 200)
+	page = u.do("GET", fmt.Sprintf("/api/v1/grades?source=%d", onlyID), nil, 200)
 	if page["source"].(map[string]any)["id"] == float64(onlyID) || len(page["sources"].([]any)) != 1 {
 		t.Fatalf("members-only source shown to a student who is not in it: %v", page["sources"])
 	}

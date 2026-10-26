@@ -15,6 +15,8 @@ export const TAG = {
   pages: "pages",
   calendar: "calendar",
   practice: "practice",
+  /** Рейтинг: админка меняет источники, синк по расписанию живёт по TTL. */
+  grades: "grades",
   home: "home",
   /** Коммит API в подвале: админка его не меняет, живёт только по TTL. */
   version: "version",

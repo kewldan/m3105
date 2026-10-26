@@ -152,13 +152,16 @@ export function SearchDialog({ className }: { className?: string }) {
         onClick={() => setOpen(true)}
         aria-label="Поиск по сайту"
         className={cn(
-          "gap-2 text-muted-foreground sm:w-48 sm:justify-start",
+          // Рядом с навигацией (lg) места нет — там только иконка.
+          "gap-2 text-muted-foreground sm:w-48 sm:justify-start lg:w-auto xl:w-48",
           className,
         )}
       >
         <SearchIcon />
-        <span className="hidden sm:inline">Поиск…</span>
-        <Kbd className="ml-auto hidden sm:inline-flex">⌘K</Kbd>
+        <span className="hidden sm:inline lg:hidden xl:inline">Поиск…</span>
+        <Kbd className="ml-auto hidden sm:inline-flex lg:hidden xl:inline-flex">
+          ⌘K
+        </Kbd>
       </Button>
 
       <CommandDialog

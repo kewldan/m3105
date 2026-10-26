@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -63,12 +64,22 @@ func (h *Handler) myGrades(ctx context.Context, isu string) ([]models.MyGrade, e
 	return out, nil
 }
 
-// getMyGrades is the rating page: every row of one source. Only confirmed
-// students see it — the sheet lists the whole course by name.
-func (h *Handler) getMyGrades(w http.ResponseWriter, r *http.Request) {
+// getGrades is the rating page: every row of one source. Open to everyone;
+// with a student session the own row is marked and the account's group opens first.
+func (h *Handler) getGrades(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userID, _ := userauth.UserID(ctx)
-	user, err := h.store.GetUser(ctx, userID)
+	var user models.User
+	if userID, ok := userauth.UserID(ctx); ok {
+		u, err := h.store.GetUser(ctx, userID)
+		switch {
+		case err == nil:
+			user = u
+		case !errors.Is(err, httpx.ErrNotFound):
+			httpx.Fail(w, err)
+			return
+		}
+	}
+	sc, err := h.site(ctx)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -90,10 +101,14 @@ func (h *Handler) getMyGrades(w http.ResponseWriter, r *http.Request) {
 			sources = append(sources, s)
 		}
 	}
+	myGroup := user.GroupName
+	if myGroup == "" {
+		myGroup = sc.Settings.GroupName
+	}
 	resp := models.GradesResponse{
 		Sources: make([]models.GradeSourceSummary, len(sources)),
 		Rows:    []models.GradeEntry{},
-		MyGroup: models.NormalizeGroup(user.GroupName),
+		MyGroup: models.NormalizeGroup(myGroup),
 		Linked:  user.ISU != "",
 	}
 	for i, s := range sources {

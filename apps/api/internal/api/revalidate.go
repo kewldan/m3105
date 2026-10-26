@@ -36,6 +36,8 @@ func tagsForPath(path string) []string {
 		return []string{"calendar", "home"}
 	case "practice":
 		return []string{"practice", "calendar", "home"}
+	case "grade-sources":
+		return []string{"grades"}
 	}
 	// Пользователи, комментарии и посты в кеш не попадают: они личные или пишутся часто.
 	return nil

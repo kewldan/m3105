@@ -158,6 +158,7 @@ func TestCacheTagsMatchFrontend(t *testing.T) {
 		"/api/v1/admin/subjects/1", "/api/v1/admin/labs/1", "/api/v1/admin/notes/1",
 		"/api/v1/admin/quizzes/1", "/api/v1/admin/faq/1", "/api/v1/admin/pages/1",
 		"/api/v1/admin/settings", "/api/v1/admin/events/1", "/api/v1/admin/practice/1",
+		"/api/v1/admin/grade-sources/1",
 	} {
 		tags := api.TagsForPath(path)
 		if len(tags) == 0 {
@@ -215,6 +216,7 @@ func TestResponsesMatchSpec(t *testing.T) {
 		{"/api/v1/settings", "SettingsResponse"},
 		{"/api/v1/home", "HomeResponse"},
 		{"/api/v1/calendar", "CalendarResponse"},
+		{"/api/v1/grades", "GradesResponse"},
 		{fmt.Sprintf("/api/v1/notes/%s/%s", subj["slug"], note["slug"]), "NoteResponse"},
 	}
 	for _, o := range objects {

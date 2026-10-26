@@ -109,16 +109,15 @@ export async function getMe(
   }
 }
 
-/** Score rating of one source (or the first); personal, never cached. */
-export async function getMyGrades(
-  cookie: string,
-  source?: number,
-): Promise<GradesResponse> {
-  return apiServer<GradesResponse>(
-    `/me/grades${source ? `?source=${source}` : ""}`,
-    { headers: { cookie } },
-  );
-}
+/**
+ * Score rating of one source (or the first). Open to everyone; with the
+ * Cookie header the viewer's row is marked and the response is not cached.
+ */
+export const getGrades = (cookie?: string, source?: number) =>
+  apiServer<GradesResponse>(`/grades${source ? `?source=${source}` : ""}`, {
+    tags: [TAG.grades],
+    ...(cookie ? { headers: { cookie } } : {}),
+  });
 
 /** Practice (lab defence) sessions; pass the Cookie header to get participants. */
 export const getPractice = (

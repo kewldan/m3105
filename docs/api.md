@@ -79,7 +79,6 @@
 | POST | `/auth/user/logout` | |
 | PUT / DELETE | `/me/labs/{labId}/done` | отметить лабу сделанной / снять отметку |
 | PUT | `/me/profile` | `{ displayName, isu? }` — имя и фамилия (минимум два слова; пустая строка — снова имя из Telegram) и номер ИСУ (5–7 цифр; без поля не меняется, `""` — отвязать) |
-| GET | `/me/grades?source=` | рейтинг одного источника баллов (по умолчанию первого) — только подтверждённым; см. «Баллы» |
 | DELETE | `/me/passkeys/{id}` | |
 | GET | `/practice?subject=&past=1` | `{ sessions, now, signedIn }`; очередь (`queue`) видна всем, `availableLabs` — только вошедшим |
 | GET | `/practice/{id}` | одна сдача |
@@ -158,7 +157,7 @@
 
 | Метод | Путь | Описание |
 | ----- | ---- | -------- |
-| GET | `/me/grades?source=` | `{ sources, source, rows, myGroup, linked }`: все строки источника (`name` — «Фамилия Имя», без номеров ИСУ), `user` — аккаунт на сайте, `me` — своя строка; места считает фронт |
+| GET | `/grades?source=` | `{ sources, source, rows, myGroup, linked }`: все строки источника (`name` — «Фамилия Имя», без номеров ИСУ), `user` — аккаунт на сайте, `me` — своя строка; места считает фронт. Открыт всем, со студенческой кукой помечает свою строку, без неё `myGroup` — группа сайта |
 | — | `/auth/user/me` → `grades` | свои результаты по источникам с местами `course`, `inGroup`, `site` (среди привязанных аккаунтов) |
 | CRUD | `/admin/grade-sources` | `spreadsheet` принимает ссылку или id таблицы; в ответе `rowsCount`, `linkedCount`, `syncedAt`, `syncError` |
 | POST | `/admin/grade-sources/{id}/sync` | синхронизировать сейчас: `{ tabs, skipped, rows, linked }`, при ошибке 502 `sync_failed` |

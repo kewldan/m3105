@@ -14,6 +14,10 @@ export type CppCheckResult = Schema.CppCheckResult;
 export type CppDiagnostic = Schema.CppDiagnostic;
 export type CppEdit = Schema.CppEdit;
 export type FAQItem = Schema.FAQItem;
+export type GradeColumn = Schema.GradeColumn;
+export type GradeEntry = Schema.GradeEntry;
+export type GradeSourceSummary = Schema.GradeSourceSummary;
+export type GradesResponse = Schema.GradesResponse;
 export type HomeResponse = Schema.HomeResponse;
 export type Health = Schema.Health;
 export type Lab = Schema.Lab;
@@ -259,49 +263,7 @@ export type MeResponse = {
 
 // ---- scores from external sheets ----
 
-export type GradeColumn = {
-  key: string;
-  label: string;
-  /** Most the part can give; 0 when unknown. */
-  max: number;
-};
-
-export type GradeSourceSummary = {
-  id: number;
-  title: string;
-  subjectSlug: string;
-  subjectName: string;
-  subjectColor: SubjectColor;
-  subjectIcon: string;
-  maxTotal: number;
-  columns: GradeColumn[];
-  syncedAt: string | null;
-  /** One small group's sheet (English): shown only to students in it; places within the sheet. */
-  membersOnly: boolean;
-};
-
-export type GradeParts = Record<string, number | null>;
-
-export type GradeEntry = {
-  /** "Фамилия Имя" from the sheet. */
-  name: string;
-  group: string;
-  total: number;
-  parts: GradeParts;
-  changedAt: string;
-  /** Site account the row belongs to. */
-  user: PublicUser | null;
-  me: boolean;
-};
-
-export type GradesResponse = {
-  sources: GradeSourceSummary[];
-  source: GradeSourceSummary | null;
-  rows: GradeEntry[];
-  myGroup: string;
-  /** The account has an ISU number bound. */
-  linked: boolean;
-};
+export type GradeParts = GradeEntry["parts"];
 
 export type Place = { rank: number; size: number };
 

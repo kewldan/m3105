@@ -37,9 +37,10 @@ export function SiteHeader({
           <ItmoLogo size={36} />
           <span>{site.settings.siteTitle}</span>
         </Link>
+        {/* Разделы «для своих» в ряд не влезают — они в «Ещё». */}
         <NavLinks
-          links={primary}
-          more={pageLinks}
+          links={primary.filter((l) => !l.groupOnly)}
+          more={[...primary.filter((l) => l.groupOnly), ...pageLinks]}
           className="ml-4 hidden lg:flex"
         />
         <div className="ml-auto flex items-center gap-1.5">

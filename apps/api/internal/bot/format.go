@@ -308,11 +308,28 @@ func practiceTitle(sess models.PracticeSession, loc *time.Location) string {
 
 func swapRequestMessage(site string, sess models.PracticeSession, loc *time.Location, from string, theirs, yours SwapPlace) string {
 	return fmt.Sprintf("🔁 <b>%s</b> предлагает поменяться местами в очереди на сдачу %s:\n"+
-		"ваше %d-е место (лаба №%d) на %d-е (лаба №%d).\n\nСогласиться или отказаться: %s",
+		"ваше %d-е место (лаба №%d) на %d-е (лаба №%d).\n\nОтветьте кнопками ниже или на сайте: %s",
 		esc(from), practiceTitle(sess, loc), yours.Place, yours.Lab, theirs.Place, theirs.Lab, practiceURL(site, sess.ID))
 }
 
 func swapAcceptedMessage(site string, sess models.PracticeSession, loc *time.Location, with string, place int) string {
 	return fmt.Sprintf("✅ Обмен с <b>%s</b> состоялся: теперь вы %d-е в очереди на сдачу %s.\n%s",
 		esc(with), place, practiceTitle(sess, loc), practiceURL(site, sess.ID))
+}
+
+func swapDeclinedMessage(site string, sess models.PracticeSession, loc *time.Location, with string) string {
+	return fmt.Sprintf("❌ Обмен не состоялся: <b>%s</b> отказывается меняться местами в очереди на сдачу %s.\n%s",
+		esc(with), practiceTitle(sess, loc), practiceURL(site, sess.ID))
+}
+
+// swapDoneMessage replaces the request after the receiver agreed in Telegram.
+func swapDoneMessage(site string, sess models.PracticeSession, loc *time.Location, with string, place int) string {
+	return fmt.Sprintf("✅ Вы поменялись местами с <b>%s</b>: теперь вы %d-е в очереди на сдачу %s.\n%s",
+		esc(with), place, practiceTitle(sess, loc), practiceURL(site, sess.ID))
+}
+
+// swapRefusedMessage replaces the request after the receiver said no in Telegram.
+func swapRefusedMessage(site string, sess models.PracticeSession, loc *time.Location, with string) string {
+	return fmt.Sprintf("Вы отказались меняться местами с <b>%s</b> в очереди на сдачу %s.\n%s",
+		esc(with), practiceTitle(sess, loc), practiceURL(site, sess.ID))
 }

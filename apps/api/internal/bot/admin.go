@@ -57,14 +57,24 @@ func approveKeyboard(userID int64) map[string]any {
 	}}
 }
 
-// callback handles inline buttons. Only the admin chat may press them: the button
-// lives in a message sent there, and a forged callback from elsewhere is refused.
+// callback handles inline buttons: account approval (only from the admin chat:
+// the button lives in a message sent there, a forged callback is refused) and
+// answers to swap requests in the practice queue.
 func (b *Bot) callback(ctx context.Context, q *CallbackQuery) {
-	answer, err := b.approveFromButton(ctx, q)
+	var answer, fallback string
+	var err error
+	switch {
+	case strings.HasPrefix(q.Data, swapAcceptPrefix), strings.HasPrefix(q.Data, swapDeclinePrefix):
+		answer, err = b.swapFromButton(ctx, q)
+		fallback = "Не получилось, ответьте на сайте"
+	default:
+		answer, err = b.approveFromButton(ctx, q)
+		fallback = "Не получилось, подтверди в админке"
+	}
 	if err != nil {
 		b.log.Warn("callback", "data", q.Data, "err", err)
 		if answer == "" {
-			answer = "Не получилось, подтверди в админке"
+			answer = fallback
 		}
 	}
 	if err := b.api.AnswerCallback(ctx, q.ID, answer); err != nil {

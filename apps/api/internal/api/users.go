@@ -736,7 +736,8 @@ func (h *Handler) requestSwap(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	if err := h.store.RequestSwap(ctx, id, userID, in); err != nil {
+	swapID, err := h.store.RequestSwap(ctx, id, userID, in)
+	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
@@ -747,7 +748,7 @@ func (h *Handler) requestSwap(w http.ResponseWriter, r *http.Request) {
 	}
 	mine, me := queuePlace(v, userID, in.LabID)
 	theirs, them := queuePlace(v, in.WithUserID, in.WithLabID)
-	h.notify.SwapRequested(h.telegramOf(ctx, in.WithUserID), v.PracticeSession, sc.Loc, me.User.Name,
+	h.notify.SwapRequested(h.telegramOf(ctx, in.WithUserID), swapID, v.PracticeSession, sc.Loc, me.User.Name,
 		bot.SwapPlace{Place: mine, Lab: me.Lab.Number}, bot.SwapPlace{Place: theirs, Lab: them.Lab.Number})
 	httpx.JSON(w, http.StatusOK, v)
 }
@@ -790,7 +791,17 @@ func (h *Handler) deleteSwap(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	h.respondPractice(w, r, res.SessionID)
+	v, sc, err := h.practiceView(r, res.SessionID)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	// Отказ получателя — сообщаем отправителю; свой отозванный запрос — молча.
+	if res.ToUserID == userID {
+		_, me := queuePlace(v, userID, res.ToLabID)
+		h.notify.SwapDeclined(h.telegramOf(r.Context(), res.FromUserID), v.PracticeSession, sc.Loc, me.User.Name)
+	}
+	httpx.JSON(w, http.StatusOK, v)
 }
 
 // ---- admin ----

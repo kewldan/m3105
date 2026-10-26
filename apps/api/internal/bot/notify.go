@@ -26,14 +26,14 @@ func NewNotifier(token, site string) *Notifier {
 
 // send delivers the message in the background. The student may never have
 // started the bot: Telegram then refuses and the failure is only logged.
-func (n *Notifier) send(to *int64, text string) {
+func (n *Notifier) send(to *int64, text string, keyboard map[string]any) {
 	if n == nil || to == nil {
 		return
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if err := n.api.SendHTML(ctx, *to, text, SendOptions{DisablePreview: true}); err != nil {
+		if err := n.api.SendHTML(ctx, *to, text, SendOptions{DisablePreview: true, ReplyMarkup: keyboard}); err != nil {
 			n.log.Warn("send", "chat", *to, "err", err)
 		}
 	}()
@@ -42,12 +42,21 @@ func (n *Notifier) send(to *int64, text string) {
 // SwapPlace is a defense in the queue: its 1-based place and lab number.
 type SwapPlace struct{ Place, Lab int }
 
-// SwapRequested asks the receiver to agree to a swap.
-func (n *Notifier) SwapRequested(to *int64, sess models.PracticeSession, loc *time.Location, from string, theirs, yours SwapPlace) {
+// SwapRequested asks the receiver to agree to a swap, with buttons to answer
+// right in Telegram.
+func (n *Notifier) SwapRequested(to *int64, swapID int64, sess models.PracticeSession, loc *time.Location, from string, theirs, yours SwapPlace) {
 	if n == nil {
 		return
 	}
-	n.send(to, swapRequestMessage(n.site, sess, loc, from, theirs, yours))
+	n.send(to, swapRequestMessage(n.site, sess, loc, from, theirs, yours), swapKeyboard(swapID))
+}
+
+// SwapDeclined tells the sender the receiver said no.
+func (n *Notifier) SwapDeclined(to *int64, sess models.PracticeSession, loc *time.Location, with string) {
+	if n == nil {
+		return
+	}
+	n.send(to, swapDeclinedMessage(n.site, sess, loc, with), nil)
 }
 
 // SwapAccepted tells the sender the swap went through.
@@ -55,5 +64,5 @@ func (n *Notifier) SwapAccepted(to *int64, sess models.PracticeSession, loc *tim
 	if n == nil {
 		return
 	}
-	n.send(to, swapAcceptedMessage(n.site, sess, loc, with, place))
+	n.send(to, swapAcceptedMessage(n.site, sess, loc, with, place), nil)
 }

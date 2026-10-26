@@ -14,11 +14,17 @@ import (
 // выставлен админом): до заморозки места считаются на лету и их нечем закрепить.
 var errQueueNotStored = &httpx.ValidationError{Fields: map[string]string{"_": "Очередь ещё не зафиксирована: места окончательные с 20:00 накануне"}}
 
-// lockStoredQueue locks the session row and checks its order is stored.
+// lockStoredQueue locks the session row and checks its order is stored and
+// the session has not ended (a swap accepted from Telegram comes without the
+// handler's checks).
 func lockStoredQueue(ctx context.Context, tx pgx.Tx, sessionID int64) error {
-	var stored bool
-	if err := tx.QueryRow(ctx, `SELECT queue_manual OR queue_frozen_at IS NOT NULL FROM practice_sessions WHERE id = $1 FOR UPDATE`, sessionID).Scan(&stored); err != nil {
+	var stored, over bool
+	if err := tx.QueryRow(ctx, `SELECT queue_manual OR queue_frozen_at IS NOT NULL, coalesce(ends_at, starts_at) < now()
+		FROM practice_sessions WHERE id = $1 FOR UPDATE`, sessionID).Scan(&stored, &over); err != nil {
 		return wrap(err)
+	}
+	if over {
+		return &httpx.ValidationError{Fields: map[string]string{"_": "Эта сдача уже прошла"}}
 	}
 	if !stored {
 		return errQueueNotStored
@@ -93,20 +99,20 @@ func (s *Store) ListSwaps(ctx context.Context, sessionIDs []int64, userID int64)
 	return out, nil
 }
 
-// RequestSwap offers the user's defense in exchange for another student's one.
-// Asking again for the same pair refreshes the request.
-func (s *Store) RequestSwap(ctx context.Context, sessionID, userID int64, in models.SwapInput) error {
+// RequestSwap offers the user's defense in exchange for another student's one
+// and returns the request id. Asking again for the same pair refreshes the request.
+func (s *Store) RequestSwap(ctx context.Context, sessionID, userID int64, in models.SwapInput) (int64, error) {
 	if in.WithUserID == userID {
-		return &httpx.ValidationError{Fields: map[string]string{"withLabId": "Нельзя меняться с самим собой"}}
+		return 0, &httpx.ValidationError{Fields: map[string]string{"withLabId": "Нельзя меняться с самим собой"}}
 	}
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return wrap(err)
+		return 0, wrap(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := lockStoredQueue(ctx, tx, sessionID); err != nil {
-		return err
+		return 0, err
 	}
 	find := func(uid, labID int64, field, msg string) (id, pos int64, err error) {
 		err = tx.QueryRow(ctx, `SELECT id, queue_pos FROM practice_signups WHERE session_id = $1 AND user_id = $2 AND lab_id = $3`, sessionID, uid, labID).Scan(&id, &pos)
@@ -117,18 +123,20 @@ func (s *Store) RequestSwap(ctx context.Context, sessionID, userID int64, in mod
 	}
 	fromID, fromPos, err := find(userID, in.LabID, "labId", "Этой защиты нет в очереди")
 	if err != nil {
-		return err
+		return 0, err
 	}
 	toID, toPos, err := find(in.WithUserID, in.WithLabID, "withLabId", "Этой защиты уже нет в очереди")
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO practice_swaps (session_id, from_signup_id, to_signup_id, from_pos, to_pos) VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (from_signup_id, to_signup_id) DO UPDATE SET from_pos = EXCLUDED.from_pos, to_pos = EXCLUDED.to_pos, created_at = now()`,
-		sessionID, fromID, toID, fromPos, toPos); err != nil {
-		return wrap(err)
+	var id int64
+	if err := tx.QueryRow(ctx, `INSERT INTO practice_swaps (session_id, from_signup_id, to_signup_id, from_pos, to_pos) VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (from_signup_id, to_signup_id) DO UPDATE SET from_pos = EXCLUDED.from_pos, to_pos = EXCLUDED.to_pos, created_at = now()
+		RETURNING id`,
+		sessionID, fromID, toID, fromPos, toPos).Scan(&id); err != nil {
+		return 0, wrap(err)
 	}
-	return wrap(tx.Commit(ctx))
+	return id, wrap(tx.Commit(ctx))
 }
 
 // SwapResult is what an accepted or canceled swap touched.

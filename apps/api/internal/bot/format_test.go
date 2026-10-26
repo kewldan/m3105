@@ -168,3 +168,30 @@ func TestGradeChangeMessage(t *testing.T) {
 		t.Errorf("unchanged parts listed:\n%s", msg)
 	}
 }
+
+func TestSwapMessages(t *testing.T) {
+	sess := models.PracticeSession{ID: 24, SubjectName: "Программирование", SubjectShortName: "Прога",
+		StartsAt: time.Date(2026, 10, 26, 20, 30, 0, 0, msk)}
+	req := swapRequestMessage("https://m3105.ru", sess, msk, "Оля <К>", SwapPlace{Place: 1, Lab: 42}, SwapPlace{Place: 4, Lab: 41})
+	for _, want := range []string{"Оля &lt;К&gt;", "«Прога», пн, 26 окт, 20:30", "ваше 4-е место (лаба №41) на 1-е (лаба №42)", "/practice?session=24"} {
+		if !strings.Contains(req, want) {
+			t.Errorf("request lacks %q:\n%s", want, req)
+		}
+	}
+	if msg := swapDeclinedMessage("https://m3105.ru", sess, msk, "Маша"); !strings.Contains(msg, "Обмен не состоялся") {
+		t.Errorf("declined: %s", msg)
+	}
+	if msg := swapDoneMessage("https://m3105.ru", sess, msk, "Оля", 1); !strings.Contains(msg, "теперь вы 1-е") {
+		t.Errorf("done: %s", msg)
+	}
+
+	// Кнопки несут id запроса, и бот узнаёт их по префиксу; Telegram ограничивает callback_data 64 байтами.
+	rows := swapKeyboard(1234567890)["inline_keyboard"].([][]map[string]string)
+	if len(rows) != 1 || len(rows[0]) != 2 {
+		t.Fatalf("keyboard = %v", rows)
+	}
+	ok, no := rows[0][0]["callback_data"], rows[0][1]["callback_data"]
+	if ok != swapAcceptPrefix+"1234567890" || no != swapDeclinePrefix+"1234567890" || len(ok) > 64 {
+		t.Fatalf("callback data = %q, %q", ok, no)
+	}
+}

@@ -117,9 +117,10 @@ export function SignupDialog({
               const done = completed.has(lab.id);
               return (
                 <li key={lab.id}>
-                  <div
+                  <label
+                    htmlFor={`signup-lab-${lab.id}`}
                     className={cn(
-                      "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition-colors hover:bg-accent/40",
+                      "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition-colors select-none hover:bg-accent/40",
                       checked && "border-primary/50 bg-primary/5",
                     )}
                   >
@@ -135,21 +136,16 @@ export function SignupDialog({
                         });
                       }}
                     />
-                    <label
-                      htmlFor={`signup-lab-${lab.id}`}
-                      className="min-w-0 flex-1 cursor-pointer select-none"
-                    >
-                      <span className="block truncate font-medium">
-                        Лаба {lab.number} · {lab.title}
-                      </span>
-                    </label>
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      Лаба {lab.number} · {lab.title}
+                    </span>
                     {done ? (
                       <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                         <CheckCircle2Icon className="size-3" aria-hidden />
                         сдана
                       </span>
                     ) : null}
-                  </div>
+                  </label>
                 </li>
               );
             })}

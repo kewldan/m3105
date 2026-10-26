@@ -364,7 +364,7 @@ export type PracticeSessionView = PracticeSession & {
   /** Защиты в порядке сдачи */
   queue: QueueEntry[];
   freezesAt: DateTime;
-  /** Порядок заморожен: новые записи встают в конец */
+  /** Порядок сохранён (заморожен в 20:00 накануне или выставлен админом): новые записи встают в конец, можно пропустить всех и меняться местами */
   frozen: boolean;
   /** Студенты в порядке их первой защиты */
   participants: Participant[];
@@ -375,6 +375,20 @@ export type PracticeSessionView = PracticeSession & {
   past: boolean;
   /** Опубликованные лабы предмета, только для вошедших */
   availableLabs: LabRef[];
+  /** Ждущие ответа запросы на обмен местами, которые вошедший студент отправил или получил */
+  swaps: PracticeSwap[];
+};
+
+/** Запрос на обмен местами в очереди — защита отправителя на защиту получателя */
+export type PracticeSwap = {
+  id: number;
+  fromUserId: number;
+  fromLabId: number;
+  toUserId: number;
+  toLabId: number;
+  createdAt: DateTime;
+  /** Запрос адресован вошедшему студенту */
+  incoming: boolean;
 };
 
 export type PracticeListResponse = {

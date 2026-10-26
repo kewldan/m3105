@@ -26,6 +26,7 @@ export type PostInput = Schema.PostInput;
 export type PracticeListResponse = Schema.PracticeListResponse;
 export type PracticeSession = Schema.PracticeSession;
 export type PracticeSessionView = Schema.PracticeSessionView;
+export type PracticeSwap = Schema.PracticeSwap;
 export type PublicUser = Schema.PublicUser;
 export type Quiz = Schema.Quiz;
 export type QuizOption = Schema.QuizOption;

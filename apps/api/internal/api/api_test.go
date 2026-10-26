@@ -589,6 +589,59 @@ func TestStudentAccounts(t *testing.T) {
 		int64(qa[0].(map[string]any)["user"].(map[string]any)["id"].(float64)) != masha {
 		t.Fatalf("late signups must keep their order after the freeze: %v", viewA)
 	}
+	// Пропуск и обмены — только по сохранённому порядку. На A он заморожен:
+	// Пётр с двумя лабами пропускает всех и встаёт после Маши в том же порядке.
+	u.do("POST", fmt.Sprintf("/api/v1/practice/%d/skip", sessB), nil, 422)
+	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessA), map[string]any{"labIds": []int64{lab1ID}}, 200)
+	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessA), map[string]any{"labIds": []int64{lab2ID, lab1ID}}, 200)
+	aURL := fmt.Sprintf("/api/v1/practice/%d", sessA)
+	if got, _ := queueOf(anon, aURL, "queue"); !slices.Equal(got, []entry{{masha, lab1ID}, {petya, lab2ID}, {petya, lab1ID}}) {
+		t.Fatalf("frozen queue before skip = %v", got)
+	}
+	// Обмен: Маша предлагает свою защиту за вторую защиту Петра, Пётр соглашается.
+	tg.do("POST", aURL+"/swaps", map[string]any{"labId": lab1ID, "withUserId": masha, "withLabId": lab1ID}, 422)
+	tg.do("POST", aURL+"/swaps", map[string]any{"labId": lab1ID, "withUserId": petya, "withLabId": draftID}, 422)
+	swapView := tg.do("POST", aURL+"/swaps", map[string]any{"labId": lab1ID, "withUserId": petya, "withLabId": lab1ID}, 200)
+	sw := swapView["swaps"].([]any)
+	if len(sw) != 1 || sw[0].(map[string]any)["incoming"] != false {
+		t.Fatalf("sender must see the outgoing request: %v", swapView["swaps"])
+	}
+	swapID := int64(sw[0].(map[string]any)["id"].(float64))
+	if mine := u.do("GET", aURL, nil, 200)["swaps"].([]any); len(mine) != 1 || mine[0].(map[string]any)["incoming"] != true {
+		t.Fatalf("receiver must see the incoming request: %v", mine)
+	}
+	if others := anon.do("GET", aURL, nil, 200)["swaps"].([]any); len(others) != 0 {
+		t.Fatalf("strangers must not see requests: %v", others)
+	}
+	tg.do("POST", fmt.Sprintf("/api/v1/practice/swaps/%d/accept", swapID), nil, 404)
+	u.do("POST", fmt.Sprintf("/api/v1/practice/swaps/%d/accept", swapID), nil, 200)
+	if got, _ := queueOf(anon, aURL, "queue"); !slices.Equal(got, []entry{{petya, lab1ID}, {petya, lab2ID}, {masha, lab1ID}}) {
+		t.Fatalf("queue after swap = %v", got)
+	}
+	// Пропуск отменяет ждущие обмены: места, о которых договаривались, уже другие.
+	tg.do("POST", aURL+"/swaps", map[string]any{"labId": lab1ID, "withUserId": petya, "withLabId": lab2ID}, 200)
+	if got := u.do("POST", aURL+"/skip", nil, 200); len(got["swaps"].([]any)) != 0 {
+		t.Fatalf("skip must drop pending swaps: %v", got["swaps"])
+	}
+	if got, _ := queueOf(anon, aURL, "queue"); !slices.Equal(got, []entry{{masha, lab1ID}, {petya, lab1ID}, {petya, lab2ID}}) {
+		t.Fatalf("queue after skip = %v", got)
+	}
+	// Устаревший запрос не проводится: Маша просит место Петра, Пётр уходит в конец ещё раз,
+	// а потом Маша тоже — места больше не те, обмен отменяется.
+	stale := tg.do("POST", aURL+"/swaps", map[string]any{"labId": lab1ID, "withUserId": petya, "withLabId": lab2ID}, 200)
+	staleID := int64(stale["swaps"].([]any)[0].(map[string]any)["id"].(float64))
+	tg.do("DELETE", fmt.Sprintf("/api/v1/practice/swaps/%d", staleID), nil, 200)
+	u.do("DELETE", fmt.Sprintf("/api/v1/practice/swaps/%d", staleID), nil, 404)
+	stale = tg.do("POST", aURL+"/swaps", map[string]any{"labId": lab1ID, "withUserId": petya, "withLabId": lab2ID}, 200)
+	staleID = int64(stale["swaps"].([]any)[0].(map[string]any)["id"].(float64))
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice/%d/signups/order", sessA), ord(entry{petya, lab2ID}, entry{masha, lab1ID}, entry{petya, lab1ID}), 200)
+	u.do("POST", fmt.Sprintf("/api/v1/practice/swaps/%d/accept", staleID), nil, 422)
+	if got := u.do("GET", aURL, nil, 200)["swaps"].([]any); len(got) != 0 {
+		t.Fatalf("stale swap must be dropped: %v", got)
+	}
+	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessA), map[string]any{"labIds": []int64{lab2ID}}, 200)
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice/%d/signups/order", sessA), ord(entry{masha, lab1ID}, entry{petya, lab2ID}), 200)
+
 	u.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessB), map[string]any{"labIds": []int64{lab2ID}}, 200)
 	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessB), map[string]any{"labIds": []int64{lab1ID}}, 200)
 	// Маша записалась в A первой, Пётр остался в резерве и на B идёт первым по переносу.

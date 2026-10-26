@@ -293,3 +293,26 @@ func gradesMessage(site string, lines []gradeLine, linked bool) string {
 	sb.WriteString("\n<a href=\"" + root + "/grades\">Рейтинг на сайте</a>")
 	return sb.String()
 }
+
+func practiceURL(site string, sessionID int64) string {
+	return site + "/practice?session=" + strconv.FormatInt(sessionID, 10)
+}
+
+func practiceTitle(sess models.PracticeSession, loc *time.Location) string {
+	name := sess.SubjectShortName
+	if name == "" {
+		name = sess.SubjectName
+	}
+	return fmt.Sprintf("«%s», %s", esc(name), fmtWhen(sess.StartsAt, loc))
+}
+
+func swapRequestMessage(site string, sess models.PracticeSession, loc *time.Location, from string, theirs, yours SwapPlace) string {
+	return fmt.Sprintf("🔁 <b>%s</b> предлагает поменяться местами в очереди на сдачу %s:\n"+
+		"ваше %d-е место (лаба №%d) на %d-е (лаба №%d).\n\nСогласиться или отказаться: %s",
+		esc(from), practiceTitle(sess, loc), yours.Place, yours.Lab, theirs.Place, theirs.Lab, practiceURL(site, sess.ID))
+}
+
+func swapAcceptedMessage(site string, sess models.PracticeSession, loc *time.Location, with string, place int) string {
+	return fmt.Sprintf("✅ Обмен с <b>%s</b> состоялся: теперь вы %d-е в очереди на сдачу %s.\n%s",
+		esc(with), place, practiceTitle(sess, loc), practiceURL(site, sess.ID))
+}

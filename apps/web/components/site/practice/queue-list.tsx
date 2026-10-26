@@ -43,9 +43,12 @@ function QueueTag({
 export function QueueList({
   queue,
   meId,
+  action,
 }: {
   queue: QueueEntry[];
   meId?: number;
+  /** Extra control at the end of a row (the swap menu). */
+  action?: (entry: QueueEntry) => ReactNode;
 }) {
   return (
     <ol className="divide-y overflow-hidden rounded-xl border bg-muted/30">
@@ -103,6 +106,11 @@ export function QueueList({
               <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
                 №{e.lab.number}
               </span>
+              {action ? (
+                <span className="flex size-6 shrink-0 items-center justify-center">
+                  {action(e)}
+                </span>
+              ) : null}
             </li>
           </Fragment>
         );

@@ -41,6 +41,8 @@ type Handler struct {
 	resizer *files.Resizer
 	// admin is nil without a bot token or ADMIN_CHAT_ID; its methods then do nothing.
 	admin *bot.AdminNotifier
+	// notify is nil without a bot token; its methods then do nothing.
+	notify *bot.Notifier
 	// grades copies score sheets; also used for a manual sync from the admin panel.
 	grades *grades.Syncer
 }
@@ -61,6 +63,7 @@ func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.
 		files:       fs,
 		resizer:     resizer,
 		admin:       bot.NewAdminNotifier(cfg.TelegramBotToken, cfg.AdminChatID, cfg.PublicURL),
+		notify:      bot.NewNotifier(cfg.TelegramBotToken, cfg.PublicURL),
 		grades:      grades.NewSyncer(st, &grades.Fetcher{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: cfg.SheetsURL}),
 	}
 }
@@ -106,6 +109,10 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/practice/{id}", h.getPractice)
 		r.With(userauth.Require, h.requireApproved).Put("/practice/{id}/signups", h.setPracticeSignup)
 		r.With(userauth.Require, h.requireApproved).Delete("/practice/{id}/signups", h.setPracticeSignup)
+		r.With(userauth.Require, h.requireApproved).Post("/practice/{id}/skip", h.skipPractice)
+		r.With(userauth.Require, h.requireApproved).Post("/practice/{id}/swaps", h.requestSwap)
+		r.With(userauth.Require, h.requireApproved).Post("/practice/swaps/{id}/accept", h.acceptSwap)
+		r.With(userauth.Require, h.requireApproved).Delete("/practice/swaps/{id}", h.deleteSwap)
 		// Comments: reading is public (under posts — only for the group), writing needs a student session.
 		r.Get("/comments/{target}/{id}", h.listComments)
 		r.With(userauth.Require, h.requireApproved).Post("/comments/{target}/{id}", h.createComment)

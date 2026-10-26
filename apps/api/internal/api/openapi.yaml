@@ -970,7 +970,7 @@ components:
               items: { $ref: "#/components/schemas/QueueEntry" }
               description: Защиты в порядке сдачи
             freezesAt: { $ref: "#/components/schemas/DateTime" }
-            frozen: { type: boolean, description: "Порядок заморожен: новые записи встают в конец" }
+            frozen: { type: boolean, description: "Порядок сохранён (заморожен в 20:00 накануне или выставлен админом): новые записи встают в конец, можно пропустить всех и меняться местами" }
             participants:
               type: array
               items: { $ref: "#/components/schemas/Participant" }
@@ -984,7 +984,24 @@ components:
               type: array
               items: { $ref: "#/components/schemas/LabRef" }
               description: Опубликованные лабы предмета, только для вошедших
-          required: [queue, freezesAt, frozen, participants, myLabIds, full, past, availableLabs]
+            swaps:
+              type: array
+              items: { $ref: "#/components/schemas/PracticeSwap" }
+              description: Ждущие ответа запросы на обмен местами, которые вошедший студент отправил или получил
+          required: [queue, freezesAt, frozen, participants, myLabIds, full, past, availableLabs, swaps]
+
+    PracticeSwap:
+      type: object
+      description: Запрос на обмен местами в очереди — защита отправителя на защиту получателя
+      properties:
+        id: { type: integer }
+        fromUserId: { type: integer }
+        fromLabId: { type: integer }
+        toUserId: { type: integer }
+        toLabId: { type: integer }
+        createdAt: { $ref: "#/components/schemas/DateTime" }
+        incoming: { type: boolean, description: "Запрос адресован вошедшему студенту" }
+      required: [id, fromUserId, fromLabId, toUserId, toLabId, createdAt, incoming]
 
     PracticeListResponse:
       type: object

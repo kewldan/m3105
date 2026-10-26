@@ -93,6 +93,27 @@ export const userApi = {
     apiClient<PracticeSessionView>(`/practice/${id}/signups`, {
       method: "DELETE",
     }),
+  /** Moves the caller's defenses to the end of a frozen queue. */
+  practiceSkip: (id: number) =>
+    apiClient<PracticeSessionView>(`/practice/${id}/skip`, { method: "POST" }),
+  /** Offers my defense (labId) for another student's one. */
+  practiceRequestSwap: (
+    id: number,
+    body: { labId: number; withUserId: number; withLabId: number },
+  ) =>
+    apiClient<PracticeSessionView>(`/practice/${id}/swaps`, {
+      method: "POST",
+      body,
+    }),
+  practiceAcceptSwap: (swapId: number) =>
+    apiClient<PracticeSessionView>(`/practice/swaps/${swapId}/accept`, {
+      method: "POST",
+    }),
+  /** Withdraws my request or declines one sent to me. */
+  practiceDeleteSwap: (swapId: number) =>
+    apiClient<PracticeSessionView>(`/practice/swaps/${swapId}`, {
+      method: "DELETE",
+    }),
 
   // ---- comments and posts ----
   comments: (target: CommentTarget, id: number) =>

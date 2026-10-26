@@ -17,6 +17,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 
+	"github.com/kewldan/edu3105/apps/api/internal/bot"
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/models"
 	"github.com/kewldan/edu3105/apps/api/internal/queue"
@@ -501,16 +502,30 @@ func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSessi
 	if err != nil {
 		return nil, err
 	}
+	swaps := map[int64][]models.PracticeSwap{}
+	if signedIn {
+		ids := make([]int64, len(sessions))
+		for i, s := range sessions {
+			ids[i] = s.ID
+		}
+		if swaps, err = h.store.ListSwaps(ctx, ids, userID); err != nil {
+			return nil, err
+		}
+	}
 	labsBySubject := map[int64][]models.LabRef{}
 	views := make([]models.PracticeSessionView, 0, len(sessions))
 	for _, s := range sessions {
-		v := models.PracticeSessionView{PracticeSession: s, Queue: []models.QueueEntry{}, Participants: []models.Participant{}, MyLabIDs: []int64{}, AvailableLabs: []models.LabRef{}}
+		v := models.PracticeSessionView{PracticeSession: s, Queue: []models.QueueEntry{}, Participants: []models.Participant{}, MyLabIDs: []int64{}, AvailableLabs: []models.LabRef{}, Swaps: []models.PracticeSwap{}}
+		if list := swaps[s.ID]; list != nil {
+			v.Swaps = list
+		}
 		v.Past = s.StartsAt.Before(sc.Now)
 		if s.EndsAt != nil {
 			v.Past = s.EndsAt.Before(sc.Now)
 		}
 		v.FreezesAt = queue.FreezeAt(s.StartsAt, sc.Loc)
-		v.Frozen = !v.FreezesAt.After(sc.Now)
+		// Ручной порядок админа тоже сохранён: новые записи встают в конец.
+		v.Frozen = !v.FreezesAt.After(sc.Now) || s.QueueManual
 		byUser := map[int64]int{}
 		for i, row := range queues[s.ID] {
 			e := queueEntry(row, s.Capacity, i)
@@ -579,23 +594,56 @@ func (h *Handler) getPractice(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) respondPractice(w http.ResponseWriter, r *http.Request, id int64) {
-	sc, err := h.site(r.Context())
+	v, _, err := h.practiceView(r, id)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
+	}
+	httpx.JSON(w, http.StatusOK, v)
+}
+
+func (h *Handler) practiceView(r *http.Request, id int64) (models.PracticeSessionView, siteContext, error) {
+	sc, err := h.site(r.Context())
+	if err != nil {
+		return models.PracticeSessionView{}, sc, err
 	}
 	h.freezeQueues(r.Context(), sc.Loc)
 	sess, err := h.store.GetPracticeSession(r.Context(), id)
 	if err != nil {
-		httpx.Fail(w, err)
-		return
+		return models.PracticeSessionView{}, sc, err
 	}
 	views, err := h.practiceViews(r, []models.PracticeSession{sess}, sc)
 	if err != nil {
-		httpx.Fail(w, err)
-		return
+		return models.PracticeSessionView{}, sc, err
 	}
-	httpx.JSON(w, http.StatusOK, views[0])
+	return views[0], sc, nil
+}
+
+var errPracticeOver = &httpx.ValidationError{Fields: map[string]string{"_": "Эта сдача уже прошла"}}
+
+// practiceOver: the session has ended, its queue no longer changes.
+func practiceOver(sess models.PracticeSession) bool {
+	end := sess.StartsAt
+	if sess.EndsAt != nil {
+		end = *sess.EndsAt
+	}
+	return end.Before(time.Now())
+}
+
+// openPractice loads a session that has not ended yet and freezes due queues,
+// so that a change made after 20:00 the day before works on the stored order.
+func (h *Handler) openPractice(ctx context.Context, id int64) (models.PracticeSession, error) {
+	sess, err := h.store.GetPracticeSession(ctx, id)
+	if err != nil {
+		return sess, err
+	}
+	if practiceOver(sess) {
+		return sess, errPracticeOver
+	}
+	if sc, err := h.site(ctx); err == nil {
+		h.freezeQueues(ctx, sc.Loc)
+	}
+	return sess, nil
 }
 
 func (h *Handler) setPracticeSignup(w http.ResponseWriter, r *http.Request) {
@@ -615,28 +663,134 @@ func (h *Handler) setPracticeSignup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	sess, err := h.store.GetPracticeSession(ctx, id)
-	if err != nil {
+	// Заморозить до записи: запись после 20:00 накануне должна встать в конец.
+	if _, err := h.openPractice(ctx, id); err != nil {
 		httpx.Fail(w, err)
 		return
-	}
-	end := sess.StartsAt
-	if sess.EndsAt != nil {
-		end = *sess.EndsAt
-	}
-	if end.Before(time.Now()) {
-		httpx.Fail(w, &httpx.ValidationError{Fields: map[string]string{"_": "Эта сдача уже прошла"}})
-		return
-	}
-	// Заморозить до записи: запись после 20:00 накануне должна встать в конец.
-	if sc, err := h.site(ctx); err == nil {
-		h.freezeQueues(ctx, sc.Loc)
 	}
 	if err := h.store.ReplaceSignups(ctx, id, userID, in.LabIDs); err != nil {
 		httpx.Fail(w, err)
 		return
 	}
 	h.respondPractice(w, r, id)
+}
+
+// skipPractice lets a running-late student go to the end of a stored queue.
+func (h *Handler) skipPractice(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, _ := userauth.UserID(ctx)
+	id, err := httpx.IDParam(r)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if _, err := h.openPractice(ctx, id); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := h.store.SkipQueue(ctx, id, userID); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	h.respondPractice(w, r, id)
+}
+
+// queuePlace finds a defense in the view: its 1-based place and the entry.
+func queuePlace(v models.PracticeSessionView, userID, labID int64) (int, models.QueueEntry) {
+	for i, e := range v.Queue {
+		if e.User.ID == userID && e.Lab.ID == labID {
+			return i + 1, e
+		}
+	}
+	return 0, models.QueueEntry{}
+}
+
+// telegramOf is the student's Telegram chat, nil if unknown.
+func (h *Handler) telegramOf(ctx context.Context, userID int64) *int64 {
+	u, err := h.store.GetUser(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	return u.TelegramID
+}
+
+// requestSwap offers another student to trade places and tells them in Telegram.
+func (h *Handler) requestSwap(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, _ := userauth.UserID(ctx)
+	id, err := httpx.IDParam(r)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	var in models.SwapInput
+	if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := in.Validate(); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if _, err := h.openPractice(ctx, id); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := h.store.RequestSwap(ctx, id, userID, in); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	v, sc, err := h.practiceView(r, id)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	mine, me := queuePlace(v, userID, in.LabID)
+	theirs, them := queuePlace(v, in.WithUserID, in.WithLabID)
+	h.notify.SwapRequested(h.telegramOf(ctx, in.WithUserID), v.PracticeSession, sc.Loc, me.User.Name,
+		bot.SwapPlace{Place: mine, Lab: me.Lab.Number}, bot.SwapPlace{Place: theirs, Lab: them.Lab.Number})
+	httpx.JSON(w, http.StatusOK, v)
+}
+
+// acceptSwap trades the places; only the asked student can agree.
+func (h *Handler) acceptSwap(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, _ := userauth.UserID(ctx)
+	id, err := httpx.IDParam(r)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	res, err := h.store.AcceptSwap(ctx, id, userID)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	v, sc, err := h.practiceView(r, res.SessionID)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	place, _ := queuePlace(v, res.FromUserID, res.FromLabID)
+	_, me := queuePlace(v, userID, res.ToLabID)
+	h.notify.SwapAccepted(h.telegramOf(ctx, res.FromUserID), v.PracticeSession, sc.Loc, me.User.Name, place)
+	httpx.JSON(w, http.StatusOK, v)
+}
+
+// deleteSwap cancels a sent request or declines a received one.
+func (h *Handler) deleteSwap(w http.ResponseWriter, r *http.Request) {
+	userID, _ := userauth.UserID(r.Context())
+	id, err := httpx.IDParam(r)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	res, err := h.store.DeleteSwap(r.Context(), id, userID)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	h.respondPractice(w, r, res.SessionID)
 }
 
 // ---- admin ----

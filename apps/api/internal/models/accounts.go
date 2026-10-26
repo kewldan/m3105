@@ -267,6 +267,43 @@ type PracticeSessionView struct {
 	Full          bool     `json:"full"`
 	Past          bool     `json:"past"`
 	AvailableLabs []LabRef `json:"availableLabs"`
+	// Swaps are the pending swap requests the signed-in student sent or got.
+	Swaps []PracticeSwap `json:"swaps"`
+}
+
+// PracticeSwap is a request to trade places in a stored queue: the sender's
+// defense (From) for the receiver's (To).
+type PracticeSwap struct {
+	ID         int64     `db:"id" json:"id"`
+	FromUserID int64     `db:"from_user_id" json:"fromUserId"`
+	FromLabID  int64     `db:"from_lab_id" json:"fromLabId"`
+	ToUserID   int64     `db:"to_user_id" json:"toUserId"`
+	ToLabID    int64     `db:"to_lab_id" json:"toLabId"`
+	CreatedAt  time.Time `db:"created_at" json:"createdAt"`
+	// Incoming: the signed-in student is asked to agree.
+	Incoming bool `db:"-" json:"incoming"`
+}
+
+// SwapInput asks another student to trade places: my LabID for their WithLabID.
+type SwapInput struct {
+	LabID      int64 `json:"labId"`
+	WithUserID int64 `json:"withUserId"`
+	WithLabID  int64 `json:"withLabId"`
+}
+
+// Validate checks the payload.
+func (in *SwapInput) Validate() error {
+	ve := httpx.NewValidation()
+	if in.LabID <= 0 {
+		ve.Add("labId", "Выберите свою защиту")
+	}
+	if in.WithUserID <= 0 || in.WithLabID <= 0 {
+		ve.Add("withLabId", "Выберите, с кем поменяться")
+	}
+	if ve.Empty() {
+		return nil
+	}
+	return ve
 }
 
 // MySignup is a signup as seen from the student's profile.

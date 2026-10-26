@@ -15,6 +15,11 @@ import {
   isPending,
   PendingNotice,
 } from "@/components/site/auth/pending-notice";
+import {
+  SkipButton,
+  SwapMenu,
+  SwapRequests,
+} from "@/components/site/practice/queue-actions";
 import { QueueList } from "@/components/site/practice/queue-list";
 import { SignupDialog } from "@/components/site/practice/signup-dialog";
 import { SubjectBadge } from "@/components/site/subject-badge";
@@ -40,6 +45,8 @@ export function SessionCard({
   const { me } = useUser();
   const [open, setOpen] = useState(false);
   const mine = session.myLabIds.length > 0;
+  // Пропуск и обмены — только по сохранённому порядку и пока сдача не прошла.
+  const canTrade = mine && session.frozen && !session.past && !!me;
   const seatsLeft =
     session.capacity != null
       ? Math.max(0, session.capacity - session.queue.length)
@@ -123,13 +130,22 @@ export function SessionCard({
             {isPending(me) ? (
               <PendingNotice compact />
             ) : me ? (
-              <Button
-                type="button"
-                variant={mine ? "outline" : "default"}
-                onClick={() => setOpen(true)}
-              >
-                {mine ? "Изменить запись" : "Записаться"}
-              </Button>
+              <>
+                {canTrade ? (
+                  <SkipButton
+                    session={session}
+                    meId={me.user.id}
+                    onChange={onChange}
+                  />
+                ) : null}
+                <Button
+                  type="button"
+                  variant={mine ? "outline" : "default"}
+                  onClick={() => setOpen(true)}
+                >
+                  {mine ? "Изменить запись" : "Записаться"}
+                </Button>
+              </>
             ) : (
               <Button
                 variant="outline"
@@ -145,11 +161,30 @@ export function SessionCard({
 
       {session.queue.length > 0 ? (
         <div className="mt-4 space-y-2">
-          <QueueList queue={session.queue} meId={me?.user.id} />
+          <SwapRequests session={session} onChange={onChange} />
+          <QueueList
+            queue={session.queue}
+            meId={me?.user.id}
+            action={
+              canTrade && me
+                ? (e) =>
+                    e.user.id === me.user.id ? null : (
+                      <SwapMenu
+                        session={session}
+                        entry={e}
+                        meId={me.user.id}
+                        onChange={onChange}
+                      />
+                    )
+                : undefined
+            }
+          />
           {!session.past ? (
             <p className="text-xs text-muted-foreground">
               {session.frozen
-                ? "Порядок заморожен: новые записи встают в конец."
+                ? canTrade
+                  ? "Порядок заморожен: новые записи встают в конец. Опаздываете — пропустите всех; можно поменяться местами с согласия другого (⇄)."
+                  : "Порядок заморожен: новые записи встают в конец."
                 : `Порядок окончательный с ${fmtDateTime(session.freezesAt, tz)}; до этого его может поменять новая запись.`}
             </p>
           ) : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRightIcon, SkipForwardIcon } from "lucide-react";
+import { ArrowDownToLineIcon, ArrowLeftRightIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -63,7 +63,7 @@ function useQueueAction(onChange: (next: PracticeSessionView) => void) {
   return { busy, run };
 }
 
-/** «Пропустить всех»: the student's defenses go to the end of the frozen queue. */
+/** «В конец очереди»: the student's defenses go to the end of the frozen queue. */
 export function SkipButton({
   session,
   meId,
@@ -75,10 +75,15 @@ export function SkipButton({
 }) {
   const { busy, run } = useQueueAction(onChange);
   const [open, setOpen] = useState(false);
-  const mine = session.queue.filter((e) => e.user.id === meId);
+  const total = session.queue.length;
+  const places = session.queue
+    .map((e, i) => (e.user.id === meId ? i + 1 : 0))
+    .filter(Boolean);
   const atEnd = session.queue
-    .slice(session.queue.length - mine.length)
+    .slice(total - places.length)
     .every((e) => e.user.id === meId);
+  const target =
+    places.length > 1 ? `${total - places.length + 1}–${total}` : `${total}`;
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
@@ -88,21 +93,26 @@ export function SkipButton({
             type="button"
             variant="outline"
             disabled={busy || atEnd}
-            title={atEnd ? "Вы и так в конце очереди" : undefined}
+            title={
+              atEnd
+                ? "Вы и так в конце очереди"
+                : "Пропустить вперёд всех, кто записан после вас"
+            }
           />
         }
       >
-        <SkipForwardIcon data-icon="inline-start" />
-        Пропустить всех
+        <ArrowDownToLineIcon data-icon="inline-start" />В конец очереди
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Пропустить всех?</AlertDialogTitle>
+          <AlertDialogTitle>Уйти в конец очереди?</AlertDialogTitle>
           <AlertDialogDescription>
-            {mine.length > 1 ? "Ваши защиты встанут" : "Ваша защита встанет"} в
-            конец очереди — как если бы вы отписались и записались снова, только
-            лабы останутся. Вернуть прежнее место не получится, а ждущие обмены
-            отменятся.
+            {places.length > 1
+              ? `Ваши защиты переедут с мест ${places.join(", ")} на ${target}`
+              : `Ваша защита переедет с места ${places[0]} на ${target}`}
+            : все, кто записан после вас, сдадут раньше. Это как отписаться и
+            записаться снова, только лабы останутся. Вернуть прежнее место не
+            получится, а ждущие обмены отменятся.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -120,7 +130,7 @@ export function SkipButton({
             }}
           >
             {busy ? <Spinner /> : null}
-            Пропустить
+            Уйти в конец
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

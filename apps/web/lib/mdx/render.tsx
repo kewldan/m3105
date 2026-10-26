@@ -1,5 +1,5 @@
 import { evaluate } from "@mdx-js/mdx";
-import type { Root } from "hast";
+import type { Element, ElementContent, Root } from "hast";
 import type { ReactNode } from "react";
 import * as runtime from "react/jsx-runtime";
 import rehypeKatex from "rehype-katex";
@@ -32,6 +32,89 @@ function rehypeToc(toc: TocItem[]) {
       if (text) toc.push({ id, text, depth: node.tagName === "h2" ? 2 : 3 });
     });
   };
+}
+
+/**
+ * Чек-листы GFM (`- [ ] …`): чекбокс выносится в начало пункта, остальное
+ * оборачивается в div, а текст пункта становится ключом отметки (TaskCheckbox).
+ */
+function rehypeTaskList() {
+  return (tree: Root) => {
+    visit(tree, "element", (node) => {
+      const cls = node.properties?.className;
+      if (!Array.isArray(cls)) return;
+      if (cls.includes("contains-task-list")) {
+        node.properties.className = [
+          ...cls,
+          "list-none",
+          "pl-0",
+          "[li_&]:pl-6.5",
+        ];
+        return;
+      }
+      if (!cls.includes("task-list-item")) return;
+      const input = takeCheckbox(node);
+      if (!input) return;
+      // Вложенные списки идут под строкой пункта: иначе отметка родителя
+      // зачеркнула бы их, а их текст попал бы в ключ.
+      const isList = (c: ElementContent) =>
+        c.type === "element" && (c.tagName === "ul" || c.tagName === "ol");
+      const own = node.children.filter((c) => !isList(c));
+      const lists = node.children.filter(isList);
+      const text = own.map(extractText).join("").replace(/\s+/g, " ").trim();
+      input.properties = { ...input.properties, dataTask: text };
+      node.properties.className = [...cls, "pl-0"];
+      node.children = [
+        {
+          type: "element",
+          tagName: "div",
+          properties: {
+            className: [
+              "flex",
+              "items-start",
+              "gap-2.5",
+              "[&:has(>[data-checked])>div]:text-muted-foreground",
+              "[&:has(>[data-checked])>div]:line-through",
+            ],
+          },
+          children: [
+            input,
+            {
+              type: "element",
+              tagName: "div",
+              properties: {
+                className: [
+                  "min-w-0",
+                  "flex-1",
+                  "[&>p:first-child]:mt-0",
+                  "[&>p:last-child]:mb-0",
+                ],
+              },
+              children: own,
+            },
+          ],
+        },
+        ...lists,
+      ];
+    });
+  };
+}
+
+/** Removes the leading checkbox from a list item (or its first paragraph). */
+function takeCheckbox(li: Element): Element | null {
+  const isBox = (c: ElementContent): c is Element =>
+    c.type === "element" && c.tagName === "input";
+  const first = li.children.find(
+    (c) => c.type !== "text" || c.value.trim() !== "",
+  );
+  const parent =
+    first?.type === "element" && first.tagName === "p" ? first : li;
+  const index = parent.children.findIndex(isBox);
+  if (index === -1) return null;
+  const [input] = parent.children.splice(index, 1);
+  const next = parent.children[index];
+  if (next?.type === "text") next.value = next.value.replace(/^\s+/, "");
+  return input as Element;
 }
 
 function extractText(node: {
@@ -68,6 +151,7 @@ export async function renderMdx(source: string): Promise<RenderedMdx> {
       remarkPlugins: [remarkGfm, remarkMath],
       rehypePlugins: [
         rehypeSlug,
+        rehypeTaskList,
         rehypeToc(toc),
         rehypeKatex,
         [rehypePrettyCode, prettyCode],

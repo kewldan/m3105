@@ -17,6 +17,8 @@ import {
 } from "@/lib/files/preview";
 import { cn } from "@/lib/utils";
 
+import { TaskCheckbox } from "./task-checkbox";
+
 type CalloutType = "info" | "tip" | "warning" | "danger" | "success";
 
 const CALLOUT: Record<
@@ -166,6 +168,14 @@ function Img({ alt = "", src, ...props }: ComponentProps<"img">) {
   );
 }
 
+function Input(props: ComponentProps<"input">) {
+  const task = (props as Record<string, unknown>)["data-task"];
+  if (props.type === "checkbox" && typeof task === "string") {
+    return <TaskCheckbox task={task} defaultChecked={Boolean(props.checked)} />;
+  }
+  return <input {...props} />;
+}
+
 export const mdxComponents: MDXComponents = {
   Callout,
   Spoiler,
@@ -174,4 +184,5 @@ export const mdxComponents: MDXComponents = {
   table: Table,
   pre: Pre,
   img: Img,
+  input: Input,
 };

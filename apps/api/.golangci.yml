@@ -31,6 +31,8 @@ linters:
         text: G115        # длины сегментов проверены выше по коду
       - path: internal/files/dir\.go
         text: G304        # путь строится через Dir.path, который не выпускает за root
+      - path: internal/cpplint/
+        text: G204|G304|G702|G704|G709  # бинарники и URL из конфига, файлы — во временном каталоге, XML/YAML пишут сами clang-инструменты
 
 formatters:
   enable:

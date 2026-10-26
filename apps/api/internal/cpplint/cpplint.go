@@ -100,7 +100,9 @@ func New(clangFormat, clangTidy string, parallel int) (*Checker, error) {
 	if parallel < 1 {
 		parallel = 1
 	}
-	out, err := exec.Command(clangTidy, "--version").Output() //nolint:noctx // короткий запуск при старте
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, clangTidy, "--version").Output()
 	if err != nil {
 		return nil, fmt.Errorf("cpplint: %s --version: %w", clangTidy, err)
 	}

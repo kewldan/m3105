@@ -32,7 +32,7 @@ func dropSwapsOf(ctx context.Context, tx pgx.Tx, signupIDs []int64) error {
 }
 
 // SkipQueue moves all the user's defenses in a stored queue to its end, in the
-// order they stood: the same as cancelling and signing up again, but the labs
+// order they stood: the same as canceling and signing up again, but the labs
 // stay. Pending swaps of these defenses are dropped, their places are gone.
 func (s *Store) SkipQueue(ctx context.Context, sessionID, userID int64) error {
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
@@ -131,7 +131,7 @@ func (s *Store) RequestSwap(ctx context.Context, sessionID, userID int64, in mod
 	return wrap(tx.Commit(ctx))
 }
 
-// SwapResult is what an accepted or cancelled swap touched.
+// SwapResult is what an accepted or canceled swap touched.
 type SwapResult struct {
 	SessionID  int64
 	FromUserID int64

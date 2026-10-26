@@ -3,13 +3,39 @@ import Link from "next/link";
 import { type NavLink, primaryLinks } from "@/components/site/nav-config";
 import type { Settings } from "@/lib/api/types";
 
+const REPO = "https://github.com/kewldan/m3105";
+
+/** Short commit linked to GitHub; «—» when the build does not know it. */
+function Commit({ label, sha }: { label: string; sha: string }) {
+  return (
+    <span>
+      {label}{" "}
+      {sha ? (
+        <a
+          href={`${REPO}/commit/${sha}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-mono transition-colors hover:text-foreground"
+        >
+          {sha.slice(0, 7)}
+        </a>
+      ) : (
+        "—"
+      )}
+    </span>
+  );
+}
+
 export function SiteFooter({
   settings,
   member,
+  apiCommit,
   pageLinks = [],
 }: {
   settings: Settings;
   member: boolean;
+  /** Commit of the running API, "" if unknown. */
+  apiCommit: string;
   pageLinks?: NavLink[];
 }) {
   const links = [...primaryLinks(member), ...pageLinks];
@@ -35,8 +61,10 @@ export function SiteFooter({
             {settings.groupName}
           </span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Commit label="фронт" sha={process.env.NEXT_PUBLIC_GIT_SHA ?? ""} />
+            <Commit label="бэк" sha={apiCommit} />
             <a
-              href="https://github.com/kewldan/m3105"
+              href={REPO}
               target="_blank"
               rel="noopener noreferrer"
               className="transition-colors hover:text-foreground"

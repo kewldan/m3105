@@ -31,6 +31,8 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_SITE_URL: https://${DOMAIN:-m3105.ru}
+        # Ручная сборка: GIT_SHA=$(git rev-parse HEAD) docker compose up -d --build
+        GIT_SHA: ${GIT_SHA:-}
     restart: unless-stopped
     environment:
       API_URL: http://api:8080
@@ -49,6 +51,8 @@ services:
     image: ghcr.io/kewldan/m3105/api:${IMAGE_TAG:-latest}
     build:
       context: ./apps/api
+      args:
+        GIT_SHA: ${GIT_SHA:-}
     restart: unless-stopped
     environment:
       APP_ENV: production

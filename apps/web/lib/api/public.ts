@@ -8,6 +8,7 @@ import type {
   CommentTarget,
   FAQItem,
   GradesResponse,
+  Health,
   HomeResponse,
   Lab,
   MeResponse,
@@ -31,6 +32,9 @@ import type {
 // Ответы кешируются в Data Cache с тегами: админка при сохранении дёргает
 // /api/revalidate, и кеш сбрасывается сразу.
 
+/** Which API commit is deployed; checked at most once a minute. */
+export const getHealth = () =>
+  apiServer<Health>("/healthz", { tags: [TAG.version], revalidate: 60 });
 export const getSettings = () =>
   apiServer<SettingsResponse>("/settings", { tags: [TAG.settings] });
 export const getHome = () =>

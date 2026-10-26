@@ -16,6 +16,9 @@ COPY apps/web ./apps/web
 # Public URL is inlined into the bundle at build time (used for canonical/OG/robots).
 ARG NEXT_PUBLIC_SITE_URL=https://m3105.ru
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+# Коммит фронтенда для подвала сайта.
+ARG GIT_SHA=
+ENV NEXT_PUBLIC_GIT_SHA=$GIT_SHA
 ENV NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production
 RUN cd apps/web && node ./node_modules/next/dist/bin/next build
 

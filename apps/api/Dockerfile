@@ -5,8 +5,11 @@ RUN apk add --no-cache ca-certificates tzdata
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
+# Коммит для /healthz и подвала сайта; .git в контекст сборки не попадает.
+ARG GIT_SHA=
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
+    CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X github.com/kewldan/edu3105/apps/api/internal/buildinfo.commit=${GIT_SHA}" -o /out/api ./cmd/api
 
 FROM gcr.io/distroless/static-debian13:nonroot
 COPY --from=build /usr/share/zoneinfo /usr/share/zoneinfo

@@ -55,11 +55,7 @@ paths:
           description: Сервис работает
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string, const: ok }
-                required: [status]
+              schema: { $ref: "#/components/schemas/Health" }
         "4XX": { $ref: "#/components/responses/ClientError" }
 
   /settings:
@@ -989,6 +985,13 @@ components:
               items: { $ref: "#/components/schemas/PracticeSwap" }
               description: Ждущие ответа запросы на обмен местами, которые вошедший студент отправил или получил
           required: [queue, freezesAt, frozen, participants, myLabIds, full, past, availableLabs, swaps]
+
+    Health:
+      type: object
+      properties:
+        status: { type: string, const: ok }
+        commit: { type: string, description: "Коммит, из которого собран API; пусто, если неизвестен" }
+      required: [status, commit]
 
     PracticeSwap:
       type: object

@@ -16,6 +16,7 @@ import (
 
 	"github.com/kewldan/edu3105/apps/api/internal/auth"
 	"github.com/kewldan/edu3105/apps/api/internal/bot"
+	"github.com/kewldan/edu3105/apps/api/internal/buildinfo"
 	"github.com/kewldan/edu3105/apps/api/internal/config"
 	"github.com/kewldan/edu3105/apps/api/internal/files"
 	"github.com/kewldan/edu3105/apps/api/internal/grades"
@@ -68,6 +69,11 @@ func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.
 	}
 }
 
+// healthz answers liveness checks and tells which commit is deployed.
+func healthz(w http.ResponseWriter, _ *http.Request) {
+	httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok", "commit": buildinfo.Commit()})
+}
+
 // Router builds the chi router with all routes mounted.
 func (h *Handler) Router() http.Handler {
 	r := chi.NewRouter()
@@ -78,15 +84,11 @@ func (h *Handler) Router() http.Handler {
 	r.Use(timeoutExcept(30*time.Second, isFileTransfer))
 	r.Use(middleware.Compress(5, "application/json", "text/calendar"))
 
-	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
+	r.Get("/healthz", healthz)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(h.users.Middleware)
-		r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-			httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
-		})
+		r.Get("/healthz", healthz)
 		r.Get("/openapi.yaml", h.getOpenAPI)
 		r.Get("/docs", h.getDocs)
 		r.Get("/settings", h.getSettings)

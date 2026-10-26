@@ -4,7 +4,7 @@ import { SiteFooter } from "@/components/site/footer";
 import { SiteHeader } from "@/components/site/header";
 import { UserProvider } from "@/components/site/user-provider";
 import { cookieHeader } from "@/lib/api/cookies";
-import { getMe, getSettings } from "@/lib/api/public";
+import { getHealth, getMe, getSettings } from "@/lib/api/public";
 import type { MeResponse, SettingsResponse } from "@/lib/api/types";
 import { isGroupMember } from "@/lib/group";
 
@@ -56,12 +56,24 @@ async function loadSite(): Promise<SettingsResponse> {
   }
 }
 
+async function loadApiCommit(): Promise<string> {
+  try {
+    return (await getHealth()).commit;
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Public site chrome: header, footer and the signed-in student context.
  * Used by the (site) layout and by the root 404 page, which lives outside the group.
  */
 export async function SiteShell({ children }: { children: ReactNode }) {
-  const [site, me] = await Promise.all([loadSite(), loadMe()]);
+  const [site, me, apiCommit] = await Promise.all([
+    loadSite(),
+    loadMe(),
+    loadApiCommit(),
+  ]);
   const member = isGroupMember(me, site.settings.groupName);
   return (
     <UserProvider initial={me}>
@@ -81,6 +93,7 @@ export async function SiteShell({ children }: { children: ReactNode }) {
       <SiteFooter
         settings={site.settings}
         member={member}
+        apiCommit={apiCommit}
         pageLinks={site.navPages.map((p) => ({
           href: `/p/${p.slug}`,
           label: p.title,

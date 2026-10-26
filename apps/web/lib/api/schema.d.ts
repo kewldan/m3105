@@ -379,6 +379,12 @@ export type PracticeSessionView = PracticeSession & {
   swaps: PracticeSwap[];
 };
 
+export type Health = {
+  status: "ok";
+  /** Коммит, из которого собран API; пусто, если неизвестен */
+  commit: string;
+};
+
 /** Запрос на обмен местами в очереди — защита отправителя на защиту получателя */
 export type PracticeSwap = {
   id: number;

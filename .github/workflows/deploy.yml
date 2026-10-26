@@ -55,6 +55,7 @@ jobs:
           push: true
           build-args: |
             NEXT_PUBLIC_SITE_URL=${{ vars.SITE_URL || 'https://m3105.ru' }}
+            GIT_SHA=${{ github.sha }}
           tags: |
             ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }}
             ghcr.io/${{ github.repository }}/${{ matrix.image }}:latest

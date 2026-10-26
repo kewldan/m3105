@@ -12,6 +12,7 @@ export type CalendarResponse = Schema.CalendarResponse;
 export type Comment = Schema.Comment;
 export type FAQItem = Schema.FAQItem;
 export type HomeResponse = Schema.HomeResponse;
+export type Health = Schema.Health;
 export type Lab = Schema.Lab;
 export type LabRef = Schema.LabRef;
 export type Link = Schema.Link;

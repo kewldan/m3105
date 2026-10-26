@@ -16,6 +16,8 @@ export const TAG = {
   calendar: "calendar",
   practice: "practice",
   home: "home",
+  /** Коммит API в подвале: админка его не меняет, живёт только по TTL. */
+  version: "version",
 } as const;
 
 export type CacheTag = (typeof TAG)[keyof typeof TAG];

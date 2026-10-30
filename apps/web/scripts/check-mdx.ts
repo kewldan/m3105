@@ -25,6 +25,12 @@ const components = {
   Callout: Passthrough,
   Spoiler: Passthrough,
   Steps: Passthrough,
+  Badge: Passthrough,
+  Level: Passthrough,
+  Tags: Passthrough,
+  Meta: Passthrough,
+  Cards: Passthrough,
+  Card: Passthrough,
 };
 
 function stripFrontmatter(src: string): string {

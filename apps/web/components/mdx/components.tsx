@@ -17,6 +17,7 @@ import {
 } from "@/lib/files/preview";
 import { cn } from "@/lib/utils";
 
+import { Badge, Card, Cards, Level, Meta, Tags } from "./cards";
 import { TaskCheckbox } from "./task-checkbox";
 
 type CalloutType = "info" | "tip" | "warning" | "danger" | "success";
@@ -79,7 +80,9 @@ export function Callout({
       <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
       <div className="min-w-0 flex-1 space-y-1 [&_p]:m-0 [&_code]:rounded [&_code]:bg-black/5 [&_code]:px-1 dark:[&_code]:bg-white/10">
         <div className="font-semibold">{title ?? c.title}</div>
-        <div>{children}</div>
+        <div className="space-y-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -132,7 +135,9 @@ function Anchor({ href = "", children, ...rest }: ComponentProps<"a">) {
 
 function Table(props: ComponentProps<"table">) {
   return (
-    <div className="not-prose my-6 overflow-x-auto rounded-xl border">
+    // Переносы только между словами: иначе .prose (overflow-wrap: anywhere)
+    // сжимает столбцы до буквы, вместо того чтобы прокручивать таблицу.
+    <div className="not-prose my-6 overflow-x-auto rounded-xl border [overflow-wrap:break-word]">
       <table
         className="w-full text-sm [&_th]:bg-muted/60 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_td]:border-t [&_td]:px-3 [&_td]:py-2 [&_td]:align-top"
         {...props}
@@ -180,6 +185,12 @@ export const mdxComponents: MDXComponents = {
   Callout,
   Spoiler,
   Steps,
+  Badge,
+  Level,
+  Tags,
+  Meta,
+  Cards,
+  Card,
   a: Anchor,
   table: Table,
   pre: Pre,

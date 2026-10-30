@@ -102,6 +102,16 @@ export const MDX_HELP: { syntax: string; description: string }[] = [
     description: "Нумерованные шаги с акцентом",
   },
   {
+    syntax:
+      '<Badge tone="amber">…</Badge> <Level value="2.5" /> <Tags items="a, b" />',
+    description:
+      "Цветная плашка (amber, blue, violet, emerald, cyan, pink, rose, slate), шкала сложности из пяти делений, метки; в строку — внутри <Meta>",
+  },
+  {
+    syntax: '<Cards><Card href="#…" title="…" badge="…" level="2" /></Cards>',
+    description: "Сетка карточек-ссылок с плашкой и шкалой",
+  },
+  {
     syntax: "![подпись](/api/v1/files/…)",
     description:
       "Картинка или файл: кнопка «Файл», вставка из буфера или перетаскивание в текст",

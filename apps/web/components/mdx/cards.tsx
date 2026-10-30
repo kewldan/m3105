@@ -130,7 +130,10 @@ export function Cards({ children }: { children?: ReactNode }) {
   );
 }
 
-/** <Card href="#…" title="…" n="1" badge="Яндекс" tone="amber" level="1" /> */
+/**
+ * <Card href="#…" title="…" n="1" badge="Яндекс" tone="amber" level="1" />
+ * Без href — просто карточка (например, вариант стека с tags="a, b").
+ */
 export function Card({
   href,
   title,
@@ -138,38 +141,68 @@ export function Card({
   badge,
   tone,
   level,
+  tags,
   children,
 }: {
-  href: string;
+  href?: string;
   title: string;
   n?: string;
   badge?: string;
   tone?: Tone;
   level?: string;
+  tags?: string;
   children?: ReactNode;
 }) {
-  return (
-    <a
-      href={href}
-      className="group flex flex-col gap-2 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40"
+  const heading = (
+    <span
+      className={cn(
+        "font-medium leading-snug",
+        href && "group-hover:text-primary",
+      )}
     >
-      <span className="flex items-center justify-between gap-2">
-        {n && (
-          <span className="font-mono text-xs text-muted-foreground">№{n}</span>
-        )}
-        {badge && <Badge tone={tone}>{badge}</Badge>}
-      </span>
-      <span className="font-medium leading-snug group-hover:text-primary">
-        {title}
-      </span>
+      {title}
+    </span>
+  );
+  const body = (
+    <>
+      {n ? (
+        <>
+          <span className="flex items-center justify-between gap-2">
+            <span className="font-mono text-xs text-muted-foreground">
+              №{n}
+            </span>
+            {badge && <Badge tone={tone}>{badge}</Badge>}
+          </span>
+          {heading}
+        </>
+      ) : (
+        <span className="flex items-start justify-between gap-2">
+          {heading}
+          {badge && <Badge tone={tone}>{badge}</Badge>}
+        </span>
+      )}
       {children && (
         <span className="text-sm text-muted-foreground">{children}</span>
       )}
-      {level && (
-        <span className="mt-auto pt-1">
-          <Level value={level} />
+      {(tags || level) && (
+        <span className="mt-auto flex flex-col gap-2 pt-1">
+          {tags && <Tags items={tags} />}
+          {level && <Level value={level} />}
         </span>
       )}
+    </>
+  );
+  const className = "group flex flex-col gap-2 rounded-xl border bg-card p-4";
+  if (!href) return <div className={className}>{body}</div>;
+  return (
+    <a
+      href={href}
+      className={cn(
+        className,
+        "transition-colors hover:border-primary/40 hover:bg-muted/40",
+      )}
+    >
+      {body}
     </a>
   );
 }

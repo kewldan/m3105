@@ -109,7 +109,8 @@ export const MDX_HELP: { syntax: string; description: string }[] = [
   },
   {
     syntax: '<Cards><Card href="#…" title="…" badge="…" level="2" /></Cards>',
-    description: "Сетка карточек-ссылок с плашкой и шкалой",
+    description:
+      "Сетка карточек с плашкой, шкалой и метками tags; href необязателен",
   },
   {
     syntax: "![подпись](/api/v1/files/…)",

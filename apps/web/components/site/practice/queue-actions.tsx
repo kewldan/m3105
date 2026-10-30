@@ -1,6 +1,10 @@
 "use client";
 
-import { ArrowDownToLineIcon, ArrowLeftRightIcon } from "lucide-react";
+import {
+  ArrowDownToLineIcon,
+  ArrowLeftRightIcon,
+  ArrowUpToLineIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -131,6 +135,74 @@ export function SkipButton({
           >
             {busy ? <Spinner /> : null}
             Уйти в конец
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/** «Не успел в прошлый раз»: the student's defenses not reached at the previous session go to the front. */
+export function NotReachedButton({
+  session,
+  meId,
+  onChange,
+}: {
+  session: PracticeSessionView;
+  meId: number;
+  onChange: (next: PracticeSessionView) => void;
+}) {
+  const { busy, run } = useQueueAction(onChange);
+  const [open, setOpen] = useState(false);
+  const mine = session.queue.filter((e) => e.user.id === meId);
+  const claimed = mine.length > 0 && mine.every((e) => e.notReached);
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || claimed}
+            title={
+              claimed
+                ? "Вы уже в начале очереди"
+                : "На прошлой сдаче до вас не дошли — встать в начало"
+            }
+          />
+        }
+      >
+        <ArrowUpToLineIcon data-icon="inline-start" />
+        Не успел в прошлый раз
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Не успели сдать на прошлой паре?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Защиты тех лаб, с которыми вы были записаны на прошлую сдачу,
+            встанут в начало очереди — сразу после переносов из резерва и тех,
+            кто нажал раньше. Рядом с ними появится метка «не успел», её видят
+            все. Ждущие обмены этих защит отменятся. Нажимайте, только если до
+            вас правда не дошли.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Отмена</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy}
+            onClick={async () => {
+              if (
+                await run(
+                  () => userApi.practiceNotReached(session.id),
+                  "Вы в начале очереди",
+                )
+              )
+                setOpen(false);
+            }}
+          >
+            {busy ? <Spinner /> : null}
+            Встать в начало
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

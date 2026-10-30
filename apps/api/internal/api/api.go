@@ -135,6 +135,7 @@ func (h *Handler) Router() http.Handler {
 		r.With(userauth.Require, h.requireApproved).Put("/practice/{id}/signups", h.setPracticeSignup)
 		r.With(userauth.Require, h.requireApproved).Delete("/practice/{id}/signups", h.setPracticeSignup)
 		r.With(userauth.Require, h.requireApproved).Post("/practice/{id}/skip", h.skipPractice)
+		r.With(userauth.Require, h.requireApproved).Post("/practice/{id}/not-reached", h.notReachedPractice)
 		r.With(userauth.Require, h.requireApproved).Post("/practice/{id}/swaps", h.requestSwap)
 		r.With(userauth.Require, h.requireApproved).Post("/practice/swaps/{id}/accept", h.acceptSwap)
 		r.With(userauth.Require, h.requireApproved).Delete("/practice/swaps/{id}", h.deleteSwap)

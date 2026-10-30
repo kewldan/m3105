@@ -653,6 +653,24 @@ func TestStudentAccounts(t *testing.T) {
 	if !slices.Equal(qb, []entry{{petya, lab2ID}, {masha, lab1ID}}) || viewB["queue"].([]any)[0].(map[string]any)["carried"] != true {
 		t.Fatalf("carry-over from the reserve failed: %v", viewB)
 	}
+	// «Не успел в прошлый раз»: только по сохранённому порядку и только с лабами,
+	// с которыми студент был на предыдущей сдаче. Маша была на A с лабой 1 и встаёт
+	// сразу за переносом Петра, обогнав его вторую лабу; метку видят все.
+	bURL := fmt.Sprintf("/api/v1/practice/%d", sessB)
+	tg.do("POST", bURL+"/not-reached", nil, 422)
+	tg.do("POST", aURL+"/not-reached", nil, 422)
+	u.do("PUT", bURL+"/signups", map[string]any{"labIds": []int64{lab2ID, lab1ID}}, 200)
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice/%d/signups/order", sessB), ord(entry{petya, lab2ID}, entry{petya, lab1ID}, entry{masha, lab1ID}), 200)
+	tg.do("POST", bURL+"/not-reached", nil, 200)
+	qb, viewB = queueOf(anon, bURL, "queue")
+	if marks := viewB["queue"].([]any); !slices.Equal(qb, []entry{{petya, lab2ID}, {masha, lab1ID}, {petya, lab1ID}}) ||
+		marks[1].(map[string]any)["notReached"] != true || marks[0].(map[string]any)["notReached"] != false {
+		t.Fatalf("not-reached claim = %v", viewB)
+	}
+	admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/signups/auto", sessB), nil, 200)
+	if _, viewB = queueOf(anon, bURL, "queue"); slices.ContainsFunc(viewB["queue"].([]any), func(e any) bool { return e.(map[string]any)["notReached"] == true }) {
+		t.Fatalf("auto queue must drop not-reached marks: %v", viewB)
+	}
 	// Два пропуска подряд важнее одного: на B оставляем в резерве обе лабы Петра
 	// (лаба 2 пропущена уже второй раз, лаба 1 — впервые и стоит в резерве выше).
 	// На следующей сдаче C лаба 2 идёт первой.

@@ -96,6 +96,11 @@ export const userApi = {
   /** Moves the caller's defenses to the end of a frozen queue. */
   practiceSkip: (id: number) =>
     apiClient<PracticeSessionView>(`/practice/${id}/skip`, { method: "POST" }),
+  /** Moves the caller's defenses not reached last time to the front, with a mark. */
+  practiceNotReached: (id: number) =>
+    apiClient<PracticeSessionView>(`/practice/${id}/not-reached`, {
+      method: "POST",
+    }),
   /** Offers my defense (labId) for another student's one. */
   practiceRequestSwap: (
     id: number,

@@ -230,6 +230,8 @@ type SignupRow struct {
 	LabSlug     string    `db:"lab_slug" json:"labSlug"`
 	SubjectSlug string    `db:"subject_slug" json:"subjectSlug"`
 	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+	// NotReached: the student said this lab was not reached at the previous session.
+	NotReached bool `db:"not_reached" json:"-"`
 }
 
 // Participant groups a student's labs for one session.
@@ -250,6 +252,9 @@ type QueueEntry struct {
 	Missed int `json:"missed"`
 	// Late: signed up after the freeze, so it went to the end.
 	Late bool `json:"late"`
+	// NotReached: the student said it was not reached at the previous session
+	// and moved it to the front.
+	NotReached bool `json:"notReached"`
 }
 
 // PracticeSessionView is a session with its queue, public to everyone.

@@ -93,6 +93,16 @@ export function QueueList({
                     : "Эту защиту не успели принять на прошлой сдаче, поэтому сейчас она идёт в начале очереди."}
                 </QueueTag>
               ) : null}
+              {e.notReached ? (
+                <QueueTag
+                  label="не успел"
+                  className="bg-amber-500/12 text-amber-700 dark:text-amber-300"
+                >
+                  До этой защиты не дошли на прошлой сдаче — студент сам отметил
+                  это и встал в начало очереди, сразу после переносов из
+                  резерва.
+                </QueueTag>
+              ) : null}
               {e.late ? (
                 <QueueTag
                   label="поздняя"

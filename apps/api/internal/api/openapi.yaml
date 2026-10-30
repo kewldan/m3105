@@ -988,7 +988,8 @@ components:
         carried: { type: boolean, description: "Осталась в резерве прошлой сдачи, поэтому идёт первой" }
         missed: { type: integer, description: "Сколько сдач подряд защита оставалась в резерве; больше — раньше" }
         late: { type: boolean, description: "Запись после заморозки, поэтому в конце" }
-      required: [user, lab, reserve, carried, missed, late]
+        notReached: { type: boolean, description: "Студент не успел сдать эту лабу на прошлой сдаче и перенёс защиту в начало" }
+      required: [user, lab, reserve, carried, missed, late, notReached]
 
     PracticeSession:
       allOf:

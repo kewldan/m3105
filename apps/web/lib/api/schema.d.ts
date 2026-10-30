@@ -343,6 +343,8 @@ export type QueueEntry = {
   missed: number;
   /** Запись после заморозки, поэтому в конце */
   late: boolean;
+  /** Студент не успел сдать эту лабу на прошлой сдаче и перенёс защиту в начало */
+  notReached: boolean;
 };
 
 export type PracticeSession = SubjectJoin & {

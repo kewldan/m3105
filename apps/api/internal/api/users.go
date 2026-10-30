@@ -486,12 +486,13 @@ func (h *Handler) freezeQueues(ctx context.Context, loc *time.Location) {
 
 func queueEntry(r store.QueuedSignup, capacity *int, i int) models.QueueEntry {
 	return models.QueueEntry{
-		User:    models.PublicUser{ID: r.UserID, Name: r.UserName, PhotoURL: r.PhotoURL, Group: r.UserGroup},
-		Lab:     models.LabRef{ID: r.LabID, Number: r.LabNumber, Title: r.LabTitle, Slug: r.LabSlug, SubjectSlug: r.SubjectSlug},
-		Reserve: capacity != nil && i >= *capacity,
-		Carried: r.Missed > 0,
-		Missed:  r.Missed,
-		Late:    r.Late,
+		User:       models.PublicUser{ID: r.UserID, Name: r.UserName, PhotoURL: r.PhotoURL, Group: r.UserGroup},
+		Lab:        models.LabRef{ID: r.LabID, Number: r.LabNumber, Title: r.LabTitle, Slug: r.LabSlug, SubjectSlug: r.SubjectSlug},
+		Reserve:    capacity != nil && i >= *capacity,
+		Carried:    r.Missed > 0,
+		Missed:     r.Missed,
+		Late:       r.Late,
+		NotReached: r.NotReached,
 	}
 }
 
@@ -689,6 +690,32 @@ func (h *Handler) skipPractice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.SkipQueue(ctx, id, userID); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	h.respondPractice(w, r, id)
+}
+
+// notReachedPractice moves the defenses a student did not get to defend last
+// time to the front of a stored queue, with a mark.
+func (h *Handler) notReachedPractice(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, _ := userauth.UserID(ctx)
+	id, err := httpx.IDParam(r)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if _, err := h.openPractice(ctx, id); err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	sc, err := h.site(ctx)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if err := h.store.ClaimNotReached(ctx, id, userID, sc.Loc); err != nil {
 		httpx.Fail(w, err)
 		return
 	}

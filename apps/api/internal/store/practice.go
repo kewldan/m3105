@@ -76,7 +76,7 @@ func (s *Store) DeletePracticeSession(ctx context.Context, id int64) error {
 }
 
 const signupCols = `g.session_id, g.user_id, ` + userNameExpr + ` AS user_name, ` + userPhotoExpr + ` AS photo_url, u.group_name AS user_group, g.lab_id, l.number AS lab_number, l.title AS lab_title,
-	l.slug AS lab_slug, s.slug AS subject_slug, g.created_at`
+	l.slug AS lab_slug, s.slug AS subject_slug, g.created_at, g.not_reached_at IS NOT NULL AS not_reached`
 
 const signupFrom = ` FROM practice_signups g JOIN users u ON u.id = g.user_id JOIN labs l ON l.id = g.lab_id JOIN subjects s ON s.id = l.subject_id`
 
@@ -185,7 +185,23 @@ func (s *Store) ReorderSignups(ctx context.Context, sessionID int64, keys []queu
 }
 
 // AutoQueue drops the admin's manual order: the queue follows the rules again
-// (and is frozen anew if its freeze time has passed).
+// (and is frozen anew if its freeze time has passed). «Not reached» marks go
+// too: the rules do not know them.
 func (s *Store) AutoQueue(ctx context.Context, sessionID int64) error {
-	return s.exec(ctx, `UPDATE practice_sessions SET queue_manual = false, queue_frozen_at = NULL WHERE id = $1`, sessionID)
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return wrap(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	tag, err := tx.Exec(ctx, `UPDATE practice_sessions SET queue_manual = false, queue_frozen_at = NULL WHERE id = $1`, sessionID)
+	if err != nil {
+		return wrap(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return httpx.ErrNotFound
+	}
+	if _, err := tx.Exec(ctx, `UPDATE practice_signups SET not_reached_at = NULL WHERE session_id = $1`, sessionID); err != nil {
+		return wrap(err)
+	}
+	return wrap(tx.Commit(ctx))
 }

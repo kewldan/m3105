@@ -16,6 +16,7 @@ import {
   PendingNotice,
 } from "@/components/site/auth/pending-notice";
 import {
+  NotReachedButton,
   SkipButton,
   SwapMenu,
   SwapRequests,
@@ -126,17 +127,24 @@ export function SessionCard({
           ) : null}
         </div>
         {!session.past ? (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             {isPending(me) ? (
               <PendingNotice compact />
             ) : me ? (
               <>
                 {canTrade ? (
-                  <SkipButton
-                    session={session}
-                    meId={me.user.id}
-                    onChange={onChange}
-                  />
+                  <>
+                    <NotReachedButton
+                      session={session}
+                      meId={me.user.id}
+                      onChange={onChange}
+                    />
+                    <SkipButton
+                      session={session}
+                      meId={me.user.id}
+                      onChange={onChange}
+                    />
+                  </>
                 ) : null}
                 <Button
                   type="button"
@@ -183,7 +191,7 @@ export function SessionCard({
             <p className="text-xs text-muted-foreground">
               {session.frozen
                 ? canTrade
-                  ? "Порядок заморожен: новые записи встают в конец. Опаздываете — пропустите всех; можно поменяться местами с согласия другого (⇄)."
+                  ? "Порядок заморожен: новые записи встают в конец. Не успели сдать в прошлый раз — встаньте в начало; опаздываете — пропустите всех; можно поменяться местами с согласия другого (⇄)."
                   : "Порядок заморожен: новые записи встают в конец."
                 : `Порядок окончательный с ${fmtDateTime(session.freezesAt, tz)}; до этого его может поменять новая запись.`}
             </p>

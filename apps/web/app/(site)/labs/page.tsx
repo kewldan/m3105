@@ -10,6 +10,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Все лабораторные работы семестра: дедлайны, требования, порядок сдачи и материалы.",
   path: "/labs",
+  markdown: true,
 });
 
 export default async function LabsPage() {

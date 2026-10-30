@@ -34,7 +34,13 @@ export async function generateMetadata(): Promise<Metadata> {
   } catch {
     // keep defaults
   }
-  return pageMetadata({ title, absolute: true, description, path: "/" });
+  return pageMetadata({
+    title,
+    absolute: true,
+    description,
+    path: "/",
+    markdown: true,
+  });
 }
 
 export default async function HomePage() {

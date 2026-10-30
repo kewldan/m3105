@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { markdownPath } from "@/lib/llms/paths";
+
 /** Site-wide SEO constants and a helper that builds consistent page metadata. */
 
 export const SITE_NAME = "М3105";
@@ -35,6 +37,8 @@ type PageMeta = {
    */
   image?: string;
   imageAlt?: string;
+  /** Page has a Markdown copy for AI agents (app/md): adds rel=alternate. */
+  markdown?: boolean;
 };
 
 export const DEFAULT_OG_IMAGE = "/og/site";
@@ -78,7 +82,16 @@ export function pageMetadata(meta: PageMeta): Metadata {
   return {
     title: meta.absolute ? { absolute: meta.title } : meta.title,
     description,
-    alternates: { canonical: url },
+    alternates: {
+      canonical: url,
+      // Дочерний `alternates` целиком заменяет корневой, поэтому RSS здесь же.
+      types: {
+        "application/rss+xml": absoluteUrl("/feed.xml"),
+        ...(meta.markdown
+          ? { "text/markdown": absoluteUrl(markdownPath(meta.path)) }
+          : {}),
+      },
+    },
     openGraph,
     twitter: {
       card: "summary_large_image",

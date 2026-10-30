@@ -4,7 +4,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
-import { breadcrumbs, JsonLd } from "@/components/site/json-ld";
+import {
+  breadcrumbs,
+  JsonLd,
+  learningResource,
+} from "@/components/site/json-ld";
 import { MdxBody } from "@/components/site/mdx-content";
 import { CourseOutline } from "@/components/site/notes/course-outline";
 import { ExportPdfButton } from "@/components/site/notes/export-pdf";
@@ -50,6 +54,7 @@ export async function generateMetadata({
     description:
       metaText(note.summary) || `Конспект по предмету «${note.subjectName}».`,
     path: `/notes/${note.subjectSlug}/${note.slug}`,
+    markdown: true,
     type: "article",
     publishedTime: note.lectureDate ?? note.createdAt,
     modifiedTime: note.updatedAt,
@@ -86,7 +91,11 @@ export default async function NotePage({ params }: { params: Params }) {
       <JsonLd
         data={{
           "@context": "https://schema.org",
-          "@type": "Article",
+          ...learningResource({
+            path: `/notes/${note.subjectSlug}/${note.slug}`,
+            kind: "Конспект",
+            image: `/og/note/${note.subjectSlug}/${note.slug}`,
+          }),
           headline: note.title,
           description: metaText(note.summary) || undefined,
           url: noteUrl,

@@ -12,6 +12,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Все предметы семестра: преподаватели, лабораторные, конспекты и квизы по каждому курсу.",
   path: "/subjects",
+  markdown: true,
 });
 
 export default async function SubjectsPage() {

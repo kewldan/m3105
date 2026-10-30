@@ -36,6 +36,7 @@ export async function generateMetadata({
     title: page.title,
     description: metaText(page.summary),
     path: `/p/${page.slug}`,
+    markdown: true,
     type: "article",
     publishedTime: page.createdAt,
     modifiedTime: page.updatedAt,

@@ -14,7 +14,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { breadcrumbs, JsonLd } from "@/components/site/json-ld";
+import {
+  breadcrumbs,
+  JsonLd,
+  learningResource,
+} from "@/components/site/json-ld";
 import { DeadlineCard } from "@/components/site/labs/deadline-card";
 import { MdxContent } from "@/components/site/mdx-content";
 import { FadeIn } from "@/components/site/motion";
@@ -49,6 +53,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
         metaText(lab.summary) ||
         `${lab.subjectName}: лабораторная работа ${lab.number}. Задание, требования и порядок сдачи.`,
       path: `/labs/${lab.subjectSlug}/${lab.slug}`,
+      markdown: true,
       type: "article",
       publishedTime: lab.createdAt,
       modifiedTime: lab.updatedAt,
@@ -95,7 +100,11 @@ export default async function LabPage({ params }: Params) {
       <JsonLd
         data={{
           "@context": "https://schema.org",
-          "@type": "Article",
+          ...learningResource({
+            path: `/labs/${lab.subjectSlug}/${lab.slug}`,
+            kind: "Лабораторная работа",
+            image: `/og/lab/${lab.subjectSlug}/${lab.slug}`,
+          }),
           headline: `Лаба ${lab.number}. ${lab.title}`,
           description: metaText(lab.summary) || undefined,
           url: labUrl,

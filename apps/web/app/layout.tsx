@@ -73,7 +73,10 @@ export async function generateMetadata(): Promise<Metadata> {
     ],
     category: "education",
     robots: { index: true, follow: true },
-    alternates: { canonical: absoluteUrl("/") },
+    alternates: {
+      canonical: absoluteUrl("/"),
+      types: { "application/rss+xml": absoluteUrl("/feed.xml") },
+    },
     openGraph: {
       type: "website",
       siteName: siteTitle,

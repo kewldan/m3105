@@ -16,6 +16,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Конспекты лекций и практик по всем предметам семестра с формулами, кодом и квизами для самопроверки.",
   path: "/notes",
+  markdown: true,
 });
 
 export default async function NotesPage({

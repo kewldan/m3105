@@ -30,6 +30,22 @@ const securityHeaders = [
   },
 ];
 
+// Страницы с Markdown-версией для ИИ-агентов (app/md): по адресу с `.md`
+// или по `Accept: text/markdown`. Список держать в синхроне с app/md.
+const MARKDOWN_PAGES = [
+  "/labs",
+  "/labs/:subject/:slug",
+  "/notes",
+  "/notes/:subject/:slug",
+  "/subjects",
+  "/subjects/:slug",
+  "/p/:slug",
+  "/faq",
+];
+const acceptsMarkdown = [
+  { type: "header" as const, key: "accept", value: ".*text/markdown.*" },
+];
+
 const nextConfig: NextConfig = {
   reactCompiler: true,
   poweredByHeader: false,
@@ -43,8 +59,21 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     const api = process.env.API_URL;
-    if (!api) return [];
-    return [{ source: "/api/:path*", destination: `${api}/api/:path*` }];
+    return {
+      // До файловых роутов: иначе `/labs/prog/lab-1.md` поймал бы [slug].
+      beforeFiles: [
+        { source: "/index.md", destination: "/md" },
+        { source: "/", has: acceptsMarkdown, destination: "/md" },
+        ...MARKDOWN_PAGES.flatMap((page) => [
+          { source: `${page}.md`, destination: `/md${page}` },
+          { source: page, has: acceptsMarkdown, destination: `/md${page}` },
+        ]),
+      ],
+      afterFiles: api
+        ? [{ source: "/api/:path*", destination: `${api}/api/:path*` }]
+        : [],
+      fallback: [],
+    };
   },
 };
 

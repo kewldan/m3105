@@ -59,6 +59,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
           ? bits.join(", ")
           : `${subject.name}: лабораторные, конспекты и квизы.`),
       path: `/subjects/${subject.slug}`,
+      markdown: true,
       image: `/og/subject/${subject.slug}`,
     });
   } catch {

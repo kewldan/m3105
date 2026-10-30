@@ -114,7 +114,8 @@ export const MDX_HELP: { syntax: string; description: string }[] = [
   },
   {
     syntax: "<Matcher data={{ dims, questions, items }} />",
-    description: "Анкета, которая подбирает вариант по ответам (lib/matcher.ts)",
+    description:
+      "Анкета, которая подбирает вариант по ответам (lib/matcher.ts)",
   },
   {
     syntax: "![подпись](/api/v1/files/…)",

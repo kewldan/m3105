@@ -31,6 +31,7 @@ const components = {
   Meta: Passthrough,
   Cards: Passthrough,
   Card: Passthrough,
+  Matcher: Passthrough,
 };
 
 function stripFrontmatter(src: string): string {

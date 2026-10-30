@@ -15,7 +15,7 @@ const TONE = {
   slate: "bg-slate-500/12 text-slate-700 ring-slate-500/30 dark:text-slate-300",
 };
 
-type Tone = keyof typeof TONE;
+export type Tone = keyof typeof TONE;
 
 /** <Badge tone="amber">Яндекс</Badge> */
 export function Badge({

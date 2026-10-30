@@ -113,6 +113,10 @@ export const MDX_HELP: { syntax: string; description: string }[] = [
       "Сетка карточек с плашкой, шкалой и метками tags; href необязателен",
   },
   {
+    syntax: "<Matcher data={{ dims, questions, items }} />",
+    description: "Анкета, которая подбирает вариант по ответам (lib/matcher.ts)",
+  },
+  {
     syntax: "![подпись](/api/v1/files/…)",
     description:
       "Картинка или файл: кнопка «Файл», вставка из буфера или перетаскивание в текст",

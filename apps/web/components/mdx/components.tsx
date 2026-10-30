@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { Badge, Card, Cards, Level, Meta, Tags } from "./cards";
+import { Matcher } from "./matcher";
 import { TaskCheckbox } from "./task-checkbox";
 
 type CalloutType = "info" | "tip" | "warning" | "danger" | "success";
@@ -191,6 +192,7 @@ export const mdxComponents: MDXComponents = {
   Meta,
   Cards,
   Card,
+  Matcher,
   a: Anchor,
   table: Table,
   pre: Pre,

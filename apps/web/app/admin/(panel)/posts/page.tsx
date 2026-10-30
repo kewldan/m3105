@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  ExternalLinkIcon,
-  HeartIcon,
-  LockIcon,
-  MessageCircleIcon,
-} from "lucide-react";
+import { ExternalLinkIcon, HeartIcon, MessageCircleIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AttachmentThumbs } from "@/components/admin/attachment-thumbs";
@@ -16,7 +11,6 @@ import { RowActions } from "@/components/admin/row-actions";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { PostDialog } from "@/components/site/social/post-dialog";
 import { RatingStars } from "@/components/site/social/rating-stars";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { handleApiError } from "@/lib/admin/errors";
 import { useQuery } from "@/lib/admin/use-query";

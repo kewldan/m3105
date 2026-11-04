@@ -120,32 +120,25 @@ func TestParseCommand(t *testing.T) {
 	}
 }
 
-func TestNewUserMessage(t *testing.T) {
-	u := models.User{ID: 7, Name: "Иван <Петров>", TelegramUsername: "ivan_p", GroupName: "М3105"}
-	msg := newUserMessage("https://m3105.ru/", u)
+func TestClaimedMessage(t *testing.T) {
+	u := models.User{ID: 7, Name: "Иван Петров", TelegramName: "Ваня <3", TelegramUsername: "ivan_p", GroupName: "М3105"}
+	st := models.Student{FullName: "Петров Иван Иванович", GroupName: "М3105"}
+	msg := claimedMessage("https://m3105.ru/", u, st)
 	for _, want := range []string{
-		"Иван &lt;Петров&gt;",
+		"Ваня &lt;3",
 		`<a href="https://t.me/ivan_p">@ivan_p</a>`,
-		"Группа: М3105",
-		"Ждёт подтверждения",
+		"<b>Петров Иван Иванович</b>, М3105",
 		`<a href="https://m3105.ru/admin/users">`,
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("message has no %q:\n%s", want, msg)
 		}
 	}
-
-	u.Approved, u.TelegramUsername, u.GroupName = true, "", ""
-	msg = newUserMessage("https://m3105.ru", u)
-	if !strings.Contains(msg, "Подтверждён кодом доступа") || strings.Contains(msg, "t.me") || strings.Contains(msg, "Группа") {
-		t.Errorf("approved message without username and group:\n%s", msg)
+	u.TelegramUsername = ""
+	if msg := unclaimedMessage("https://m3105.ru", u); !strings.Contains(msg, "Выбор отменён") || strings.Contains(msg, "t.me") {
+		t.Errorf("unclaimed message:\n%s", msg)
 	}
-
-	u.GroupName = "М3105-2"
-	if msg := approvedUserMessage("https://m3105.ru", u, true); !strings.Contains(msg, "✅ Подтверждён.") || !strings.Contains(msg, "Группа: М3105-2") {
-		t.Errorf("approved from the button:\n%s", msg)
-	}
-	if kb := approveKeyboard(42)["inline_keyboard"].([][]map[string]string); kb[0][0]["callback_data"] != "approve:42" {
+	if kb := unclaimKeyboard(42)["inline_keyboard"].([][]map[string]string); kb[0][0]["callback_data"] != "unclaim:42" {
 		t.Errorf("keyboard: %v", kb)
 	}
 }

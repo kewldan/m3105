@@ -42,17 +42,15 @@ type NewUser struct {
 	TelegramID       *int64
 	TelegramUsername string
 	PhotoURL         string
-	GroupName        string
-	// Approved marks the account confirmed right away (correct invite code).
-	Approved bool
 }
 
-// CreateUser inserts an account.
+// CreateUser inserts an account. It is confirmed later, when the student picks
+// themselves in the course list (ClaimStudent).
 func (s *Store) CreateUser(ctx context.Context, in NewUser) (models.User, error) {
 	var id int64
-	err := s.db.QueryRow(ctx, `INSERT INTO users (webauthn_id, name, telegram_id, telegram_username, photo_url, group_name, approved_at)
-		VALUES ($1,$2,$3,$4,$5,$6, CASE WHEN $7 THEN now() END) RETURNING id`,
-		in.WebauthnID, in.Name, in.TelegramID, in.TelegramUsername, in.PhotoURL, in.GroupName, in.Approved).Scan(&id)
+	err := s.db.QueryRow(ctx, `INSERT INTO users (webauthn_id, name, telegram_id, telegram_username, photo_url)
+		VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+		in.WebauthnID, in.Name, in.TelegramID, in.TelegramUsername, in.PhotoURL).Scan(&id)
 	if err != nil {
 		return models.User{}, wrap(err)
 	}
@@ -81,14 +79,6 @@ func (s *Store) UpdateUserProfile(ctx context.Context, id int64, in models.Admin
 	return s.GetUser(ctx, id)
 }
 
-// SetProfile stores the name the student chose (empty falls back to Telegram)
-// and, when isu is not nil, their ISU number (empty unlinks and stops name matching).
-func (s *Store) SetProfile(ctx context.Context, id int64, name string, isu *string) error {
-	err := s.exec(ctx, `UPDATE users SET display_name = $2,
-		isu = COALESCE($3::text, isu) WHERE id = $1`, id, name, isu)
-	return isuConflict(err)
-}
-
 // isuConflict turns a duplicate ISU into a field error the form can show.
 func isuConflict(err error) error {
 	if errors.Is(err, httpx.ErrConflict) && strings.Contains(err.Error(), "isu") {
@@ -104,19 +94,6 @@ func (s *Store) ListUsers(ctx context.Context) ([]models.AdminUser, error) {
 		(SELECT count(*) FROM lab_completions c WHERE c.user_id = u.id)::int AS completions_count,
 		(SELECT count(DISTINCT session_id) FROM practice_signups g WHERE g.user_id = u.id)::int AS signups_count
 		FROM users u ORDER BY u.created_at DESC`)
-}
-
-// ApproveUser confirms a pending account and gives it the group when it has none.
-// ok is false when the account was already confirmed; a missing account is ErrNotFound.
-func (s *Store) ApproveUser(ctx context.Context, id int64, group string) (user models.User, ok bool, err error) {
-	tag, err := s.db.Exec(ctx, `UPDATE users SET approved_at = now(),
-		group_name = CASE WHEN group_name = '' THEN $2 ELSE group_name END
-		WHERE id = $1 AND approved_at IS NULL`, id, group)
-	if err != nil {
-		return models.User{}, false, wrap(err)
-	}
-	user, err = s.GetUser(ctx, id)
-	return user, tag.RowsAffected() > 0, err
 }
 
 // DeleteUser removes an account and everything bound to it.

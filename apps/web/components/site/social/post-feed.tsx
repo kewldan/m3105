@@ -93,7 +93,7 @@ export function PostFeed({
   };
 
   const addButton = isPending(me) ? (
-    <PendingNotice compact />
+    <PendingNotice />
   ) : me ? (
     <Button onClick={() => setDialog({ open: true, post: null })}>
       <PlusIcon data-icon="inline-start" />

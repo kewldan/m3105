@@ -17,10 +17,9 @@ import (
 )
 
 type authInfo struct {
-	TelegramBot    string `json:"telegramBot"`
-	TelegramBotID  string `json:"telegramBotId"`
-	DevLogin       bool   `json:"devLogin"`
-	InviteRequired bool   `json:"inviteRequired"`
+	TelegramBot   string `json:"telegramBot"`
+	TelegramBotID string `json:"telegramBotId"`
+	DevLogin      bool   `json:"devLogin"`
 }
 
 type settingsResponse struct {
@@ -48,11 +47,8 @@ func (h *Handler) getSettings(w http.ResponseWriter, r *http.Request) {
 			nav = append(nav, p)
 		}
 	}
-	settings := sc.Settings
-	inviteRequired := settings.InviteCode != ""
-	settings.InviteCode = "" // never expose the code publicly
-	httpx.JSON(w, http.StatusOK, settingsResponse{Settings: settings, Week: sc.week(sc.Now), Now: sc.Now, Pages: nav,
-		Auth: authInfo{TelegramBot: h.cfg.TelegramBotUsername, TelegramBotID: h.cfg.TelegramBotID, DevLogin: h.cfg.DevLogin, InviteRequired: inviteRequired}})
+	httpx.JSON(w, http.StatusOK, settingsResponse{Settings: sc.Settings, Week: sc.week(sc.Now), Now: sc.Now, Pages: nav,
+		Auth: authInfo{TelegramBot: h.cfg.TelegramBotUsername, TelegramBotID: h.cfg.TelegramBotID, DevLogin: h.cfg.DevLogin}})
 }
 
 type homeResponse struct {
@@ -105,10 +101,8 @@ func (h *Handler) getHome(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	publicSettings := sc.Settings
-	publicSettings.InviteCode = ""
 	httpx.JSON(w, http.StatusOK, homeResponse{
-		Settings:          publicSettings,
+		Settings:          sc.Settings,
 		Week:              week,
 		Now:               sc.Now,
 		UpcomingDeadlines: upcoming,

@@ -81,7 +81,7 @@ export function SignupButton({
   }
 
   if (isPending(me)) {
-    return <PendingNotice compact className={className} />;
+    return <PendingNotice className={className} />;
   }
 
   const choose = async (session: PracticeSessionView) => {

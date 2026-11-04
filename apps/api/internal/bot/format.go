@@ -183,33 +183,25 @@ func labsMessage(site string, labs []store.BotLab, now time.Time, loc *time.Loca
 }
 
 // newUserMessage tells the admin about a new student account.
-func newUserMessage(site string, u models.User) string {
-	if u.Approved {
-		return userCard(site, u, "✅ Подтверждён кодом доступа.")
-	}
-	return userCard(site, u, "⏳ Ждёт подтверждения: до этого не может отмечать лабы, записываться и писать.")
+// claimedMessage tells the admin who picked whom in the course list.
+func claimedMessage(site string, u models.User, st models.Student) string {
+	status := fmt.Sprintf("✅ Выбрал себя в списке: <b>%s</b>, %s.", esc(st.FullName), esc(st.GroupName))
+	return userCard(site, "👤 <b>Новый студент на сайте</b>", u, status)
 }
 
-// approvedUserMessage replaces newUserMessage after the admin pressed the button.
-func approvedUserMessage(site string, u models.User, now bool) string {
-	if now {
-		return userCard(site, u, "✅ Подтверждён.")
-	}
-	return userCard(site, u, "✅ Уже был подтверждён раньше.")
+// unclaimedMessage replaces claimedMessage after the admin pressed the button.
+func unclaimedMessage(site string, u models.User) string {
+	return userCard(site, "↩️ <b>Выбор отменён</b>", u, "Аккаунт снова должен выбрать себя в списке.")
 }
 
-func userCard(site string, u models.User, status string) string {
+func userCard(site, title string, u models.User, status string) string {
 	var b strings.Builder
-	b.WriteString("👤 <b>Новый студент на сайте</b>\n\n")
-	b.WriteString("<b>" + esc(u.Name) + "</b>")
+	b.WriteString(title + "\n\n")
+	b.WriteString("Telegram: <b>" + esc(u.TelegramName) + "</b>")
 	if u.TelegramUsername != "" {
 		fmt.Fprintf(&b, " · <a href=\"https://t.me/%s\">@%s</a>", esc(u.TelegramUsername), esc(u.TelegramUsername))
 	}
-	b.WriteString("\n")
-	if u.GroupName != "" {
-		b.WriteString("Группа: " + esc(u.GroupName) + "\n")
-	}
-	b.WriteString("\n" + status)
+	b.WriteString("\n\n" + status)
 	fmt.Fprintf(&b, "\n\n<a href=\"%s/admin/users\">Открыть «Студентов» в админке</a>", strings.TrimRight(site, "/"))
 	return b.String()
 }

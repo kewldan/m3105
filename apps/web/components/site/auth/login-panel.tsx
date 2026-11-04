@@ -7,10 +7,9 @@ import { toast } from "sonner";
 
 import { useUser } from "@/components/site/user-provider";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { ApiError } from "@/lib/api/client";
-import type { AuthInfo, MeResponse, TelegramAuthData } from "@/lib/api/types";
+import type { AuthInfo, MeResponse } from "@/lib/api/types";
 import { userApi } from "@/lib/api/user";
 import {
   browserSupportsWebAuthn,
@@ -22,8 +21,6 @@ import {
   TelegramCancelled,
   telegramAuth,
 } from "@/lib/auth/telegram";
-
-type Pending = { kind: "telegram"; data: TelegramAuthData } | { kind: "dev" };
 
 function errorMessage(err: unknown): string {
   if (err instanceof PasskeyCancelled || err instanceof TelegramCancelled)
@@ -49,8 +46,6 @@ export function LoginPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [webauthn, setWebauthn] = useState(true);
-  const [inviteCode, setInviteCode] = useState("");
-  const [pending, setPending] = useState<Pending | null>(null);
   const hasTelegram = auth.telegramBotId.length > 0;
 
   useEffect(() => {
@@ -64,60 +59,30 @@ export function LoginPanel({
       toast.success(`Привет, ${me.user.name}!`);
       router.push(next);
     } else {
-      toast.info("Аккаунт создан и ждёт подтверждения администратора");
+      toast.info("Осталось найти себя в списке студентов");
       router.push("/me");
     }
     router.refresh();
   };
 
-  const run = async (
-    key: string,
-    action: Pending | null,
-    fn: () => Promise<MeResponse>,
-  ) => {
+  const run = async (key: string, fn: () => Promise<MeResponse>) => {
     setBusy(key);
     setError(null);
     try {
       finish(await fn());
     } catch (err) {
-      if (err instanceof ApiError && err.code === "invite_required") {
-        setPending(action);
-        setError(
-          "Код доступа не подошёл. Исправьте его или оставьте поле пустым",
-        );
-      } else {
-        setError(errorMessage(err) || null);
-      }
+      setError(errorMessage(err) || null);
     } finally {
       setBusy(null);
     }
   };
 
-  const viaTelegram = (data: TelegramAuthData) =>
-    run("telegram", { kind: "telegram", data }, () =>
-      userApi.telegramLogin(data, inviteCode || undefined),
+  const onTelegram = () =>
+    run("telegram", async () =>
+      userApi.telegramLogin(await telegramAuth(auth.telegramBotId)),
     );
-  const onTelegram = async () => {
-    setBusy("telegram");
-    setError(null);
-    try {
-      const data = await telegramAuth(auth.telegramBotId);
-      await viaTelegram(data);
-    } catch (err) {
-      setError(errorMessage(err) || null);
-      setBusy(null);
-    }
-  };
-  const onPasskey = () => run("passkey", null, () => loginWithPasskey());
-  const onDev = () =>
-    run("dev", { kind: "dev" }, () =>
-      userApi.devLogin(devName, inviteCode || undefined),
-    );
-  const retry = () => {
-    if (!pending) return;
-    if (pending.kind === "telegram") return viaTelegram(pending.data);
-    return onDev();
-  };
+  const onPasskey = () => run("passkey", () => loginWithPasskey());
+  const onDev = () => run("dev", () => userApi.devLogin(devName));
 
   const icon = (key: string, Icon: typeof SendIcon) =>
     busy === key ? (
@@ -160,36 +125,6 @@ export function LoginPanel({
           {icon("dev", WrenchIcon)}
           Войти через дев
         </Button>
-      ) : null}
-
-      {auth.inviteRequired || pending ? (
-        <form
-          className="space-y-1.5 pt-1"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void retry();
-          }}
-        >
-          <div className="flex gap-2">
-            <Input
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              placeholder="Код группы, если есть"
-              autoComplete="one-time-code"
-              aria-label="Код группы"
-              autoFocus={pending !== null}
-            />
-            {pending ? (
-              <Button type="submit" disabled={busy !== null}>
-                Войти
-              </Button>
-            ) : null}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            С кодом аккаунт подтверждается сразу, без него его подтвердит
-            администратор.
-          </p>
-        </form>
       ) : null}
 
       {error ? (

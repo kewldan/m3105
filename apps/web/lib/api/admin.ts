@@ -33,6 +33,9 @@ import type {
   QuizSummary,
   SearchStat,
   Settings,
+  Student,
+  StudentImportResult,
+  StudentInput,
   Subject,
   SubjectInput,
   SubjectWithCounts,
@@ -87,6 +90,22 @@ export const adminApi = {
       apiClient<User>(`/admin/users/${id}`, { method: "PUT", body: input }),
     remove: (id: number) =>
       apiClient<{ ok: true }>(`/admin/users/${id}`, { method: "DELETE" }),
+    /** Отвязывает аккаунт от выбранного студента: он выберет себя заново. */
+    unclaim: (id: number) =>
+      apiClient<User>(`/admin/users/${id}/student`, { method: "DELETE" }),
+  },
+  students: {
+    list: () => apiClient<Student[]>("/admin/students"),
+    /** Таблица, скопированная со страницы, CSV или сохранённая страница (.html, .mht). */
+    import: (text: string) =>
+      apiClient<StudentImportResult>("/admin/students/import", {
+        method: "POST",
+        body: { text },
+      }),
+    create: (input: StudentInput) =>
+      apiClient<Student[]>("/admin/students", { method: "POST", body: input }),
+    remove: (id: number) =>
+      apiClient<{ ok: true }>(`/admin/students/${id}`, { method: "DELETE" }),
   },
   /** Что студенты искали и что не нашли за последние `days` дней. */
   searchQueries: (days = 30) =>

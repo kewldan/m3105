@@ -41,6 +41,8 @@ erDiagram
     labs ||--o{ bot_announced_labs : "lab_id"
     users ||--o{ comments : "user_id"
     subjects ||--o{ events : "subject_id"
+    grade_sources ||--o{ grade_rows : "source_id"
+    subjects ||--o{ grade_sources : "subject_id"
     labs ||--o{ lab_completions : "lab_id"
     users ||--o{ lab_completions : "user_id"
     subjects ||--o{ labs : "subject_id"
@@ -53,8 +55,12 @@ erDiagram
     labs ||--o{ practice_signups : "lab_id"
     practice_sessions ||--o{ practice_signups : "session_id"
     users ||--o{ practice_signups : "user_id"
+    practice_signups ||--o{ practice_swaps : "from_signup_id"
+    practice_sessions ||--o{ practice_swaps : "session_id"
+    practice_signups ||--o{ practice_swaps : "to_signup_id"
     notes ||--o{ quizzes : "note_id"
     subjects ||--o{ quizzes : "subject_id"
+    attachments ||--o{ users : "avatar_id"
     notes |o..o{ comments : "target_type=note"
     labs |o..o{ comments : "target_type=lab"
     posts |o..o{ comments : "target_type=post"
@@ -73,6 +79,9 @@ erDiagram
     settings {
         int2 id PK
     }
+    students {
+        int8 id PK
+    }
 ```
 
 <details>
@@ -86,6 +95,8 @@ erDiagram
     labs ||--o{ bot_announced_labs : "lab_id"
     users ||--o{ comments : "user_id"
     subjects ||--o{ events : "subject_id"
+    grade_sources ||--o{ grade_rows : "source_id"
+    subjects ||--o{ grade_sources : "subject_id"
     labs ||--o{ lab_completions : "lab_id"
     users ||--o{ lab_completions : "user_id"
     subjects ||--o{ labs : "subject_id"
@@ -98,8 +109,12 @@ erDiagram
     labs ||--o{ practice_signups : "lab_id"
     practice_sessions ||--o{ practice_signups : "session_id"
     users ||--o{ practice_signups : "user_id"
+    practice_signups ||--o{ practice_swaps : "from_signup_id"
+    practice_sessions ||--o{ practice_swaps : "session_id"
+    practice_signups ||--o{ practice_swaps : "to_signup_id"
     notes ||--o{ quizzes : "note_id"
     subjects ||--o{ quizzes : "subject_id"
+    attachments ||--o{ users : "avatar_id"
     notes |o..o{ comments : "target_type=note"
     labs |o..o{ comments : "target_type=lab"
     posts |o..o{ comments : "target_type=post"
@@ -112,6 +127,7 @@ erDiagram
         int4 width "может быть пустым"
         int4 height "может быть пустым"
         text sha256
+        text scope
         int8 user_id FK "может быть пустым"
         int8 comment_id FK "может быть пустым"
         int8 post_id FK "может быть пустым"
@@ -164,6 +180,39 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
         tsvector search_vector "может быть пустым"
+    }
+    grade_rows {
+        int8 source_id PK
+        text row_key PK
+        text isu
+        text full_name
+        text group_name
+        float8 total
+        jsonb parts
+        timestamptz changed_at
+        float8 notified_total "может быть пустым"
+        jsonb notified_parts
+    }
+    grade_sources {
+        int8 id PK
+        int8 subject_id FK
+        text title
+        text spreadsheet_id
+        text tab_pattern
+        text name_column
+        text id_column
+        text group_column
+        text total_column
+        float8 max_total
+        jsonb columns
+        int4 sync_hours
+        bool enabled
+        timestamptz synced_at "может быть пустым"
+        text sync_error
+        int4 rows_count
+        timestamptz created_at
+        timestamptz updated_at
+        bool members_only
     }
     lab_completions {
         int8 user_id PK
@@ -253,12 +302,25 @@ erDiagram
         text note
         timestamptz created_at
         timestamptz updated_at
+        bool queue_manual
+        timestamptz queue_frozen_at "может быть пустым"
     }
     practice_signups {
         int8 id PK
         int8 session_id FK
         int8 user_id FK
         int8 lab_id FK
+        timestamptz created_at
+        int8 queue_pos
+        timestamptz not_reached_at "может быть пустым"
+    }
+    practice_swaps {
+        int8 id PK
+        int8 session_id FK
+        int8 from_signup_id FK
+        int8 to_signup_id FK
+        int8 from_pos
+        int8 to_pos
         timestamptz created_at
     }
     quizzes {
@@ -293,7 +355,14 @@ erDiagram
         text timezone
         jsonb links
         timestamptz updated_at
-        text invite_code
+    }
+    students {
+        int8 id PK
+        text isu
+        text full_name
+        text group_name
+        timestamptz created_at
+        timestamptz updated_at
     }
     subjects {
         int8 id PK
@@ -323,6 +392,9 @@ erDiagram
         text display_name
         text group_name
         timestamptz approved_at "может быть пустым"
+        text avatar_id FK "может быть пустым"
+        text avatar_source
+        text isu "может быть пустым"
     }
 ```
 
@@ -426,7 +498,7 @@ docker compose up -d --build
 3. Положите `TELEGRAM_BOT_TOKEN` и `TELEGRAM_BOT_USERNAME` в `.env`.
 
 > [!NOTE]
-> Пасскеям нужен HTTPS. Новый аккаунт ждёт подтверждения в разделе «Студенты» админки: там же можно заменить имя из Telegram на имя и фамилию. Если в настройках задан **код доступа**, введённый при первом входе код подтверждает аккаунт сразу.
+> Пасскеям нужен HTTPS. Новый аккаунт подтверждается, когда студент находит себя в списке курса: имя, группа и номер ИСУ берутся оттуда, сменить их сам он не может. Список загружается в админке, раздел «Список курса» (таблица со страницы списков групп или сама сохранённая страница).
 
 Что даёт аккаунт: отмечать лабы сделанными (и прятать их из списка) и записываться на сдачу — занятия, которые создаются в админке в разделе «Сдачи».
 
@@ -437,7 +509,7 @@ docker compose up -d --build
 - 🆕 **Новые лабы** — сообщение всем подписчикам сразу после публикации (проверка раз в минуту).
 - ⏰ **Напоминания** — каждый день в `BOT_DIGEST_HOUR` (по умолчанию 10:00 по таймзоне сайта) список несданных лаб с дедлайном в ближайшие 3 дня и просроченных.
 - 📅 `/deadlines`, 🧪 `/labs`, 🔔 `/notify` (вкл/выкл), `/help` — плюс кнопки меню после `/start`.
-- 👤 **Новые студенты** — админу в `ADMIN_CHAT_ID` (в docker-compose по умолчанию `BACKUP_CHAT_ID`) сразу после первого входа: имя, @username, ссылка на «Студентов» в админке и кнопка «✅ Подтвердить» (работает только в этом чате и только при `BOT_POLL=true`). При подтверждении аккаунт без группы получает «Группу при подтверждении» из настроек. Админ должен хотя бы раз написать боту `/start`.
+- 👤 **Новые студенты** — админу в `ADMIN_CHAT_ID` (в docker-compose по умолчанию `BACKUP_CHAT_ID`), когда студент выбрал себя в списке курса: имя в Telegram, @username, кого выбрал, ссылка на «Студентов» и кнопка «↩️ отвязать» на случай чужого выбора (работает только в этом чате и только при `BOT_POLL=true`). Админ должен хотя бы раз написать боту `/start`.
 
 > [!NOTE]
 > Если студент вошёл на сайте через Telegram, бот учитывает отметки «сделано» и не напоминает о сданных лабах. Без аккаунта бот шлёт все дедлайны. Пользователь, заблокировавший бота, автоматически отписывается.

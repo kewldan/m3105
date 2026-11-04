@@ -61,16 +61,19 @@
 
 Без паролей: аккаунт создаётся при первом входе через Telegram Login Widget;
 пасскей (WebAuthn) добавляется в профиле и затем работает как второй способ входа.
-Новый аккаунт получает `groupName` из настроек и ждёт подтверждения администратором (`approved: false`):
-профиль и чтение доступны, а запись на сдачи, отметки лаб, комментарии, посты и лайки отвечают 403 `not_approved`.
-Если в настройках задан код доступа и он передан в `inviteCode`, аккаунт подтверждается сразу; неверный код — 403 `invite_required`.
-Имя (`name`) — это `displayName`, выставленное админом, иначе `telegramName`, который обновляется при каждом входе через Telegram.
+Новый аккаунт не подтверждён (`approved: false`, `groupName` пустой): профиль и чтение доступны, а запись на сдачи,
+отметки лаб, комментарии, посты и лайки отвечают 403 `not_approved`. Подтверждает аккаунт сам студент — выбирает себя
+в списке курса (таблица `students`, её загружает админ): аккаунт получает `isu`, `displayName` «Имя Фамилия» и группу
+из списка, и сменить их сам уже не может. Строку, которую выбрал другой аккаунт, не предлагают и выбрать нельзя
+(409 `student_taken`), второй выбор — 409 `already_claimed`. О каждом выборе бот пишет админу с кнопкой «отвязать»
+(`unclaim:<id>`); отвязанный аккаунт снова не подтверждён и выбирает заново.
+Имя (`name`) — это `displayName`, иначе `telegramName`, который обновляется при каждом входе через Telegram.
 Сессия — HttpOnly-кука `edu_user`, 30 дней в Valkey.
 
 | Метод | Путь | Описание |
 | ----- | ---- | -------- |
-| POST | `/auth/telegram` | тело — объект виджета (`id, first_name, last_name, username, photo_url, auth_date, hash`) + `inviteCode`; подпись проверяется HMAC-SHA256 по токену бота |
-| POST | `/auth/dev-login` | только вне production: `{ name, inviteCode }` |
+| POST | `/auth/telegram` | тело — объект виджета (`id, first_name, last_name, username, photo_url, auth_date, hash`) ; подпись проверяется HMAC-SHA256 по токену бота |
+| POST | `/auth/dev-login` | только вне production: `{ name }` |
 | POST | `/auth/passkey/register/begin` | только с сессией студента: добавляет пасскей к аккаунту; ответ `{ challengeId, options }` |
 | POST | `/auth/passkey/register/finish` | `{ challengeId, label?, credential }` |
 | POST | `/auth/passkey/login/begin` | `{ challengeId, options }` для discoverable-входа |
@@ -78,7 +81,8 @@
 | GET | `/auth/user/me` | `{ user, completedLabIds, signups, passkeys, grades }` |
 | POST | `/auth/user/logout` | |
 | PUT / DELETE | `/me/labs/{labId}/done` | отметить лабу сделанной / снять отметку |
-| PUT | `/me/profile` | `{ displayName, isu? }` — имя и фамилия (минимум два слова; пустая строка — снова имя из Telegram) и номер ИСУ (5–7 цифр; без поля не меняется, `""` — отвязать) |
+| GET | `/me/students` | свободные строки списка курса `[{ id, fullName, groupName }]` (без ИСУ); подтверждённому — `[]` |
+| POST | `/me/claim` | `{ studentId }` — выбрать себя в списке, ответ как у `/auth/user/me` |
 | DELETE | `/me/passkeys/{id}` | |
 | GET | `/practice?subject=&past=1` | `{ sessions, now, signedIn }`; очередь (`queue`) видна всем, `availableLabs` — только вошедшим |
 | GET | `/practice/{id}` | одна сдача |
@@ -100,7 +104,12 @@
 
 Антиспам: один аккаунт может создать не больше 10 комментариев и постов за 12 часов, дальше 429 `rate_limited` (константы `socialWriteLimit` и `socialWriteWindow` в `api/social.go`).
 
-Админка: `GET /admin/users`, `PUT /admin/users/{id}` (`{ displayName, groupName, approved, isu? }` — имя и фамилия, группа, подтверждение, номер ИСУ), `DELETE /admin/users/{id}`, CRUD `/admin/practice`
+Админка: `GET /admin/users`, `PUT /admin/users/{id}` (`{ displayName, groupName, approved, isu? }` — имя и фамилия, группа, подтверждение, номер ИСУ), `DELETE /admin/users/{id}`, `DELETE /admin/users/{id}/student` (отвязать от списка курса),
+`GET /admin/students` (список курса с аккаунтом, выбравшим строку), `POST /admin/students/import` (`{ text }` — таблица
+из браузера через табы, CSV или сохранённая страница `.html`/`.mht`; строка — ИСУ, ФИО и группа в любом порядке;
+новые номера добавляются, у знакомых обновляются ФИО и группа вместе с аккаунтами, никто не удаляется; ответ
+`{ added, updated, skipped, total }`), `POST /admin/students` (одна строка `{ isu, fullName, groupName }`),
+`DELETE /admin/students/{id}`, CRUD `/admin/practice`
 (сдачи: предмет, дата, аудитория, сколько защит примут за пару, заметка), `GET /admin/practice/{id}/signups`
 (`{ session, queue, queueManual, freezesAt, frozen }`), `PUT /admin/practice/{id}/signups/order`
 (`{ entries: [{ userId, labId }] }` — ручной порядок всех защит, дальше новые записи встают в конец),

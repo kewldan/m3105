@@ -2,9 +2,7 @@
 
 import { TrophyIcon } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 
-import { IsuForm } from "@/components/site/grades/isu-form";
 import { LetterChip } from "@/components/site/grades/letter-chip";
 import { PartBars } from "@/components/site/grades/part-bars";
 import { ScoreRing } from "@/components/site/grades/score-ring";
@@ -90,14 +88,7 @@ function GradeRow({ g }: { g: MyGrade }) {
 }
 
 /** Scores from the sheets linked by ISU number, with places in the rating. */
-export function GradesCard({
-  me,
-  onSaved,
-}: {
-  me: MeResponse;
-  onSaved: (next: MeResponse) => void;
-}) {
-  const [editing, setEditing] = useState(false);
+export function GradesCard({ me }: { me: MeResponse }) {
   const linked = me.user.isu !== "";
 
   return (
@@ -111,22 +102,15 @@ export function GradesCard({
       }
     >
       {!linked ? (
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground text-pretty">
-            Укажите номер ИСУ — по нему найдём вас в таблицах с баллами, покажем
-            место в группе и на курсе, а бот напишет, когда баллы изменятся.
-            Номер есть в личном кабинете ИТМО и на студенческом.
-          </p>
-          <IsuForm me={me} onSaved={onSaved} />
-        </div>
+        <p className="text-sm text-muted-foreground text-pretty">
+          У аккаунта нет номера ИСУ, поэтому баллы не найти. Напишите
+          администратору: он привяжет вас к строке списка курса.
+        </p>
       ) : me.grades.length === 0 ? (
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground text-pretty">
-            В таблицах пока нет строки с номером {me.user.isu}. Если номер
-            верный, баллы появятся после ближайшей синхронизации.
-          </p>
-          <IsuForm me={me} onSaved={onSaved} />
-        </div>
+        <p className="text-sm text-muted-foreground text-pretty">
+          В таблицах пока нет строки с номером {me.user.isu}. Баллы появятся
+          после ближайшей синхронизации, если вы есть в таблице предмета.
+        </p>
       ) : (
         <div className="space-y-3">
           <ul className="space-y-3">
@@ -134,27 +118,7 @@ export function GradesCard({
               <GradeRow key={g.source.id} g={g} />
             ))}
           </ul>
-          {editing ? (
-            <IsuForm
-              me={me}
-              onSaved={(next) => {
-                onSaved(next);
-                setEditing(false);
-              }}
-              autoFocus
-            />
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              ИСУ {me.user.isu} ·{" "}
-              <button
-                type="button"
-                className="font-medium text-foreground underline underline-offset-2"
-                onClick={() => setEditing(true)}
-              >
-                изменить
-              </button>
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">ИСУ {me.user.isu}</p>
         </div>
       )}
     </Card>

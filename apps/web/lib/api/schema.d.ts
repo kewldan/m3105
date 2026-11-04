@@ -55,10 +55,6 @@ export type Settings = {
   firstWeekParity: Parity;
   timezone: string;
   links: Link[];
-  /** В публичных ответах всегда пустая строка */
-  inviteCode: string;
-  /** Группа, которую аккаунт получает при подтверждении; пусто — groupName */
-  approvalGroup: string;
   updatedAt: DateTime;
 };
 
@@ -80,8 +76,6 @@ export type AuthInfo = {
   telegramBotId: string;
   /** Доступен вход по имени (только вне production) */
   devLogin: boolean;
-  /** Для первого входа нужен код доступа */
-  inviteRequired: boolean;
 };
 
 export type SubjectRef = {

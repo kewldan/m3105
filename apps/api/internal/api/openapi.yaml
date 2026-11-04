@@ -626,10 +626,8 @@ components:
         links:
           type: array
           items: { $ref: "#/components/schemas/Link" }
-        inviteCode: { type: string, description: "В публичных ответах всегда пустая строка" }
-        approvalGroup: { type: string, description: "Группа, которую аккаунт получает при подтверждении; пусто — groupName" }
         updatedAt: { $ref: "#/components/schemas/DateTime" }
-      required: [siteTitle, groupName, description, semesterStart, semesterEnd, firstWeekParity, timezone, links, inviteCode, approvalGroup, updatedAt]
+      required: [siteTitle, groupName, description, semesterStart, semesterEnd, firstWeekParity, timezone, links, updatedAt]
 
     Week:
       type: object
@@ -648,8 +646,7 @@ components:
         telegramBot: { type: string, description: "Username бота; пусто, если вход через Telegram не настроен" }
         telegramBotId: { type: string }
         devLogin: { type: boolean, description: "Доступен вход по имени (только вне production)" }
-        inviteRequired: { type: boolean, description: "Для первого входа нужен код доступа" }
-      required: [telegramBot, telegramBotId, devLogin, inviteRequired]
+      required: [telegramBot, telegramBotId, devLogin]
 
     SubjectRef:
       type: object

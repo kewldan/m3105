@@ -462,13 +462,81 @@ func TestStudentAccounts(t *testing.T) {
 		t.Fatalf("display name lost: %v", got)
 	}
 
-	// Студент сам задаёт имя и фамилию; одно слово не принимается, пустое — сброс.
-	u.do("PUT", "/api/v1/me/profile", map[string]string{"displayName": "Петя"}, 422)
-	if got := u.do("PUT", "/api/v1/me/profile", map[string]string{"displayName": "  Пётр   Сидоров "}, 200)["user"].(map[string]any); got["name"] != "Пётр Сидоров" {
-		t.Fatalf("profile name not saved: %v", got)
+	// Подтверждение — выбор себя в списке курса. Список админ вставляет таблицей.
+	tg.do("GET", "/api/v1/me/students", nil, 200)
+	admin.do("POST", "/api/v1/admin/students/import", map[string]string{"text": "просто текст"}, 422)
+	imp := admin.do("POST", "/api/v1/admin/students/import", map[string]string{"text": "ИСУ ID\tФИО\tПоток\tГруппа\n" +
+		"300001\tИванова Маша Петровна\t1\tM3104\n300002\tСидоров Пётр Иванович\t1\tM3105\n300003\tБез Группы\t1\t\n"}, 200)
+	if imp["added"] != float64(2) || imp["skipped"] != float64(1) || imp["total"] != float64(2) {
+		t.Fatalf("import: %v", imp)
 	}
-	anon0 := newClient(t)
-	anon0.do("PUT", "/api/v1/me/profile", map[string]string{"displayName": "Кто То"}, 401)
+	// Повторный импорт обновляет только изменившиеся строки.
+	if imp := admin.do("POST", "/api/v1/admin/students/import", map[string]string{"text": "300001\tИванова Маша Петровна\tM3105\n300002\tСидоров Пётр Иванович\tM3105"}, 200); imp["added"] != float64(0) || imp["updated"] != float64(1) {
+		t.Fatalf("re-import: %v", imp)
+	}
+	newClient(t).do("GET", "/api/v1/me/students", nil, 401)
+	free := tg.list("/api/v1/me/students", 200)
+	if len(free) != 2 {
+		t.Fatalf("free students: %v", free)
+	}
+	if _, leaked := free[0]["isu"]; leaked {
+		t.Fatal("ISU numbers must not reach students")
+	}
+	var mashaRow, petyaRow float64
+	for _, m := range free {
+		switch m["fullName"] {
+		case "Иванова Маша Петровна":
+			mashaRow = m["id"].(float64)
+		case "Сидоров Пётр Иванович":
+			petyaRow = m["id"].(float64)
+		}
+	}
+	// Уже подтверждённому (Петя — админом) выбирать некого и нельзя.
+	if got := u.list("/api/v1/me/students", 200); len(got) != 0 {
+		t.Fatalf("approved account sees the list: %v", got)
+	}
+	u.do("POST", "/api/v1/me/claim", map[string]any{"studentId": petyaRow}, 409)
+	tg.do("POST", "/api/v1/me/claim", map[string]any{"studentId": 999999}, 404)
+	claimed := tg.do("POST", "/api/v1/me/claim", map[string]any{"studentId": mashaRow}, 200)["user"].(map[string]any)
+	if claimed["approved"] != true || claimed["name"] != "Маша Иванова" || claimed["groupName"] != "М3105" || claimed["isu"] != "300001" {
+		t.Fatalf("claim: %v", claimed)
+	}
+	tg.do("POST", "/api/v1/me/claim", map[string]any{"studentId": petyaRow}, 409)
+	// Выбранного другие уже не видят и выбрать не могут.
+	impostor := newClient(t)
+	impostor.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Самозванец Тестовый"}, 200)
+	if got := impostor.list("/api/v1/me/students", 200); len(got) != 1 {
+		t.Fatalf("taken student still offered: %v", got)
+	}
+	if e := impostor.do("POST", "/api/v1/me/claim", map[string]any{"studentId": mashaRow}, 409); e["code"] != "student_taken" {
+		t.Fatalf("taken: %v", e)
+	}
+	// Имя и группа из списка обновляются вместе со списком.
+	admin.do("POST", "/api/v1/admin/students/import", map[string]string{"text": "300001\tИванова Маша Петровна\tM3106"}, 200)
+	if got := tg.do("GET", "/api/v1/me/", nil, 200)["user"].(map[string]any); got["groupName"] != "М3106" {
+		t.Fatalf("group not synced: %v", got)
+	}
+	admin.do("POST", "/api/v1/admin/students/import", map[string]string{"text": "300001\tИванова Маша Петровна\tM3105"}, 200)
+	students := admin.list("/api/v1/admin/students", 200)
+	if len(students) != 2 || students[0]["userName"] != "Маша Иванова" || students[1]["userId"] != nil {
+		t.Fatalf("admin students: %v", students)
+	}
+	// Админ отвязывает ошибочный выбор — аккаунт выбирает заново.
+	impostorID := userIDByName(t, admin, "Самозванец Тестовый")
+	admin.do("POST", "/api/v1/admin/students", map[string]string{"isu": "300004", "fullName": "Самозванцев Тест", "groupName": "m3105"}, 200)
+	admin.do("POST", "/api/v1/admin/students", map[string]string{"isu": "1", "fullName": "Кто", "groupName": ""}, 422)
+	var extraRow float64
+	for _, f := range impostor.list("/api/v1/me/students", 200) {
+		if f["fullName"] == "Самозванцев Тест" {
+			extraRow = f["id"].(float64)
+		}
+	}
+	impostor.do("POST", "/api/v1/me/claim", map[string]any{"studentId": extraRow}, 200)
+	if got := admin.do("DELETE", fmt.Sprintf("/api/v1/admin/users/%d/student", impostorID), nil, 200); got["approved"] != false || got["isu"] != "" || got["groupName"] != "" {
+		t.Fatalf("unclaim: %v", got)
+	}
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/students/%v", extraRow), nil, 200)
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/users/%d", impostorID), nil, 200)
 
 	// Practice session with capacity 1.
 	starts := time.Now().Add(3 * 24 * time.Hour).UTC().Format(time.RFC3339)
@@ -494,8 +562,7 @@ func TestStudentAccounts(t *testing.T) {
 	if len(view["myLabIds"].([]any)) != 1 {
 		t.Fatalf("replace failed: %v", view["myLabIds"])
 	}
-	// Second student (confirmed by the admin) goes to the reserve: there is no seat limit.
-	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, "Маша Иванова")), map[string]any{"approved": true}, 200)
+	// Second student (confirmed by picking herself) goes to the reserve: there is no seat limit.
 	tg.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), map[string]any{"labIds": []int64{lab1ID}}, 200)
 	full := anon.do("GET", fmt.Sprintf("/api/v1/practice/%d", sessID), nil, 200)
 	q := full["queue"].([]any)
@@ -798,49 +865,36 @@ func TestStudentAccounts(t *testing.T) {
 	}
 	anon.do("POST", "/api/v1/auth/passkey/login/finish", map[string]any{"challengeId": "nope", "credential": map[string]any{}}, 400)
 
-	// Invite code: a correct one confirms a new account right away, a wrong one is
-	// rejected, none at all creates a pending account for the admin to confirm.
-	settings := admin.do("GET", "/api/v1/admin/settings", nil, 200)
-	settings["inviteCode"] = "secret"
-	settings["approvalGroup"] = "М3105-2"
-	admin.do("PUT", "/api/v1/admin/settings", settings, 200)
+	// Кода доступа больше нет: новый аккаунт ждёт, пока студент не выберет себя.
 	pub := anon.do("GET", "/api/v1/settings", nil, 200)
-	if pub["auth"].(map[string]any)["inviteRequired"] != true || pub["settings"].(map[string]any)["inviteCode"] != "" {
-		t.Fatalf("invite exposure wrong: %v", pub)
+	if _, ok := pub["settings"].(map[string]any)["inviteCode"]; ok {
+		t.Fatalf("invite code is still in settings: %v", pub["settings"])
 	}
 	newbie := newClient(t)
-	newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость", "inviteCode": "wrong"}, 403)
-	pending := newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость"}, 200)["user"].(map[string]any)
+	pending := newbie.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гость", "inviteCode": "secret"}, 200)["user"].(map[string]any)
 	if pending["approved"] != false || pending["groupName"] != "" {
 		t.Fatalf("pending account wrong: %v", pending)
 	}
-	invited := newClient(t)
-	if got := invited.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гостья", "inviteCode": "secret"}, 200)["user"].(map[string]any); got["approved"] != true || got["groupName"] != "М3105-2" {
-		t.Fatalf("invited account wrong: %v", got)
-	}
+	newClient(t).do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Гостья"}, 200)
 
-	// Confirmation from the bot's button: once, with the group from the settings.
+	// Кнопка бота «отвязать»: для невыбравшего аккаунта ничего не делает.
 	st := store.New(testPool)
 	pendingID := int64(pending["id"].(float64))
-	if got, ok, err := st.ApproveUser(context.Background(), pendingID, "М3105-2"); err != nil || !ok || !got.Approved || got.GroupName != "М3105-2" {
-		t.Fatalf("approve: %v %v %+v", err, ok, got)
+	if _, ok, err := st.UnclaimUser(context.Background(), pendingID); err != nil || ok {
+		t.Fatalf("unclaim of a pending account must be a no-op: %v %v", err, ok)
 	}
-	if _, ok, err := st.ApproveUser(context.Background(), pendingID, "другая"); err != nil || ok {
-		t.Fatalf("second approve must be a no-op: %v %v", err, ok)
+	if _, _, err := st.UnclaimUser(context.Background(), 999999); !errors.Is(err, httpx.ErrNotFound) {
+		t.Fatalf("unclaim missing user: %v", err)
 	}
-	if _, _, err := st.ApproveUser(context.Background(), 999999, "М3105-2"); !errors.Is(err, httpx.ErrNotFound) {
-		t.Fatalf("approve missing user: %v", err)
-	}
-	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%v", pendingID), map[string]any{"displayName": "", "groupName": "", "approved": false}, 200)
-	u.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Петя Сидоров"}, 200) // existing account, no code needed
+	u.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Петя Сидоров"}, 200) // existing account
 
 	// Admin user management.
 	users := admin.list("/api/v1/admin/users", 200)
 	if len(users) != 5 {
 		t.Fatalf("expected 5 users, got %d", len(users))
 	}
-	if ov := admin.do("GET", "/api/v1/admin/overview", nil, 200); ov["pendingUsers"] != float64(1) {
-		t.Fatalf("expected 1 pending user, got %v", ov["pendingUsers"])
+	if ov := admin.do("GET", "/api/v1/admin/overview", nil, 200); ov["pendingUsers"] != float64(2) {
+		t.Fatalf("expected 2 pending users, got %v", ov["pendingUsers"])
 	}
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/users/%v", users[0]["id"]), nil, 200)
 	u.do("POST", "/api/v1/auth/user/logout", nil, 200)

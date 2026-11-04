@@ -18,8 +18,6 @@ const FALLBACK: SettingsResponse = {
     firstWeekParity: "odd",
     timezone: "Europe/Moscow",
     links: [],
-    inviteCode: "",
-    approvalGroup: "",
     updatedAt: "",
   },
   week: {
@@ -35,7 +33,6 @@ const FALLBACK: SettingsResponse = {
     telegramBot: "",
     telegramBotId: "",
     devLogin: false,
-    inviteRequired: false,
   },
 };
 

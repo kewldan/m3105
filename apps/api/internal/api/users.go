@@ -33,8 +33,8 @@ func randomHandle() ([]byte, error) {
 	return b, nil
 }
 
-// requireApproved gates student write actions until an admin has confirmed the
-// account's group membership. Reading and the profile itself stay available.
+// requireApproved gates student write actions until the student has picked
+// themselves in the course list. Reading and the profile itself stay available.
 func (h *Handler) requireApproved(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := userauth.UserID(r.Context())
@@ -48,7 +48,7 @@ func (h *Handler) requireApproved(next http.Handler) http.Handler {
 			return
 		}
 		if !user.Approved {
-			httpx.Error(w, http.StatusForbidden, "not_approved", "Аккаунт ещё не подтверждён администратором")
+			httpx.Error(w, http.StatusForbidden, "not_approved", "Сначала выберите себя в списке студентов в профиле")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -115,26 +115,6 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	h.respondMe(w, r, id)
 }
 
-// updateProfile lets students set their own first and last name and ISU number.
-func (h *Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
-	id, _ := userauth.UserID(r.Context())
-	var in models.ProfileInput
-	if err := httpx.Decode(r, &in); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	if err := in.Validate(); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	if err := h.store.SetProfile(r.Context(), id, in.DisplayName, in.ISU); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	h.linkGradesLater(r.Context())
-	h.respondMe(w, r, id)
-}
-
 func (h *Handler) userLogout(w http.ResponseWriter, r *http.Request) {
 	h.users.Clear(r.Context(), w, r)
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -142,18 +122,13 @@ func (h *Handler) userLogout(w http.ResponseWriter, r *http.Request) {
 
 // ---- Telegram ----
 
-type telegramLoginRequest struct {
-	userauth.TelegramData
-	InviteCode string `json:"inviteCode"`
-}
-
 func (h *Handler) telegramLogin(w http.ResponseWriter, r *http.Request) {
-	var in telegramLoginRequest
+	var in userauth.TelegramData
 	if err := httpx.Decode(r, &in); err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	if err := userauth.VerifyTelegram(h.cfg.TelegramBotToken, in.TelegramData, time.Now(), 24*time.Hour); err != nil {
+	if err := userauth.VerifyTelegram(h.cfg.TelegramBotToken, in, time.Now(), 24*time.Hour); err != nil {
 		switch {
 		case errors.Is(err, userauth.ErrBadTelegramSignature):
 			httpx.Error(w, http.StatusUnauthorized, "bad_signature", "Подпись Telegram не сошлась")
@@ -164,49 +139,30 @@ func (h *Handler) telegramLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	h.finishTelegram(w, r, in.TelegramData, in.InviteCode)
+	h.finishTelegram(w, r, in)
 }
 
 // finishTelegram opens or creates the account for verified Telegram data.
-// New accounts wait for an admin to confirm them and get the group then;
-// a correct invite code confirms right away, a wrong one is rejected so the
-// student can retry instead of ending up with a pending account.
-func (h *Handler) finishTelegram(w http.ResponseWriter, r *http.Request, d userauth.TelegramData, invite string) {
+// A new account is not confirmed: the student has to pick themselves in the
+// course list first (POST /me/claim).
+func (h *Handler) finishTelegram(w http.ResponseWriter, r *http.Request, d userauth.TelegramData) {
 	ctx := r.Context()
 	user, err := h.store.GetUserByTelegramID(ctx, d.ID)
 	switch {
 	case errors.Is(err, httpx.ErrNotFound):
-		st, err := h.store.GetSettings(ctx)
-		if err != nil {
-			httpx.Fail(w, err)
-			return
-		}
-		invite = strings.TrimSpace(invite)
-		approved := st.InviteCode != "" && invite == st.InviteCode
-		if invite != "" && !approved {
-			httpx.Error(w, http.StatusForbidden, "invite_required", "Код доступа не подошёл")
-			return
-		}
 		handle, err := randomHandle()
 		if err != nil {
 			httpx.Fail(w, err)
 			return
 		}
 		tgID := d.ID
-		// The group is given on confirmation: right away with the invite code, else by the admin.
-		group := ""
-		if approved {
-			group = st.DefaultApprovalGroup()
-		}
 		user, err = h.store.CreateUser(ctx, store.NewUser{
 			WebauthnID: handle, Name: d.DisplayName(), TelegramID: &tgID, TelegramUsername: d.Username, PhotoURL: d.PhotoURL,
-			GroupName: group, Approved: approved,
 		})
 		if err != nil {
 			httpx.Fail(w, err)
 			return
 		}
-		h.admin.NewUser(user)
 		h.syncAvatarSoon(ctx, user.ID, d.PhotoURL)
 	case err != nil:
 		httpx.Fail(w, err)
@@ -229,8 +185,7 @@ func (h *Handler) devLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Name       string `json:"name"`
-		InviteCode string `json:"inviteCode"`
+		Name string `json:"name"`
 	}
 	if err := httpx.Decode(r, &in); err != nil {
 		httpx.Fail(w, err)
@@ -249,7 +204,7 @@ func (h *Handler) devLogin(w http.ResponseWriter, r *http.Request) {
 	if len(parts) > 1 {
 		d.LastName = strings.Join(parts[1:], " ")
 	}
-	h.finishTelegram(w, r, d, in.InviteCode)
+	h.finishTelegram(w, r, d)
 }
 
 // ---- Passkeys ----

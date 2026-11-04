@@ -205,11 +205,11 @@ export type User = {
   name: string;
   /** Refreshed from Telegram on every login. */
   telegramName: string;
-  /** Permanent override set by an admin ("Имя Фамилия"); empty when not set. */
+  /** "Имя Фамилия" from the course list once the student picked themselves; empty before. */
   displayName: string;
-  /** Study group the account belongs to; confirmed by an admin. */
+  /** Study group from the course list; empty until the student picks themselves. */
   groupName: string;
-  /** False until an admin confirms the account: student actions are locked. */
+  /** False until the student picks themselves in the course list: student actions are locked. */
   approved: boolean;
   approvedAt: string | null;
   telegramId: number | null;
@@ -233,6 +233,31 @@ export type AdminUserInput = {
   approved: boolean;
   /** Omitted — left as is; "" unlinks. */
   isu?: string;
+};
+
+/** A row of the course list (admin). */
+export type Student = {
+  id: number;
+  isu: string;
+  /** "Фамилия Имя Отчество". */
+  fullName: string;
+  groupName: string;
+  createdAt: string;
+  /** The account that picked this row, if any. */
+  userId: number | null;
+  userName: string | null;
+};
+
+/** A free row a new account can pick; ISU numbers stay private. */
+export type StudentChoice = { id: number; fullName: string; groupName: string };
+
+export type StudentInput = { isu: string; fullName: string; groupName: string };
+
+export type StudentImportResult = {
+  added: number;
+  updated: number;
+  skipped: number;
+  total: number;
 };
 
 export type Passkey = {

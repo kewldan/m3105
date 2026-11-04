@@ -5,6 +5,7 @@ import {
   ExternalLinkIcon,
   HourglassIcon,
   KeyRoundIcon,
+  Undo2Icon,
   UsersIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -30,25 +31,24 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [approving, setApproving] = useState<number | null>(null);
+  const [unclaiming, setUnclaiming] = useState<AdminUser | null>(null);
+  const [unclaimLoading, setUnclaimLoading] = useState(false);
 
   const pending = data?.filter((u) => !u.approved).length ?? 0;
-  const defaultGroup = settings?.approvalGroup || settings?.groupName || "";
+  const defaultGroup = settings?.groupName ?? "";
 
-  async function approve(user: AdminUser) {
-    setApproving(user.id);
+  async function confirmUnclaim() {
+    if (!unclaiming) return;
+    setUnclaimLoading(true);
     try {
-      await adminApi.users.update(user.id, {
-        displayName: user.displayName,
-        groupName: user.groupName || defaultGroup,
-        approved: true,
-      });
-      toast.success(`${user.name}: доступ открыт`);
+      await adminApi.users.unclaim(unclaiming.id);
+      toast.success("Выбор отменён: студент выберет себя заново");
+      setUnclaiming(null);
       reload();
     } catch (err) {
       handleApiError(err);
     } finally {
-      setApproving(null);
+      setUnclaimLoading(false);
     }
   }
 
@@ -100,23 +100,13 @@ export default function UsersPage() {
             {r.groupName || "подтверждён"}
           </Badge>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className="gap-1 border-amber-500/40 font-normal text-amber-700 dark:text-amber-300"
-            >
-              <HourglassIcon className="size-3" aria-hidden />
-              ждёт
-            </Badge>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={approving === r.id}
-              onClick={() => approve(r)}
-            >
-              Подтвердить
-            </Button>
-          </div>
+          <Badge
+            variant="outline"
+            className="gap-1 border-amber-500/40 font-normal text-amber-700 dark:text-amber-300"
+          >
+            <HourglassIcon className="size-3" aria-hidden />
+            не выбрал себя
+          </Badge>
         ),
     },
     {
@@ -190,10 +180,23 @@ export default function UsersPage() {
       header: <span className="sr-only">Действия</span>,
       className: "w-px",
       cell: (r) => (
-        <RowActions
-          onEdit={() => setEditing(r)}
-          onDelete={() => setDeleting(r)}
-        />
+        <div className="flex items-center justify-end gap-1">
+          {r.approved || r.isu ? (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Отвязать от списка"
+              title="Отвязать от списка: студент выберет себя заново"
+              onClick={() => setUnclaiming(r)}
+            >
+              <Undo2Icon />
+            </Button>
+          ) : null}
+          <RowActions
+            onEdit={() => setEditing(r)}
+            onDelete={() => setDeleting(r)}
+          />
+        </div>
       ),
     },
   ];
@@ -202,7 +205,7 @@ export default function UsersPage() {
     <>
       <PageTitle
         title="Студенты"
-        description="Аккаунты появляются после первого входа через Telegram и ждут подтверждения. Имя берётся из Telegram, здесь его можно заменить на имя и фамилию."
+        description="Аккаунт появляется после первого входа через Telegram и подтверждается, когда студент выбирает себя в «Списке курса»: имя, группа и ИСУ берутся оттуда. Ошибся или выбрал чужого — отвяжите, и он выберет заново."
         actions={
           data ? (
             <>
@@ -230,7 +233,7 @@ export default function UsersPage() {
         rowKey={(r) => r.id}
         defaultSort={{ id: "status", dir: "asc" }}
         emptyTitle="Пока никто не входил"
-        emptyDescription="Аккаунт создаётся автоматически, когда студент впервые входит на сайт через Telegram. Код доступа для мгновенного подтверждения задаётся в настройках."
+        emptyDescription="Аккаунт создаётся автоматически, когда студент впервые входит на сайт через Telegram."
       />
       <UserDialog
         open={editing !== null}
@@ -247,9 +250,20 @@ export default function UsersPage() {
           if (!o) setDeleting(null);
         }}
         title={`Удалить аккаунт «${deleting?.name ?? ""}»?`}
-        description="Вместе с аккаунтом удалятся его пасскеи, отметки о сданных лабах и записи на сдачи. Студент сможет войти заново, но начнёт с чистого листа и снова будет ждать подтверждения."
+        description="Вместе с аккаунтом удалятся его пасскеи, отметки о сданных лабах и записи на сдачи. Студент сможет войти заново, но начнёт с чистого листа и снова выберет себя в списке."
         onConfirm={confirmDelete}
         loading={deleteLoading}
+      />
+      <ConfirmDialog
+        open={unclaiming !== null}
+        onOpenChange={(o) => {
+          if (!o) setUnclaiming(null);
+        }}
+        title={`Отвязать «${unclaiming?.name ?? ""}» от списка?`}
+        description="Аккаунт потеряет имя, группу и номер ИСУ из списка и снова станет неподтверждённым. Записи и отметки останутся. Строка списка освободится, и студент выберет себя заново."
+        confirmLabel="Отвязать"
+        onConfirm={confirmUnclaim}
+        loading={unclaimLoading}
       />
     </>
   );

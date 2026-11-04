@@ -26,7 +26,12 @@ export default async function MePage() {
         title="Профиль"
         description="Сданные лабы, записи на сдачу и способы входа."
       />
-      <Profile initial={me} labs={labs} tz={site.settings.timezone} />
+      <Profile
+        initial={me}
+        labs={labs}
+        tz={site.settings.timezone}
+        siteGroup={site.settings.groupName}
+      />
     </div>
   );
 }

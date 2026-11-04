@@ -13,6 +13,7 @@ import type {
   PostSort,
   PracticeListResponse,
   PracticeSessionView,
+  StudentChoice,
   TelegramAuthData,
 } from "./types";
 
@@ -23,16 +24,13 @@ export const userApi = {
   logout: () =>
     apiClient<{ ok: true }>("/auth/user/logout", { method: "POST" }),
 
-  telegramLogin: (data: TelegramAuthData, inviteCode?: string) =>
-    apiClient<MeResponse>("/auth/telegram", {
-      method: "POST",
-      body: { ...data, inviteCode },
-    }),
+  telegramLogin: (data: TelegramAuthData) =>
+    apiClient<MeResponse>("/auth/telegram", { method: "POST", body: data }),
   /** Development only: sign in by name without Telegram. */
-  devLogin: (name: string, inviteCode?: string) =>
+  devLogin: (name: string) =>
     apiClient<MeResponse>("/auth/dev-login", {
       method: "POST",
-      body: { name, inviteCode },
+      body: { name },
     }),
 
   /** Requires a student session: passkeys are added to existing accounts only. */
@@ -59,9 +57,11 @@ export const userApi = {
       method: "POST",
       body,
     }),
-  /** Имя и фамилия; пустая строка возвращает имя из Telegram. isu не передан — не меняется, "" — отвязать. */
-  updateProfile: (body: { displayName: string; isu?: string }) =>
-    apiClient<MeResponse>("/me/profile", { method: "PUT", body }),
+  /** Кого из списка курса ещё никто не выбрал; подтверждённому — пустой список. */
+  students: () => apiClient<StudentChoice[]>("/me/students"),
+  /** Выбор себя в списке: подтверждает аккаунт, имя и группу потом не сменить. */
+  claim: (studentId: number) =>
+    apiClient<MeResponse>("/me/claim", { method: "POST", body: { studentId } }),
   grades: (source?: number) =>
     apiClient<GradesResponse>(`/grades${source ? `?source=${source}` : ""}`),
   deletePasskey: (id: string) =>

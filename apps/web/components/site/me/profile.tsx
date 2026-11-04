@@ -9,7 +9,6 @@ import {
   KeyRoundIcon,
   LogOutIcon,
   MapPinIcon,
-  PencilIcon,
   PlusIcon,
   SendIcon,
   Trash2Icon,
@@ -20,12 +19,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { PendingNotice } from "@/components/site/auth/pending-notice";
+import { ClaimPicker } from "@/components/site/auth/claim-picker";
 import { EmptyState } from "@/components/site/empty-state";
 import { DoneToggle } from "@/components/site/labs/done-toggle";
 import { ProfileCard as Card } from "@/components/site/me/card";
 import { GradesCard } from "@/components/site/me/grades-card";
-import { NameDialog } from "@/components/site/me/name-dialog";
 import { Stagger, StaggerItem } from "@/components/site/motion";
 import { SubjectBadge } from "@/components/site/subject-badge";
 import { UserAvatar } from "@/components/site/user-avatar";
@@ -79,10 +77,13 @@ export function Profile({
   initial,
   labs,
   tz,
+  siteGroup,
 }: {
   initial: MeResponse;
   labs: Lab[];
   tz: string;
+  /** Group of the site: the course list opens on it. */
+  siteGroup: string;
 }) {
   const router = useRouter();
   const { me: ctxMe, setMe, refresh, logout, setDone } = useUser();
@@ -90,7 +91,6 @@ export function Profile({
 
   const [webauthn, setWebauthn] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [nameOpen, setNameOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [adding, setAdding] = useState(false);
   const [busyId, setBusyId] = useState<string | number | null>(null);
@@ -166,20 +166,10 @@ export function Profile({
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                 {me.user.name}
               </h1>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Изменить имя"
-                title="Изменить имя"
-                onClick={() => setNameOpen(true)}
-              >
-                <PencilIcon />
-              </Button>
               {me.user.approved ? (
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300"
-                  title="Аккаунт подтверждён администратором"
+                  title="Группа из списка курса"
                 >
                   <BadgeCheckIcon className="size-3" aria-hidden />
                   {me.user.groupName || "подтверждён"}
@@ -187,7 +177,7 @@ export function Profile({
               ) : (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/12 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
                   <UsersRoundIcon className="size-3" aria-hidden />
-                  ждёт подтверждения
+                  не выбран в списке
                 </span>
               )}
             </div>
@@ -205,19 +195,6 @@ export function Profile({
               ) : null}
               <span>С нами с {fmtDateYear(me.user.createdAt, tz)}</span>
             </div>
-            {me.user.displayName ? null : (
-              <p className="text-xs text-muted-foreground">
-                Имя взято из Telegram.{" "}
-                <button
-                  type="button"
-                  className="font-medium text-foreground underline underline-offset-2"
-                  onClick={() => setNameOpen(true)}
-                >
-                  Укажите имя и фамилию
-                </button>
-                , чтобы преподаватель узнал вас в очереди.
-              </p>
-            )}
           </div>
           <Button
             type="button"
@@ -233,11 +210,11 @@ export function Profile({
 
       {me.user.approved ? (
         <StaggerItem className="lg:col-span-3">
-          <GradesCard me={me} onSaved={setMe} />
+          <GradesCard me={me} />
         </StaggerItem>
       ) : (
         <StaggerItem className="lg:col-span-3">
-          <PendingNotice />
+          <ClaimPicker siteGroup={siteGroup} />
         </StaggerItem>
       )}
 
@@ -506,17 +483,6 @@ export function Profile({
           ) : null}
         </Card>
       </StaggerItem>
-
-      <NameDialog
-        open={nameOpen}
-        onOpenChange={setNameOpen}
-        current={me.user.displayName}
-        telegramName={me.user.telegramName}
-        onSaved={(next) => {
-          setMe(next);
-          router.refresh();
-        }}
-      />
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>

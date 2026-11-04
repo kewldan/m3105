@@ -239,7 +239,7 @@ export function CommentsSection({
       )}
 
       {isPending(me) ? (
-        <PendingNotice compact />
+        <PendingNotice />
       ) : me ? (
         <form
           onSubmit={(e) => {

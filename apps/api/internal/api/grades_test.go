@@ -109,9 +109,23 @@ func TestGrades(t *testing.T) {
 		}
 	}
 
-	// Номер ИСУ: чужой формат не принимается, свой привязывает строку.
-	u.do("PUT", "/api/v1/me/profile", map[string]any{"displayName": "Боря Тестов", "isu": "12ab"}, 422)
-	me := u.do("PUT", "/api/v1/me/profile", map[string]any{"displayName": "Боря Тестов", "isu": "100002"}, 200)
+	// Номер ИСУ приходит из списка курса, когда студент выбирает себя.
+	admin.do("POST", "/api/v1/admin/students/import", map[string]string{"text": "100002\tБаллов Борис Борисович\tM3105"}, 200)
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/users/%d/student", uid), nil, 200)
+	var boris float64
+	for _, f := range u.list("/api/v1/me/students", 200) {
+		if f["fullName"] == "Баллов Борис Борисович" {
+			boris = f["id"].(float64)
+		}
+	}
+	me := u.do("POST", "/api/v1/me/claim", map[string]any{"studentId": boris}, 200)
+	// Аккаунт, у которого номер уже был (из таблиц или от админа), получает имя и группу при импорте.
+	vid0 := userIDByName(t, admin, "Борис Баллов")
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", vid0), map[string]any{"displayName": "Боря", "groupName": "", "approved": true, "isu": "100002"}, 200)
+	admin.do("POST", "/api/v1/admin/students/import", map[string]string{"text": "100009\tНовый Тест Тестович\tM3105"}, 200)
+	if got := u.do("GET", "/api/v1/me/", nil, 200)["user"].(map[string]any); got["name"] != "Борис Баллов" || got["groupName"] != "М3105" {
+		t.Fatalf("not backfilled on import: %v", got)
+	}
 	grades := me["grades"].([]any)
 	if len(grades) != 1 {
 		t.Fatalf("profile grades: %v", me["grades"])
@@ -123,10 +137,6 @@ func TestGrades(t *testing.T) {
 	}
 	if lab2 := g["parts"].(map[string]any)["lab2"]; lab2 != float64(12) {
 		t.Fatalf("parts: %v", g["parts"])
-	}
-	// Отправка профиля без isu не отвязывает номер.
-	if got := u.do("PUT", "/api/v1/me/profile", map[string]any{"displayName": "Боря Тестов"}, 200)["user"].(map[string]any)["isu"]; got != "100002" {
-		t.Fatalf("isu lost: %v", got)
 	}
 	page = u.do("GET", fmt.Sprintf("/api/v1/grades?source=%d", sourceID), nil, 200)
 	if mine := page["rows"].([]any)[0].(map[string]any); mine["me"] != true || mine["user"] == nil {
@@ -146,10 +156,10 @@ func TestGrades(t *testing.T) {
 	}
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/grade-sources/%d", onlyID), nil, 200)
 
-	// Тот же номер у второго аккаунта — ошибка поля.
+	// Того же студента второй аккаунт выбрать не может.
 	v := newClient(t)
 	v.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Георгий Грейдов"}, 200)
-	v.do("PUT", "/api/v1/me/profile", map[string]any{"displayName": "Георгий Грейдов", "isu": "100002"}, 422)
+	v.do("POST", "/api/v1/me/claim", map[string]any{"studentId": boris}, 409)
 
 	// Автосопоставление: подтверждённый аккаунт «Георгий Грейдов» из М3105 получает номер по ФИО.
 	vid := userIDByName(t, admin, "Георгий Грейдов")
@@ -166,7 +176,7 @@ func TestGrades(t *testing.T) {
 	}
 
 	// Отвязанный вручную номер автоматически не возвращается.
-	v.do("PUT", "/api/v1/me/profile", map[string]any{"displayName": "Георгий Грейдов", "isu": ""}, 200)
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", vid), map[string]any{"displayName": "", "groupName": "М3105", "approved": true, "isu": ""}, 200)
 	admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", sourceID), nil, 200)
 	if got := v.do("GET", "/api/v1/me/", nil, 200)["user"].(map[string]any)["isu"]; got != "" {
 		t.Fatalf("unlinked account was linked again: %v", got)

@@ -13,7 +13,6 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/site/empty-state";
-import { IsuForm } from "@/components/site/grades/isu-form";
 import { LetterChip } from "@/components/site/grades/letter-chip";
 import { PartBars } from "@/components/site/grades/part-bars";
 import { ScoreRing } from "@/components/site/grades/score-ring";
@@ -29,11 +28,7 @@ import {
 } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type {
-  GradeSourceSummary,
-  GradesResponse,
-  MeResponse,
-} from "@/lib/api/types";
+import type { GradeSourceSummary, GradesResponse } from "@/lib/api/types";
 import { userApi } from "@/lib/api/user";
 import { fmtRelative, plural } from "@/lib/format";
 import {
@@ -395,7 +390,7 @@ function MyResult({
 export function GradesBoard({ initial }: { initial: GradesResponse }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { me: ctxMe, setMe } = useUser();
+  const { me: ctxMe } = useUser();
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
@@ -458,15 +453,6 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
     }
   };
 
-  const onLinked = async (next: MeResponse) => {
-    setMe(next);
-    try {
-      setData(await userApi.grades(source?.id));
-    } catch {
-      router.refresh();
-    }
-  };
-
   if (!source) {
     return (
       <EmptyState
@@ -518,17 +504,23 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
           </h2>
           <p className="text-sm text-muted-foreground text-pretty">
             {data.linked
-              ? `Строки с номером ИСУ ${ctxMe.user.isu} в таблице «${source.title}» нет. Проверьте номер — или вы просто не записаны на этот предмет.`
-              : "Укажите номер ИСУ: подсветим вашу строку, покажем место в группе и на курсе, а бот напишет, когда баллы изменятся."}
+              ? `Строки с номером ИСУ ${ctxMe.user.isu} в таблице «${source.title}» нет: вы, видимо, не записаны на этот предмет.`
+              : ctxMe.user.approved
+                ? "У аккаунта нет номера ИСУ. Напишите администратору: он привяжет вас к строке списка курса."
+                : "Найдите себя в списке студентов в профиле: подсветим вашу строку, покажем место в группе и на курсе, а бот напишет, когда баллы изменятся."}
           </p>
-          <IsuForm me={ctxMe} onSaved={onLinked} />
+          {data.linked || ctxMe.user.approved ? null : (
+            <Button variant="outline" size="sm" render={<Link href="/me" />}>
+              Выбрать себя
+            </Button>
+          )}
         </section>
       ) : (
         <section className="flex flex-col gap-3 rounded-2xl border border-dashed p-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground text-pretty">
-            Войдите через Telegram и укажите номер ИСУ: подсветим вашу строку,
-            покажем место в группе и на курсе, а бот напишет, когда баллы
-            изменятся.
+            Войдите через Telegram и найдите себя в списке: подсветим вашу
+            строку, покажем место в группе и на курсе, а бот напишет, когда
+            баллы изменятся.
           </p>
           <Button
             variant="outline"

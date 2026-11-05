@@ -156,6 +156,8 @@ export type PageInput = {
   title: string;
   summary: string;
   content: string;
+  /** Раздел на /p; пусто — «Разное». */
+  category: string;
   position: number;
   showInNav: boolean;
   status: Status;

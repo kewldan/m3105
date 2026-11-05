@@ -14,12 +14,14 @@ import {
 } from "@/components/admin/form-field";
 import { MdxEditor } from "@/components/admin/mdx-editor";
 import { SelectField } from "@/components/admin/select-field";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { handleApiError } from "@/lib/admin/errors";
 import { STATUS_OPTIONS } from "@/lib/admin/options";
+import { useQuery } from "@/lib/admin/use-query";
 import { adminApi } from "@/lib/api/admin";
 import type { Page, PageInput } from "@/lib/api/types";
 
@@ -27,6 +29,7 @@ const schema = z.object({
   title: z.string().trim().min(1, "Укажите заголовок"),
   slug: z.string().trim(),
   summary: z.string(),
+  category: z.string().trim().max(60, "Не больше 60 символов"),
   content: z.string(),
   position: z.string().regex(/^-?\d*$/, "Введите целое число"),
   showInNav: z.boolean(),
@@ -40,6 +43,7 @@ function toForm(page: Page | null): FormValues {
     title: page?.title ?? "",
     slug: page?.slug ?? "",
     summary: page?.summary ?? "",
+    category: page?.category ?? "",
     content: page?.content ?? "",
     position: String(page?.position ?? 0),
     showInNav: page?.showInNav ?? false,
@@ -54,12 +58,18 @@ export function PageForm({ page }: { page: Page | null }) {
     defaultValues: toForm(page),
   });
   const errors = form.formState.errors;
+  const pages = useQuery(() => adminApi.pages.list());
+  const category = form.watch("category");
+  const suggestions = [
+    ...new Set((pages.data ?? []).map((p) => p.category).filter(Boolean)),
+  ].filter((c) => c !== category.trim());
 
   async function onSubmit(values: FormValues) {
     const input: PageInput = {
       title: values.title,
       slug: values.slug || undefined,
       summary: values.summary,
+      category: values.category,
       content: values.content,
       position: Number(values.position || 0),
       showInNav: values.showInNav,
@@ -143,9 +153,43 @@ export function PageForm({ page }: { page: Page | null }) {
             <Textarea id="pg-summary" rows={2} {...form.register("summary")} />
           </FormField>
           <FormField
+            label="Раздел"
+            htmlFor="pg-category"
+            description="Заголовок группы на странице «Полезное». Пусто — «Разное»."
+            error={errors.category?.message}
+          >
+            <Input
+              id="pg-category"
+              placeholder="Учёба"
+              {...form.register("category")}
+              aria-invalid={!!errors.category || undefined}
+            />
+            {suggestions.length > 0 ? (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {suggestions.map((c) => (
+                  <Badge
+                    key={c}
+                    variant="outline"
+                    render={
+                      <button
+                        type="button"
+                        onClick={() =>
+                          form.setValue("category", c, { shouldDirty: true })
+                        }
+                      />
+                    }
+                    className="cursor-pointer hover:bg-muted"
+                  >
+                    {c}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+          </FormField>
+          <FormField
             label="Порядок"
             htmlFor="pg-position"
-            description="Порядок в меню и списках."
+            description="Порядок в меню и внутри раздела."
             error={errors.position?.message}
           >
             <Input

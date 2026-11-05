@@ -243,6 +243,8 @@ export type Page = {
   summary: string;
   /** MDX */
   content: string;
+  /** Раздел на странице «Полезное» (`/p`); пусто — «Разное» */
+  category: string;
   position: number;
   /** Показывать в меню сайта */
   showInNav: boolean;

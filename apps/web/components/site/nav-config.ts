@@ -15,6 +15,9 @@ export const PRIMARY_LINKS: NavLink[] = [
   { href: "/cpp", label: "C++" },
 ];
 
+/** Index of the static pages, grouped by category. */
+export const USEFUL_LINK: NavLink = { href: "/p", label: "Полезное" };
+
 export function isActivePath(pathname: string, link: NavLink): boolean {
   if (link.exact) return pathname === link.href;
   return pathname === link.href || pathname.startsWith(`${link.href}/`);

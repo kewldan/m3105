@@ -842,12 +842,13 @@ components:
         title: { type: string }
         summary: { type: string }
         content: { type: string, description: "MDX" }
+        category: { type: string, description: "Раздел на странице «Полезное» (`/p`); пусто — «Разное»" }
         position: { type: integer }
         showInNav: { type: boolean, description: "Показывать в меню сайта" }
         status: { $ref: "#/components/schemas/Status" }
         createdAt: { $ref: "#/components/schemas/DateTime" }
         updatedAt: { $ref: "#/components/schemas/DateTime" }
-      required: [id, slug, title, summary, content, position, showInNav, status, createdAt, updatedAt]
+      required: [id, slug, title, summary, content, category, position, showInNav, status, createdAt, updatedAt]
 
     CalendarItem:
       type: object

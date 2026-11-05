@@ -440,11 +440,13 @@ func (in *FAQInput) Validate() error {
 
 // Page is a static informational page.
 type Page struct {
-	ID        int64     `db:"id" json:"id"`
-	Slug      string    `db:"slug" json:"slug"`
-	Title     string    `db:"title" json:"title"`
-	Summary   string    `db:"summary" json:"summary"`
-	Content   string    `db:"content" json:"content"`
+	ID      int64  `db:"id" json:"id"`
+	Slug    string `db:"slug" json:"slug"`
+	Title   string `db:"title" json:"title"`
+	Summary string `db:"summary" json:"summary"`
+	Content string `db:"content" json:"content"`
+	// Category groups the page on /p; empty means «Разное».
+	Category  string    `db:"category" json:"category"`
 	Position  int       `db:"position" json:"position"`
 	ShowInNav bool      `db:"show_in_nav" json:"showInNav"`
 	Status    string    `db:"status" json:"status"`
@@ -458,6 +460,7 @@ type PageInput struct {
 	Title     string `json:"title"`
 	Summary   string `json:"summary"`
 	Content   string `json:"content"`
+	Category  string `json:"category"`
 	Position  int    `json:"position"`
 	ShowInNav bool   `json:"showInNav"`
 	Status    string `json:"status"`
@@ -468,6 +471,7 @@ func (in *PageInput) Validate() error {
 	ve := httpx.NewValidation()
 	in.Title = strings.TrimSpace(in.Title)
 	in.Summary = strings.TrimSpace(in.Summary)
+	in.Category = strings.TrimSpace(in.Category)
 	in.Slug = strings.TrimSpace(strings.ToLower(in.Slug))
 	if in.Title == "" {
 		ve.Add("title", "Укажите заголовок")

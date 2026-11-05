@@ -1,6 +1,10 @@
 import Link from "next/link";
 
-import { type NavLink, PRIMARY_LINKS } from "@/components/site/nav-config";
+import {
+  type NavLink,
+  PRIMARY_LINKS,
+  USEFUL_LINK,
+} from "@/components/site/nav-config";
 import type { Settings } from "@/lib/api/types";
 
 const REPO = "https://github.com/kewldan/m3105";
@@ -36,7 +40,7 @@ export function SiteFooter({
   apiCommit: string;
   pageLinks?: NavLink[];
 }) {
-  const links = [...PRIMARY_LINKS, ...pageLinks];
+  const links = [...PRIMARY_LINKS, USEFUL_LINK, ...pageLinks];
   return (
     <footer className="mt-auto border-t bg-muted/30 print:hidden">
       <div className="container-page flex flex-col gap-5 py-8">

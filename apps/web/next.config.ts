@@ -57,6 +57,17 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  async redirects() {
+    return [
+      // Кейсы практики переехали из страниц в конспекты предмета.
+      {
+        source: "/p/uchebnaya-praktika-kejsy",
+        destination:
+          "/notes/oznakomitelnaya-uchebnaya-praktika/keysy-uchebnoy-praktiki",
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     const api = process.env.API_URL;
     return {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
@@ -54,10 +55,19 @@ export default async function StaticPage({ params }: { params: Params }) {
     <article className="space-y-8">
       <JsonLd
         data={breadcrumbs([
+          { name: "Полезное", url: absoluteUrl("/p") },
           { name: page.title, url: absoluteUrl(`/p/${page.slug}`) },
         ])}
       />
-      <PageHeader title={page.title} description={page.summary || undefined} />
+      <PageHeader
+        eyebrow={
+          <Link href="/p" className="hover:text-foreground">
+            Полезное
+          </Link>
+        }
+        title={page.title}
+        description={page.summary || undefined}
+      />
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_15rem]">
         <div className="min-w-0 space-y-8">
           <Toc items={rendered.toc} variant="inline" className="lg:hidden" />

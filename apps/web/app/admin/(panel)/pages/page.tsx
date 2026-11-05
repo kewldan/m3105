@@ -59,6 +59,17 @@ export default function PagesPage() {
       ),
     },
     {
+      id: "category",
+      header: "Раздел",
+      sort: (r) => r.category,
+      cell: (r) =>
+        r.category ? (
+          <Badge variant="secondary">{r.category}</Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
       id: "status",
       header: "Статус",
       sort: (r) => r.status,
@@ -106,7 +117,7 @@ export default function PagesPage() {
     <>
       <PageTitle
         title="Страницы"
-        description="Статические страницы: о группе, контакты, полезные ссылки."
+        description="Статические страницы. Опубликованные собраны на /p («Полезное») по разделам."
         actions={
           <Button render={<Link href="/admin/pages/new" />}>
             <PlusIcon data-icon="inline-start" />

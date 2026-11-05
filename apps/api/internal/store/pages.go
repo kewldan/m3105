@@ -6,8 +6,8 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/models"
 )
 
-const pageCols = `id, slug, title, summary, content, position, show_in_nav, status, created_at, updated_at`
-const pageListCols = `id, slug, title, summary, '' AS content, position, show_in_nav, status, created_at, updated_at`
+const pageCols = `id, slug, title, summary, content, category, position, show_in_nav, status, created_at, updated_at`
+const pageListCols = `id, slug, title, summary, '' AS content, category, position, show_in_nav, status, created_at, updated_at`
 
 // ListPages returns pages (without bodies).
 func (s *Store) ListPages(ctx context.Context, publishedOnly bool) ([]models.Page, error) {
@@ -46,9 +46,9 @@ func (s *Store) CreatePage(ctx context.Context, in *models.PageInput) (models.Pa
 		return models.Page{}, err
 	}
 	var id int64
-	err = s.db.QueryRow(ctx, `INSERT INTO pages (slug, title, summary, content, position, show_in_nav, status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-		slug, in.Title, in.Summary, in.Content, in.Position, in.ShowInNav, in.Status).Scan(&id)
+	err = s.db.QueryRow(ctx, `INSERT INTO pages (slug, title, summary, content, position, show_in_nav, status, category)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+		slug, in.Title, in.Summary, in.Content, in.Position, in.ShowInNav, in.Status, in.Category).Scan(&id)
 	if err != nil {
 		return models.Page{}, wrap(err)
 	}
@@ -62,8 +62,8 @@ func (s *Store) UpdatePage(ctx context.Context, id int64, in *models.PageInput) 
 		return models.Page{}, err
 	}
 	if err := s.exec(ctx, `UPDATE pages SET slug=$1, title=$2, summary=$3, content=$4, position=$5, show_in_nav=$6, status=$7,
-		updated_at=now() WHERE id = $8`,
-		slug, in.Title, in.Summary, in.Content, in.Position, in.ShowInNav, in.Status, id); err != nil {
+		category=$9, updated_at=now() WHERE id = $8`,
+		slug, in.Title, in.Summary, in.Content, in.Position, in.ShowInNav, in.Status, id, in.Category); err != nil {
 		return models.Page{}, err
 	}
 	return s.GetPage(ctx, id)

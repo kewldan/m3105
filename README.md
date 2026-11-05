@@ -9,8 +9,8 @@
 - 📝 **Конспекты** — лекции в MDX с формулами, подсветкой кода и компонентами.
 - ❓ **Квизы** — самопроверка после лекции, конструктор и импорт JSON.
 - 🙋 **Аккаунты** — вход через Telegram или пасскей, отметки «сделано» и запись на сдачи.
-- 🗣️ **Мини‑соцсеть** — комментарии к конспектам и лабам, ленты «Шаверма» (обзоры точек с оценками) и «Анекдоты» с лайками; всё пишут студенты, админ модерирует.
-- 📎 **Вложения** — фото и PDF в комментариях и постах, картинки и файлы в конспектах и лабах. Фото уменьшаются перед загрузкой, EXIF с координатами вырезается на сервере, а на страницы картинки приходят превью нужной ширины в WebP через imgproxy.
+- 🗣️ **Комментарии** — к конспектам и лабам; пишут студенты, админ модерирует.
+- 📎 **Вложения** — фото и PDF в комментариях, картинки и файлы в конспектах и лабах. Фото уменьшаются перед загрузкой, EXIF с координатами вырезается на сервере, а на страницы картинки приходят превью нужной ширины в WebP через imgproxy.
 - 🔍 **Поиск по сайту** — ⌘K из любой страницы: полнотекстовый поиск Postgres по конспектам, лабам, квизам, ЧаВо и страницам, со словоформами, поиском по мере набора и устойчивостью к опечаткам.
 - 🛠️ **Проверка C++** — страница `/cpp` с редактором Monaco: clang-tidy и clang-format проверяют код по Google C++ Style Guide, замечания подсвечиваются в коде и исправляются в один клик.
 - 📲 **Работает офлайн** — сайт ставится на телефон как приложение, а прочитанные конспекты открываются в метро без связи.
@@ -36,7 +36,6 @@ Postgres, миграции — goose (`apps/api/internal/db/migrations`). Диа
 ```mermaid
 erDiagram
     comments ||--o{ attachments : "comment_id"
-    posts ||--o{ attachments : "post_id"
     users ||--o{ attachments : "user_id"
     labs ||--o{ bot_announced_labs : "lab_id"
     users ||--o{ comments : "user_id"
@@ -55,9 +54,6 @@ erDiagram
     subjects ||--o{ notes : "subject_id"
     users ||--o{ notes : "updated_by"
     users ||--o{ passkeys : "user_id"
-    posts ||--o{ post_likes : "post_id"
-    users ||--o{ post_likes : "user_id"
-    users ||--o{ posts : "user_id"
     subjects ||--o{ practice_sessions : "subject_id"
     labs ||--o{ practice_signups : "lab_id"
     practice_sessions ||--o{ practice_signups : "session_id"
@@ -70,7 +66,6 @@ erDiagram
     attachments ||--o{ users : "avatar_id"
     notes |o..o{ comments : "target_type=note"
     labs |o..o{ comments : "target_type=lab"
-    posts |o..o{ comments : "target_type=post"
     bot_chats {
         int8 chat_id PK
     }
@@ -97,7 +92,6 @@ erDiagram
 ```mermaid
 erDiagram
     comments ||--o{ attachments : "comment_id"
-    posts ||--o{ attachments : "post_id"
     users ||--o{ attachments : "user_id"
     labs ||--o{ bot_announced_labs : "lab_id"
     users ||--o{ comments : "user_id"
@@ -116,9 +110,6 @@ erDiagram
     subjects ||--o{ notes : "subject_id"
     users ||--o{ notes : "updated_by"
     users ||--o{ passkeys : "user_id"
-    posts ||--o{ post_likes : "post_id"
-    users ||--o{ post_likes : "user_id"
-    users ||--o{ posts : "user_id"
     subjects ||--o{ practice_sessions : "subject_id"
     labs ||--o{ practice_signups : "lab_id"
     practice_sessions ||--o{ practice_signups : "session_id"
@@ -131,7 +122,6 @@ erDiagram
     attachments ||--o{ users : "avatar_id"
     notes |o..o{ comments : "target_type=note"
     labs |o..o{ comments : "target_type=lab"
-    posts |o..o{ comments : "target_type=post"
     attachments {
         text id PK
         text name
@@ -144,7 +134,6 @@ erDiagram
         text scope
         int8 user_id FK "может быть пустым"
         int8 comment_id FK "может быть пустым"
-        int8 post_id FK "может быть пустым"
         int2 position
         timestamptz created_at
     }
@@ -316,23 +305,6 @@ erDiagram
         jsonb credential
         timestamptz created_at
         timestamptz last_used_at "может быть пустым"
-    }
-    post_likes {
-        int8 post_id PK
-        int8 user_id PK
-        timestamptz created_at
-    }
-    posts {
-        int8 id PK
-        text kind
-        int8 user_id FK
-        text title
-        text body
-        text address
-        int4 price "может быть пустым"
-        int2 rating "может быть пустым"
-        timestamptz created_at
-        timestamptz updated_at
     }
     practice_sessions {
         int8 id PK
@@ -565,9 +537,9 @@ docker compose up -d --build
 
 **Порядок заполнения:** Настройки (дата начала семестра и чётность первой недели) → Предметы → Лабы и события → Сдачи → Конспекты → Квизы → ЧаВо и страницы.
 
-**Файлы:** в любом MDX‑редакторе картинку или документ можно добавить кнопкой «Файл», вставкой из буфера или перетаскиванием, и в текст встанет готовая разметка. Раздел «Файлы» показывает всё загруженное: где файл используется, фото из комментариев и постов студентов, ссылки и разметку для копирования, удаление.
+**Файлы:** в любом MDX‑редакторе картинку или документ можно добавить кнопкой «Файл», вставкой из буфера или перетаскиванием, и в текст встанет готовая разметка. Раздел «Файлы» показывает всё загруженное: где файл используется, фото из комментариев студентов, ссылки и разметку для копирования, удаление.
 
-**Модерация:** админ правит любой пост и комментарий целиком — текст, видимость, файлы (убрать чужие, добавить свои) — и видит все файлы, включая посты «для своих» и незаконченные загрузки.
+**Модерация:** админ правит любой комментарий целиком — текст и файлы (убрать чужие, добавить свои) — и видит все файлы, включая незаконченные загрузки.
 
 > [!WARNING]
 > Лабы, конспекты, квизы и страницы публикуются переключателем статуса. Черновики на сайте не видны.

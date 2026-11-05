@@ -29,8 +29,6 @@ export type Page = Schema.Page;
 export type Parity = Schema.Parity;
 export type Participant = Schema.Participant;
 export type QueueEntry = Schema.QueueEntry;
-export type Post = Schema.Post;
-export type PostInput = Schema.PostInput;
 export type PracticeListResponse = Schema.PracticeListResponse;
 export type PracticeSession = Schema.PracticeSession;
 export type PracticeSessionView = Schema.PracticeSessionView;
@@ -443,23 +441,19 @@ export type ApiErrorBody = {
   fields?: Record<string, string>;
 };
 
-// ---- social: comments and posts ----
+// ---- social: comments ----
 
-export type CommentTarget = "note" | "lab" | "post";
+export type CommentTarget = "note" | "lab";
 
 export type AdminComment = Comment & {
   targetTitle: string | null;
   targetPath: string | null;
 };
 
-export type PostKind = "shawarma" | "joke";
-
-export type PostSort = "new" | "top";
-
 // ---- attachments ----
 
-/** К чему относится файл: ссылка из текстов админки, комментарий, пост или незаконченная загрузка студента. */
-export type AttachmentPlace = "content" | "comment" | "post" | "pending";
+/** К чему относится файл: ссылка из текстов админки, комментарий или незаконченная загрузка студента. */
+export type AttachmentPlace = "content" | "comment" | "pending";
 
 export type ContentRef = {
   type: "note" | "lab" | "page" | "faq" | "subject";

@@ -21,11 +21,10 @@ import (
 )
 
 // Вложения. Загрузка — multipart с полем file: студент кладёт картинки и PDF,
-// потом передаёт id в attachmentIds комментария или поста; админ кладёт что
-// угодно — для текстов (ссылка в MDX) или, с ?scope=social, для любого
-// комментария или поста. Отдаёт файлы сам API, а не бакет: так работают права
-// (посты «для своих», чужие незаконченные загрузки), а хранилище не торчит
-// наружу. Превью картинок (?w=) API берёт у imgproxy уже после проверки прав.
+// потом передаёт id в attachmentIds комментария; админ кладёт что угодно —
+// для текстов (ссылка в MDX) или, с ?scope=social, для любого комментария.
+// Отдаёт файлы сам API, а не бакет: так работают права (чужие незаконченные
+// загрузки), а хранилище не торчит наружу. Превью картинок (?w=) API берёт у imgproxy уже после проверки прав.
 
 const adminFilesLimit = 500
 
@@ -136,7 +135,7 @@ func (h *Handler) storeUpload(w http.ResponseWriter, r *http.Request, policy fil
 	httpx.JSON(w, http.StatusCreated, a)
 }
 
-// uploadFile: a student's photo or PDF for a future comment or post.
+// uploadFile: a student's photo or PDF for a future comment.
 func (h *Handler) uploadFile(w http.ResponseWriter, r *http.Request) {
 	if !h.filesReady(w) {
 		return
@@ -173,22 +172,11 @@ func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request) {
 	private := false
 	switch {
 	case h.auth != nil && h.auth.Authenticated(ctx, r):
-		// Админ видит всё: модерация, незаконченные загрузки, файлы постов.
-		private = a.Place == models.PlacePending || a.GroupOnly
+		// Админ видит всё: модерация, незаконченные загрузки.
+		private = a.Place == models.PlacePending
 	case a.Place == models.PlacePending:
 		// Незаконченную загрузку видит только автор.
 		if a.UserID == nil || *a.UserID != viewer {
-			httpx.Fail(w, httpx.ErrNotFound)
-			return
-		}
-		private = true
-	case a.GroupOnly:
-		member, err := h.isMember(r)
-		if err != nil {
-			httpx.Fail(w, err)
-			return
-		}
-		if !member {
 			httpx.Fail(w, httpx.ErrNotFound)
 			return
 		}
@@ -283,7 +271,7 @@ func (h *Handler) servePreview(w http.ResponseWriter, r *http.Request, a models.
 // ---- admin ----
 
 // adminUploadFile stores a file for texts, or with ?scope=social one to attach
-// to any comment or post when moderating.
+// to any comment when moderating.
 func (h *Handler) adminUploadFile(w http.ResponseWriter, r *http.Request) {
 	if !h.filesReady(w) {
 		return

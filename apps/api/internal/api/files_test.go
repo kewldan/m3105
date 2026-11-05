@@ -183,35 +183,6 @@ func TestAttachments(t *testing.T) {
 		t.Fatal("the photo of a deleted comment is still served")
 	}
 
-	// Пост с файлом: файл видят только свои (не аноним и не студент другой группы);
-	// правка без списка файлы не трогает, пустой список убирает все.
-	picID, picURL := petyaPic["id"].(string), petyaPic["url"].(string)
-	post := petya.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "С картинкой", "attachmentIds": []string{picID}}, 201)
-	assertMatchesSchema(t, spec, "Post", post)
-	postPath := fmt.Sprintf("/api/v1/posts/%v", post["id"])
-	stranger := newClient(t)
-	stranger.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Чужой Студент"}, 200)
-	admin.do("PUT", fmt.Sprintf("/api/v1/admin/users/%d", userIDByName(t, admin, "Чужой Студент")), map[string]any{"groupName": "М3115", "approved": true}, 200)
-	if anon.fetchStatus(picURL) != 404 || stranger.fetchStatus(picURL) != 404 || masha.fetchStatus(picURL) != 200 {
-		t.Fatal("post files must be visible to the group only")
-	}
-	if res, _ := masha.fetch(picURL); !strings.HasPrefix(res.Header.Get("Cache-Control"), "private") {
-		t.Fatalf("post file must not be publicly cacheable: %v", res.Header)
-	}
-	kept := petya.do("PUT", postPath, map[string]any{"body": "Текст поправлен"}, 200)
-	if len(attachmentsOf(t, kept)) != 1 {
-		t.Fatalf("update without attachmentIds must keep files: %v", kept)
-	}
-	second := petya.upload("/api/v1/files", "second.png", testPNG(t, 3), 201)
-	both := petya.do("PUT", postPath, map[string]any{"body": "Две", "attachmentIds": []any{second["id"], picID}}, 200)
-	if got := attachmentsOf(t, both); len(got) != 2 || got[0]["id"] != second["id"] {
-		t.Fatalf("files must follow the given order: %v", got)
-	}
-	cleared := petya.do("PUT", postPath, map[string]any{"body": "Без файлов", "attachmentIds": []string{}}, 200)
-	if len(attachmentsOf(t, cleared)) != 0 || masha.fetchStatus(picURL) != 404 {
-		t.Fatalf("empty attachmentIds must remove files: %v", cleared)
-	}
-
 	// Админка: любые типы, повторная загрузка отдаёт тот же файл, ссылки из
 	// текстов видны в списке, удаление сразу ломает ссылку.
 	pdf := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF")
@@ -233,9 +204,6 @@ func TestAttachments(t *testing.T) {
 	for _, f := range admin.list("/api/v1/admin/files", 200) {
 		if f["id"] == doc["id"] {
 			listed = f
-		}
-		if f["id"] == second["id"] {
-			t.Fatal("a file removed from its post must disappear from the list")
 		}
 	}
 	if listed == nil || listed["place"] != "content" {
@@ -350,7 +318,7 @@ func TestPreviews(t *testing.T) {
 	}
 }
 
-// Админ может всё: видит любые файлы, добавляет свои файлы в чужие посты и
+// Админ может всё: видит любые файлы, добавляет свои файлы в чужие
 // комментарии, правит текст комментария.
 func TestAdminCanDoEverything(t *testing.T) {
 	admin := newClient(t).bearer(testAPIToken)
@@ -363,23 +331,19 @@ func TestAdminCanDoEverything(t *testing.T) {
 	if admin.fetchStatus(pending["url"].(string)) != 200 || anon.fetchStatus(pending["url"].(string)) != 404 {
 		t.Fatal("admin must see pending uploads, anonymous must not")
 	}
-	post := s.do("POST", "/api/v1/posts", map[string]any{"kind": "joke", "body": "Пост", "attachmentIds": []any{pending["id"]}}, 201)
-	postURL := fmt.Sprintf("/api/v1/admin/posts/%v", post["id"])
+	withFile := s.do("POST", fmt.Sprintf("/api/v1/comments/lab/%v", lab["id"]), map[string]any{"body": "С файлом", "attachmentIds": []any{pending["id"]}}, 201)
+	withFileURL := fmt.Sprintf("/api/v1/admin/comments/%v", withFile["id"])
 
-	// Файл админки для текстов в пост не прикрепить, файл «для постов» — можно.
+	// Файл админки для текстов к комментарию не прикрепить, файл с ?scope=social — можно.
 	content := admin.upload("/api/v1/admin/files", "for-notes.png", testPNG(t, 11), 201)
-	admin.do("PUT", postURL, map[string]any{"body": "Пост", "attachmentIds": []any{pending["id"], content["id"]}}, 422)
+	admin.do("PUT", withFileURL, map[string]any{"body": "С файлом", "attachmentIds": []any{pending["id"], content["id"]}}, 422)
 	extra := admin.upload("/api/v1/admin/files?scope=social", "admin.pdf", []byte("%PDF-1.7\n%%EOF"), 201)
 	if again := admin.upload("/api/v1/admin/files?scope=social", "admin.pdf", []byte("%PDF-1.7\n%%EOF"), 201); again["id"] == extra["id"] {
-		t.Fatal("files for posts must not be shared between uploads")
+		t.Fatal("files for comments must not be shared between uploads")
 	}
-	s.do("PUT", fmt.Sprintf("/api/v1/posts/%v", post["id"]), map[string]any{"body": "Пост", "attachmentIds": []any{pending["id"], extra["id"]}}, 422)
-	edited := admin.do("PUT", postURL, map[string]any{"body": "Поправил админ", "attachmentIds": []any{extra["id"], pending["id"]}}, 200)
+	edited := admin.do("PUT", withFileURL, map[string]any{"body": "Поправил админ", "attachmentIds": []any{extra["id"], pending["id"]}}, 200)
 	if got := attachmentsOf(t, edited); len(got) != 2 || got[0]["id"] != extra["id"] || edited["body"] != "Поправил админ" {
-		t.Fatalf("admin post edit: %v", edited)
-	}
-	if admin.fetchStatus(extra["url"].(string)) != 200 || anon.fetchStatus(extra["url"].(string)) != 404 {
-		t.Fatal("files of a post: admin yes, anonymous no")
+		t.Fatalf("admin comment edit with files: %v", edited)
 	}
 
 	// Комментарий: текст и файлы правит админ, студенту такой маршрут недоступен.
@@ -405,7 +369,7 @@ func TestAdminCanDoEverything(t *testing.T) {
 	}
 	admin.do("PUT", "/api/v1/admin/comments/999999", map[string]any{"body": "x"}, 404)
 
-	// Брошенная загрузка админа «для постов» тоже уходит через сутки, файлы для текстов — никогда.
+	// Брошенная загрузка админа «для комментариев» тоже уходит через сутки, файлы для текстов — никогда.
 	stale := admin.upload("/api/v1/admin/files?scope=social", "stale.png", testPNG(t, 13), 201)
 	ctx := context.Background()
 	if _, err := testPool.Exec(ctx, `UPDATE attachments SET created_at = now() - interval '2 days' WHERE id = ANY($1)`,
@@ -416,6 +380,6 @@ func TestAdminCanDoEverything(t *testing.T) {
 		t.Fatal(err)
 	}
 	if admin.fetchStatus(stale["url"].(string)) != 404 || admin.fetchStatus(content["url"].(string)) != 200 {
-		t.Fatal("GC must drop stale admin post uploads and keep files for texts")
+		t.Fatal("GC must drop stale admin social uploads and keep files for texts")
 	}
 }

@@ -85,17 +85,15 @@ export function FileChip({
 }
 
 /**
- * Attachments under a comment or post: one picture is shown whole, several
+ * Attachments under a comment: one picture is shown whole, several
  * become a grid of square previews; a click opens them full screen. Other
  * files are listed as chips.
  */
 export function AttachmentGallery({
   items,
-  compact = false,
   className,
 }: {
   items: Attachment[];
-  compact?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState<number | null>(null);
@@ -124,18 +122,13 @@ export function AttachmentGallery({
             decoding="async"
             className={cn(
               "h-auto w-auto max-w-full object-contain",
-              compact ? "max-h-60" : "max-h-96",
+              "max-h-96",
             )}
           />
         </button>
       ) : images.length > 1 ? (
         <div
-          className={cn(
-            "grid gap-1.5",
-            compact
-              ? "max-w-sm grid-cols-3"
-              : "max-w-lg grid-cols-2 sm:grid-cols-3",
-          )}
+          className={cn("grid gap-1.5", "max-w-lg grid-cols-2 sm:grid-cols-3")}
         >
           {images.map((img, i) => (
             <button

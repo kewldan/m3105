@@ -7,11 +7,10 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 )
 
-// MaxAttachments limits files on one comment or post.
+// MaxAttachments limits files on one comment.
 const MaxAttachments = 6
 
-// Attachment is a stored file: a photo under a comment, a PDF in a post, an
-// image in a note.
+// Attachment is a stored file: a photo under a comment or an image in a note.
 type Attachment struct {
 	ID string `db:"id" json:"id"`
 	// URL is relative to the site: /api/v1/files/{id}/{name}.
@@ -31,7 +30,6 @@ const (
 	// PlaceContent is an admin upload linked from MDX texts.
 	PlaceContent AttachmentPlace = "content"
 	PlaceComment AttachmentPlace = "comment"
-	PlacePost    AttachmentPlace = "post"
 	// PlacePending is a student upload not attached to anything yet.
 	PlacePending AttachmentPlace = "pending"
 	// PlaceAvatar is a student's profile picture: shown to everyone, like the queue it appears in.

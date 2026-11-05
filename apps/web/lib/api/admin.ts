@@ -24,9 +24,6 @@ import type {
   OverviewResponse,
   Page,
   PageInput,
-  Post,
-  PostInput,
-  PostKind,
   PracticeSession,
   PracticeSessionInput,
   QueueEntry,
@@ -146,14 +143,6 @@ export const adminApi = {
       }),
     remove: (id: number) =>
       apiClient<{ ok: true }>(`/admin/comments/${id}`, { method: "DELETE" }),
-  },
-  posts: {
-    list: (kind?: PostKind) =>
-      apiClient<Post[]>(`/admin/posts${kind ? `?kind=${kind}` : ""}`),
-    update: (id: number, input: PostInput) =>
-      apiClient<Post>(`/admin/posts/${id}`, { method: "PUT", body: input }),
-    remove: (id: number) =>
-      apiClient<{ ok: true }>(`/admin/posts/${id}`, { method: "DELETE" }),
   },
   /** Загрузка — `uploadFile(file, { target: "admin" })` из `lib/api/upload`. */
   files: {

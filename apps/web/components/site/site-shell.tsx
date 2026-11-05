@@ -6,7 +6,6 @@ import { UserProvider } from "@/components/site/user-provider";
 import { getHealth, getSettings } from "@/lib/api/public";
 import type { SettingsResponse } from "@/lib/api/types";
 import { getViewer } from "@/lib/api/viewer";
-import { isGroupMember } from "@/lib/group";
 
 const FALLBACK: SettingsResponse = {
   settings: {
@@ -65,7 +64,6 @@ export async function SiteShell({ children }: { children: ReactNode }) {
     loadMe(),
     loadApiCommit(),
   ]);
-  const member = isGroupMember(me, site.settings.groupName);
   return (
     <UserProvider initial={me}>
       <a
@@ -74,7 +72,7 @@ export async function SiteShell({ children }: { children: ReactNode }) {
       >
         К содержимому
       </a>
-      <SiteHeader site={site} member={member} />
+      <SiteHeader site={site} />
       <main
         id="content"
         className="container-page flex-1 py-6 sm:py-8 lg:py-10 print:max-w-none print:p-0"
@@ -83,7 +81,6 @@ export async function SiteShell({ children }: { children: ReactNode }) {
       </main>
       <SiteFooter
         settings={site.settings}
-        member={member}
         apiCommit={apiCommit}
         pageLinks={site.navPages.map((p) => ({
           href: `/p/${p.slug}`,

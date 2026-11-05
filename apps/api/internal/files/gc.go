@@ -8,7 +8,7 @@ import (
 
 // Index is what the garbage collector needs from the database.
 type Index interface {
-	// DeleteStaleUploads removes student uploads never attached to a comment or post.
+	// DeleteStaleUploads removes student uploads never attached to a comment.
 	DeleteStaleUploads(ctx context.Context, before time.Time) (int64, error)
 	// AttachmentIDs returns every id that still has a row.
 	AttachmentIDs(ctx context.Context) (map[string]bool, error)
@@ -24,7 +24,7 @@ const (
 )
 
 // Collect deletes stale uploads and then objects without a row: rows vanish by
-// cascade when a comment, post or user is deleted, and the bytes follow here.
+// cascade when a comment or user is deleted, and the bytes follow here.
 func Collect(ctx context.Context, idx Index, st Storage) error {
 	now := time.Now()
 	stale, err := idx.DeleteStaleUploads(ctx, now.Add(-staleUploadAge))

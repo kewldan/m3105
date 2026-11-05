@@ -24,14 +24,13 @@ const url = argValue(
 );
 
 /**
- * Полиморфные связи: `comments` ссылается на конспект, лабу или пост через
+ * Полиморфные связи: `comments` ссылается на конспект или лабу через
  * пару `target_type`/`target_id` без внешнего ключа, поэтому в каталоге их нет
  * и приходится описывать руками (см. CLAUDE.md, раздел «Соцчасть»).
  */
 const LOGICAL: { from: string; to: string; label: string }[] = [
   { from: "notes", to: "comments", label: "target_type=note" },
   { from: "labs", to: "comments", label: "target_type=lab" },
-  { from: "posts", to: "comments", label: "target_type=post" },
 ];
 
 type Column = { table: string; name: string; type: string; nullable: boolean };

@@ -463,7 +463,7 @@ export type PracticeListResponse = {
 
 export type Comment = {
   id: number;
-  targetType: "note" | "lab" | "post";
+  targetType: "note" | "lab";
   targetId: number;
   body: string;
   createdAt: DateTime;
@@ -476,43 +476,6 @@ export type Comment = {
   attachments: Attachment[];
   /** Комментарий текущего студента */
   mine: boolean;
-};
-
-export type Post = {
-  id: number;
-  kind: "shawarma" | "joke";
-  /** Название точки для шавермы */
-  title: string;
-  body: string;
-  address: string;
-  /** Цена в рублях */
-  price: number | null;
-  rating: number | null;
-  createdAt: DateTime;
-  updatedAt: DateTime;
-  authorId: number;
-  authorName: string;
-  authorPhotoUrl: string;
-  /** Группа автора, например `М3105` */
-  authorGroup: string;
-  likesCount: number;
-  commentsCount: number;
-  attachments: Attachment[];
-  liked: boolean;
-  mine: boolean;
-};
-
-export type PostInput = {
-  /** Задаётся при создании */
-  kind: "shawarma" | "joke";
-  title?: string;
-  body: string;
-  address?: string;
-  price?: number | null;
-  /** Обязательна для шавермы */
-  rating?: number | null;
-  /** Файлы поста по порядку. При обновлении без поля файлы не меняются, пустой список убирает все */
-  attachmentIds?: string[];
 };
 
 export type CppCheckInput = {

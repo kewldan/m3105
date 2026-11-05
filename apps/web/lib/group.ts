@@ -1,5 +1,3 @@
-import type { MeResponse } from "@/lib/api/types";
-
 /** Group names compared like the API does: case, spaces and Latin "M" ignored. */
 export function normalizeGroup(name: string): string {
   return name.replace(/\s+/g, "").toUpperCase().replaceAll("M", "М");
@@ -8,11 +6,6 @@ export function normalizeGroup(name: string): string {
 export function sameGroup(a: string, b: string): boolean {
   const na = normalizeGroup(a);
   return na !== "" && na === normalizeGroup(b);
-}
-
-/** Whether the viewer may see the group's own sections (shawarma, jokes). */
-export function isGroupMember(me: MeResponse | null, siteGroup: string) {
-  return !!me?.user.approved && sameGroup(me.user.groupName, siteGroup);
 }
 
 /** "М3105" → 5, "М3115" → 15: the number inside the stream, 1–25; null otherwise. */

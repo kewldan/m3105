@@ -16,7 +16,7 @@ func TestTagsForPath(t *testing.T) {
 		{"/api/v1/admin/pages/3", []string{"pages", "settings"}},
 		{"/api/v1/admin/quizzes/7", []string{"quizzes", "notes", "home"}},
 		{"/api/v1/admin/users/4", nil},
-		{"/api/v1/admin/posts/4", nil},
+		{"/api/v1/admin/comments/4", nil},
 		{"/api/v1/notes", nil},
 		{"/healthz", nil},
 	}

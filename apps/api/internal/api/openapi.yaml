@@ -42,7 +42,7 @@ tags:
   - name: grades
     description: Баллы из таблиц преподавателей
   - name: social
-    description: Комментарии студентов к конспектам, лабам и постам; ленты «Шаверма» и «Анекдоты»
+    description: Комментарии студентов к конспектам и лабам
   - name: tools
     description: Инструменты для студентов — проверка C++ по Google Style
   - name: files
@@ -449,7 +449,7 @@ paths:
   /comments/{target}/{id}:
     get:
       tags: [social]
-      summary: Комментарии к конспекту, лабе или посту
+      summary: Комментарии к конспекту или лабе
       description: |
         Читать может кто угодно. `POST` с тем же путём и телом `{ body, attachmentIds? }` требует студенческую куку `edu_user`,
         `DELETE /comments/{id}` удаляет свой комментарий. Конспект или лаба должны быть опубликованы.
@@ -459,7 +459,7 @@ paths:
         - name: target
           in: path
           required: true
-          schema: { type: string, enum: [note, lab, post] }
+          schema: { type: string, enum: [note, lab] }
         - name: id
           in: path
           required: true
@@ -474,36 +474,6 @@ paths:
                 items: { $ref: "#/components/schemas/Comment" }
         "404": { $ref: "#/components/responses/NotFound" }
 
-  /posts:
-    get:
-      tags: [social]
-      summary: Лента постов
-      description: |
-        Пользовательские посты одной ленты. `POST /posts` с `PostInput` создаёт пост от имени студента,
-        `PUT`/`DELETE /posts/{id}` меняют и удаляют свой пост, `PUT`/`DELETE /posts/{id}/like` ставят и снимают лайк.
-        Только для подтверждённых студентов группы сайта (`settings.groupName`) с кукой `edu_user`:
-        без входа — 401, остальным — 403 `not_member`. Комментарии к постам и файлы постов чужим
-        отдаются как 404. Поля `liked` и `mine` считаются для вошедшего студента.
-      operationId: listPosts
-      parameters:
-        - name: kind
-          in: query
-          required: true
-          schema: { type: string, enum: [shawarma, joke] }
-        - name: sort
-          in: query
-          schema: { type: string, enum: [new, top], default: new }
-          description: "`top` — сначала посты с наибольшим числом лайков"
-      responses:
-        "200":
-          description: Посты
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/Post" }
-        "4XX": { $ref: "#/components/responses/ClientError" }
-
   /files/{id}/{name}:
     get:
       tags: [files]
@@ -513,8 +483,8 @@ paths:
         Картинки, PDF, видео и аудио открываются в браузере, остальное скачивается; `?download=1` скачивает всегда.
         `?w=160|320|640|1280|1920` у JPEG, PNG и WebP отдаёт уменьшенную копию (WebP, если он есть в `Accept`, `Vary: Accept`);
         картинка уже нужной ширины, GIF, SVG и остальные типы приходят оригиналом.
-        Поддерживаются `Range` и `ETag`. Файлы поста «для своих» анонимам не отдаются (404),
-        как и загрузки, ещё не прикреплённые к комментарию или посту, — их видит только автор.
+        Поддерживаются `Range` и `ETag`. Загрузки, ещё не прикреплённые к комментарию, видит только автор,
+        остальным — 404.
 
         Загрузка: `POST /files` (студент, кука `edu_user`, картинки JPG/PNG/GIF/WebP и PDF до 10 МБ, 30 файлов за 12 часов)
         и `POST /admin/files` (админка, любые файлы до 50 МБ), тело `multipart/form-data` с полем `file`, ответ — `Attachment`.
@@ -1159,7 +1129,7 @@ components:
       type: object
       properties:
         id: { type: integer }
-        targetType: { type: string, enum: [note, lab, post] }
+        targetType: { type: string, enum: [note, lab] }
         targetId: { type: integer }
         body: { type: string, maxLength: 2000 }
         createdAt: { $ref: "#/components/schemas/DateTime" }
@@ -1173,47 +1143,6 @@ components:
           items: { $ref: "#/components/schemas/Attachment" }
         mine: { type: boolean, description: Комментарий текущего студента }
       required: [id, targetType, targetId, body, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, authorGroup, attachments, mine]
-
-    Post:
-      type: object
-      properties:
-        id: { type: integer }
-        kind: { type: string, enum: [shawarma, joke] }
-        title: { type: string, description: Название точки для шавермы, необязательный заголовок для анекдота }
-        body: { type: string, maxLength: 4000 }
-        address: { type: string }
-        price: { type: [integer, "null"], description: Цена в рублях }
-        rating: { type: [integer, "null"], minimum: 1, maximum: 5 }
-        createdAt: { $ref: "#/components/schemas/DateTime" }
-        updatedAt: { $ref: "#/components/schemas/DateTime" }
-        authorId: { type: integer }
-        authorName: { type: string }
-        authorPhotoUrl: { type: string }
-        authorGroup: { type: string, description: "Группа автора, например `М3105`" }
-        likesCount: { type: integer }
-        commentsCount: { type: integer }
-        attachments:
-          type: array
-          items: { $ref: "#/components/schemas/Attachment" }
-        liked: { type: boolean }
-        mine: { type: boolean }
-      required: [id, kind, title, body, address, price, rating, createdAt, updatedAt, authorId, authorName, authorPhotoUrl, authorGroup, likesCount, commentsCount, attachments, liked, mine]
-
-    PostInput:
-      type: object
-      properties:
-        kind: { type: string, enum: [shawarma, joke], description: Задаётся при создании, при обновлении игнорируется }
-        title: { type: string, maxLength: 120 }
-        body: { type: string, maxLength: 4000 }
-        address: { type: string, maxLength: 200 }
-        price: { type: [integer, "null"] }
-        rating: { type: [integer, "null"], minimum: 1, maximum: 5, description: Обязательна для шавермы }
-        attachmentIds:
-          type: array
-          maxItems: 6
-          items: { type: string }
-          description: Файлы поста по порядку. При обновлении без поля файлы не меняются, пустой список убирает все
-      required: [kind, body]
 
     CppCheckInput:
       type: object

@@ -41,23 +41,18 @@ export function socialErrorMessage(err: unknown, fallback: string): string {
 }
 
 /**
- * Comment thread under a note, lab or post. Pass `initial` when the server
+ * Comment thread under a note or lab. Pass `initial` when the server
  * already fetched the comments; otherwise they load on mount.
  */
 export function CommentsSection({
   target,
   targetId,
   initial,
-  compact = false,
-  onCountChange,
   className,
 }: {
   target: CommentTarget;
   targetId: number;
   initial?: Comment[];
-  /** Tighter layout for threads inside a post card. */
-  compact?: boolean;
-  onCountChange?: (count: number) => void;
   className?: string;
 }) {
   const { me } = useUser();
@@ -85,11 +80,6 @@ export function CommentsSection({
     };
   }, [initial, target, targetId]);
 
-  const update = (next: Comment[]) => {
-    setComments(next);
-    onCountChange?.(next.length);
-  };
-
   const canSend =
     (body.trim() !== "" || files.ids.length > 0) && !files.uploading;
 
@@ -103,7 +93,7 @@ export function CommentsSection({
         body.trim(),
         files.ids,
       );
-      update([...(comments ?? []), created]);
+      setComments([...(comments ?? []), created]);
       setBody("");
       files.reset();
     } catch (err) {
@@ -116,7 +106,7 @@ export function CommentsSection({
   const remove = async (id: number) => {
     try {
       await userApi.deleteComment(id);
-      update((comments ?? []).filter((c) => c.id !== id));
+      setComments((comments ?? []).filter((c) => c.id !== id));
       setConfirmId(null);
       toast.success("Комментарий удалён");
     } catch (err) {
@@ -129,43 +119,32 @@ export function CommentsSection({
 
   return (
     <section
-      id={compact ? undefined : "comments"}
-      className={cn(
-        "scroll-mt-24",
-        compact ? "space-y-3" : "space-y-4",
-        className,
-      )}
+      id="comments"
+      className={cn("scroll-mt-24 space-y-4", className)}
       aria-label="Комментарии"
     >
-      {compact ? null : (
-        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
-          <MessageCircleIcon className="size-5 text-primary" aria-hidden />
-          Комментарии
-          {comments ? (
-            <span className="text-base font-normal text-muted-foreground">
-              {count}
-            </span>
-          ) : null}
-        </h2>
-      )}
+      <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
+        <MessageCircleIcon className="size-5 text-primary" aria-hidden />
+        Комментарии
+        {comments ? (
+          <span className="text-base font-normal text-muted-foreground">
+            {count}
+          </span>
+        ) : null}
+      </h2>
 
       {comments === null ? (
         <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
           <Spinner className="size-4" /> Загружаем…
         </div>
       ) : comments.length === 0 ? (
-        <p
-          className={cn(
-            "text-muted-foreground",
-            compact ? "text-xs" : "text-sm",
-          )}
-        >
+        <p className="text-sm text-muted-foreground">
           {me
             ? "Пока пусто. Напишите первым."
             : "Пока никто ничего не написал."}
         </p>
       ) : (
-        <ul className={compact ? "space-y-3" : "space-y-4"}>
+        <ul className="space-y-4">
           {comments.map((c) => (
             <li key={c.id} className="flex gap-3">
               <UserAvatar
@@ -218,20 +197,11 @@ export function CommentsSection({
                   ) : null}
                 </div>
                 {c.body ? (
-                  <p
-                    className={cn(
-                      "mt-0.5 break-words whitespace-pre-wrap",
-                      compact ? "text-sm" : "text-[15px] leading-relaxed",
-                    )}
-                  >
+                  <p className="mt-0.5 break-words whitespace-pre-wrap text-[15px] leading-relaxed">
                     {c.body}
                   </p>
                 ) : null}
-                <AttachmentGallery
-                  items={c.attachments}
-                  compact={compact}
-                  className="mt-2"
-                />
+                <AttachmentGallery items={c.attachments} className="mt-2" />
               </div>
             </li>
           ))}
@@ -266,12 +236,9 @@ export function CommentsSection({
                 if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit();
               }}
               onPaste={files.onPaste}
-              placeholder={
-                compact ? "Ответить…" : "Вопрос, дополнение или благодарность…"
-              }
+              placeholder="Вопрос, дополнение или благодарность…"
               maxLength={2000}
-              rows={compact ? 2 : 3}
-              className={compact ? "min-h-12 text-sm" : undefined}
+              rows={3}
               aria-label="Текст комментария"
             />
             <AttachmentTray state={files} />
@@ -280,19 +247,15 @@ export function CommentsSection({
                 <AttachButton
                   state={files}
                   accept={STUDENT_ACCEPT}
-                  label={compact ? "" : "Фото или файл"}
-                  className={compact ? "px-2" : "-ml-2"}
+                  label="Фото или файл"
+                  className="-ml-2"
                 />
                 <span className="hidden truncate text-xs text-muted-foreground sm:inline">
                   {body.length > 1800 ? `${body.length} / 2000 · ` : ""}
                   Ctrl+Enter — отправить
                 </span>
               </div>
-              <Button
-                type="submit"
-                size={compact ? "sm" : "default"}
-                disabled={!canSend || sending}
-              >
+              <Button type="submit" disabled={!canSend || sending}>
                 {sending ? <Spinner /> : <SendIcon data-icon="inline-start" />}
                 Отправить
               </Button>
@@ -300,12 +263,7 @@ export function CommentsSection({
           </div>
         </form>
       ) : (
-        <p
-          className={cn(
-            "text-muted-foreground",
-            compact ? "text-xs" : "text-sm",
-          )}
-        >
+        <p className="text-sm text-muted-foreground">
           <Link
             href={loginHref}
             className="font-medium text-primary hover:underline"

@@ -21,7 +21,6 @@ import { fmtRelative } from "@/lib/format";
 const TARGET_LABEL: Record<CommentTarget, string> = {
   note: "Конспект",
   lab: "Лаба",
-  post: "Пост",
 };
 
 export default function CommentsPage() {

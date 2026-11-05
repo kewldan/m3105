@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { type NavLink, primaryLinks } from "@/components/site/nav-config";
+import { type NavLink, PRIMARY_LINKS } from "@/components/site/nav-config";
 import type { Settings } from "@/lib/api/types";
 
 const REPO = "https://github.com/kewldan/m3105";
@@ -28,17 +28,15 @@ function Commit({ label, sha }: { label: string; sha: string }) {
 
 export function SiteFooter({
   settings,
-  member,
   apiCommit,
   pageLinks = [],
 }: {
   settings: Settings;
-  member: boolean;
   /** Commit of the running API, "" if unknown. */
   apiCommit: string;
   pageLinks?: NavLink[];
 }) {
-  const links = [...primaryLinks(member), ...pageLinks];
+  const links = [...PRIMARY_LINKS, ...pageLinks];
   return (
     <footer className="mt-auto border-t bg-muted/30 print:hidden">
       <div className="container-page flex flex-col gap-5 py-8">

@@ -35,7 +35,6 @@ import { fmtBytes, fmtRelative } from "@/lib/format";
 const PLACE: Record<AttachmentPlace, { label: string; hint: string }> = {
   content: { label: "Тексты", hint: "Загружено в админке" },
   comment: { label: "Комментарий", hint: "Прикреплено к комментарию" },
-  post: { label: "Пост", hint: "Прикреплено к посту" },
   pending: {
     label: "Не отправлено",
     hint: "Студент загрузил, но не отправил — удалится через сутки",

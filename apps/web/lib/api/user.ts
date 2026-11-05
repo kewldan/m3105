@@ -7,10 +7,6 @@ import type {
   GradesResponse,
   MeResponse,
   PasskeyBeginResponse,
-  Post,
-  PostInput,
-  PostKind,
-  PostSort,
   PracticeListResponse,
   PracticeSessionView,
   StudentChoice,
@@ -123,7 +119,7 @@ export const userApi = {
       method: "DELETE",
     }),
 
-  // ---- comments and posts ----
+  // ---- comments ----
   comments: (target: CommentTarget, id: number) =>
     apiClient<Comment[]>(`/comments/${target}/${id}`),
   addComment: (
@@ -138,15 +134,4 @@ export const userApi = {
     }),
   deleteComment: (id: number) =>
     apiClient<{ ok: true }>(`/comments/${id}`, { method: "DELETE" }),
-
-  posts: (kind: PostKind, sort: PostSort = "new") =>
-    apiClient<Post[]>(`/posts?kind=${kind}&sort=${sort}`),
-  createPost: (input: PostInput) =>
-    apiClient<Post>("/posts", { method: "POST", body: input }),
-  updatePost: (id: number, input: PostInput) =>
-    apiClient<Post>(`/posts/${id}`, { method: "PUT", body: input }),
-  deletePost: (id: number) =>
-    apiClient<{ ok: true }>(`/posts/${id}`, { method: "DELETE" }),
-  likePost: (id: number, on: boolean) =>
-    apiClient<Post>(`/posts/${id}/like`, { method: on ? "PUT" : "DELETE" }),
 };

@@ -15,9 +15,6 @@ import type {
   Note,
   NoteResponse,
   Page,
-  Post,
-  PostKind,
-  PostSort,
   PracticeListResponse,
   PracticeSessionView,
   Quiz,
@@ -163,7 +160,7 @@ export const getPracticeSession = (id: number, cookie?: string) =>
     cookie ? { headers: { cookie } } : {},
   );
 
-/** Comments of a note, lab or post; pass the Cookie header to mark the viewer's own. */
+/** Comments of a note or lab; pass the Cookie header to mark the viewer's own. */
 export const getComments = (
   target: CommentTarget,
   id: number,
@@ -173,28 +170,3 @@ export const getComments = (
     `/comments/${target}/${id}`,
     cookie ? { headers: { cookie } } : {},
   );
-
-/**
- * One feed of user posts, open only to confirmed students of the site's group.
- * Instead of throwing on 401/403 it says why the feed is closed.
- */
-export async function getPosts(
-  kind: PostKind,
-  sort: PostSort,
-  cookie?: string,
-): Promise<{ posts: Post[] } | { denied: "login" | "member" }> {
-  try {
-    return {
-      posts: await apiServer<Post[]>(
-        `/posts?kind=${kind}&sort=${sort}`,
-        cookie ? { headers: { cookie } } : {},
-      ),
-    };
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 401)
-      return { denied: "login" };
-    if (err instanceof ApiError && err.status === 403)
-      return { denied: "member" };
-    throw err;
-  }
-}

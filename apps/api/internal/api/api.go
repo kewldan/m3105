@@ -141,18 +141,11 @@ func (h *Handler) Router() http.Handler {
 		r.With(userauth.Require, h.requireApproved).Post("/practice/{id}/swaps", h.requestSwap)
 		r.With(userauth.Require, h.requireApproved).Post("/practice/swaps/{id}/accept", h.acceptSwap)
 		r.With(userauth.Require, h.requireApproved).Delete("/practice/swaps/{id}", h.deleteSwap)
-		// Comments: reading is public (under posts — only for the group), writing needs a student session.
+		// Comments: reading is public, writing needs a student session.
 		r.Get("/comments/{target}/{id}", h.listComments)
 		r.With(userauth.Require, h.requireApproved).Post("/comments/{target}/{id}", h.createComment)
 		r.With(userauth.Require).Delete("/comments/{id}", h.deleteComment)
-		// Шаверма и анекдоты — только для подтверждённых студентов группы сайта.
-		r.With(h.requireMember).Get("/posts", h.listPosts)
-		r.With(h.requireMember).Post("/posts", h.createPost)
-		r.With(h.requireMember).Put("/posts/{id}", h.updatePost)
-		r.With(h.requireMember).Delete("/posts/{id}", h.deletePost)
-		r.With(h.requireMember).Put("/posts/{id}/like", h.setLike(true))
-		r.With(h.requireMember).Delete("/posts/{id}/like", h.setLike(false))
-		// Вложения: студент загружает файл, потом прикрепляет его id к комментарию или посту.
+		// Вложения: студент загружает файл, потом прикрепляет его id к комментарию.
 		r.With(userauth.Require, h.requireApproved).Post("/files", h.uploadFile)
 		r.Get("/files/{id}/{name}", h.serveFile)
 

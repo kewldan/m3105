@@ -52,7 +52,7 @@ const fromAttachment = (a: Attachment): Item => ({
 let seq = 0;
 
 /**
- * Files of a comment or post being written: uploads start as soon as a file is
+ * Files of a comment being written: uploads start as soon as a file is
  * picked, pasted or dropped, so sending the form only passes ready ids.
  */
 export function useAttachments({
@@ -148,7 +148,7 @@ export function useAttachments({
     for (const file of list.slice(0, Math.max(0, room))) void uploadOne(file);
   };
 
-  /** Starts over, e.g. with the files of the post being edited. */
+  /** Starts over, e.g. with the files of the comment being edited. */
   const reset = (initial: Attachment[] = []) => {
     for (const key of [...aborts.current.keys(), ...previews.current.keys()])
       release(key);

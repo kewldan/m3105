@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,18 +10,16 @@ import (
 
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/models"
-	"github.com/kewldan/edu3105/apps/api/internal/store"
 	"github.com/kewldan/edu3105/apps/api/internal/userauth"
 )
 
-// Comments and posts written by signed-in students. Comments under notes and
-// labs are public to read; posts (shawarma, jokes), their comments and files
-// are only for confirmed students of the site's group. Authors edit and delete
-// their own entries, admins (separate cookie, /admin routes) moderate everything.
+// Comments written by signed-in students under notes and labs: public to
+// read, authors delete their own, admins (separate cookie, /admin routes)
+// moderate everything.
 
 const adminCommentsLimit = 200
 
-// Anti-spam: one account may create at most socialWriteLimit comments and posts per socialWriteWindow.
+// Anti-spam: one account may create at most socialWriteLimit comments per socialWriteWindow.
 var (
 	socialWriteLimit  = 10
 	socialWriteWindow = 12 * time.Hour
@@ -42,53 +39,6 @@ func (h *Handler) allowWrite(w http.ResponseWriter, r *http.Request, userID int6
 		return false
 	}
 	return true
-}
-
-// isMember reports whether the viewer is a confirmed student of the site's group,
-// the only people who see posts.
-func (h *Handler) isMember(r *http.Request) (bool, error) {
-	id, ok := userauth.UserID(r.Context())
-	if !ok {
-		return false, nil
-	}
-	user, err := h.store.GetUser(r.Context(), id)
-	if errors.Is(err, httpx.ErrNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	sc, err := h.site(r.Context())
-	if err != nil {
-		return false, err
-	}
-	return user.Approved && models.SameGroup(user.GroupName, sc.Settings.GroupName), nil
-}
-
-// requireMember gates posts: 401 without a session, 403 not_member for anyone
-// outside the group (other groups, unconfirmed accounts).
-func (h *Handler) requireMember(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := userauth.UserID(r.Context()); !ok {
-			httpx.Error(w, http.StatusUnauthorized, "unauthorized", "Войдите, чтобы продолжить")
-			return
-		}
-		ok, err := h.isMember(r)
-		if err != nil {
-			httpx.Fail(w, err)
-			return
-		}
-		if !ok {
-			sc, err := h.site(r.Context())
-			if err != nil {
-				httpx.Fail(w, err)
-				return
-			}
-			httpx.Error(w, http.StatusForbidden, "not_member", "Раздел только для студентов группы "+sc.Settings.GroupName)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func forbidden(w http.ResponseWriter, msg string) {
@@ -115,18 +65,6 @@ func (h *Handler) commentTarget(w http.ResponseWriter, r *http.Request) (models.
 	if !exists {
 		httpx.Fail(w, httpx.ErrNotFound)
 		return "", 0, false
-	}
-	// Комментарии к постам видят только свои, как и сами посты; чужим — 404.
-	if target == models.TargetPost {
-		member, err := h.isMember(r)
-		if err != nil {
-			httpx.Fail(w, err)
-			return "", 0, false
-		}
-		if !member {
-			httpx.Fail(w, httpx.ErrNotFound)
-			return "", 0, false
-		}
 	}
 	return target, id, true
 }
@@ -202,153 +140,6 @@ func (h *Handler) deleteComment(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// ---- posts ----
-
-func postFilter(r *http.Request) (store.PostFilter, bool) {
-	q := r.URL.Query()
-	f := store.PostFilter{Top: q.Get("sort") == "top"}
-	if raw := q.Get("kind"); raw != "" {
-		kind, ok := models.ParsePostKind(raw)
-		if !ok {
-			return f, false
-		}
-		f.Kind = kind
-	}
-	return f, true
-}
-
-func (h *Handler) listPosts(w http.ResponseWriter, r *http.Request) {
-	f, ok := postFilter(r)
-	if !ok {
-		httpx.Fail(w, &httpx.ValidationError{Fields: map[string]string{"kind": "Неизвестный тип поста"}})
-		return
-	}
-	if f.Kind == "" {
-		httpx.Fail(w, &httpx.ValidationError{Fields: map[string]string{"kind": "Укажите тип поста"}})
-		return
-	}
-	viewer, _ := userauth.UserID(r.Context())
-	items, err := h.store.ListPosts(r.Context(), viewer, f)
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	for i := range items {
-		items[i].Mine = viewer != 0 && items[i].AuthorID == viewer
-	}
-	httpx.JSON(w, http.StatusOK, items)
-}
-
-func (h *Handler) createPost(w http.ResponseWriter, r *http.Request) {
-	userID, _ := userauth.UserID(r.Context())
-	var in models.PostInput
-	if err := httpx.Decode(r, &in); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	if err := in.Validate(); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	if !h.allowWrite(w, r, userID) {
-		return
-	}
-	p, err := h.store.CreatePost(r.Context(), userID, &in)
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	p.Mine = true
-	httpx.JSON(w, http.StatusCreated, p)
-}
-
-// ownPost loads the post and checks the caller wrote it.
-func (h *Handler) ownPost(w http.ResponseWriter, r *http.Request) (models.Post, int64, bool) {
-	userID, _ := userauth.UserID(r.Context())
-	id, err := httpx.IDParam(r)
-	if err != nil {
-		httpx.Fail(w, err)
-		return models.Post{}, 0, false
-	}
-	p, err := h.store.GetPost(r.Context(), userID, id)
-	if err != nil {
-		httpx.Fail(w, err)
-		return models.Post{}, 0, false
-	}
-	if p.AuthorID != userID {
-		forbidden(w, "Можно менять только свои посты")
-		return models.Post{}, 0, false
-	}
-	return p, userID, true
-}
-
-// updatePostWith applies the payload to an existing post keeping its kind.
-func (h *Handler) updatePostWith(w http.ResponseWriter, r *http.Request, viewer int64, current models.Post) {
-	var in models.PostInput
-	if err := httpx.Decode(r, &in); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	in.Kind = current.Kind
-	if err := in.Validate(); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	p, err := h.store.UpdatePost(r.Context(), viewer, current.ID, &in)
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	p.Mine = viewer != 0 && p.AuthorID == viewer
-	httpx.JSON(w, http.StatusOK, p)
-}
-
-func (h *Handler) updatePost(w http.ResponseWriter, r *http.Request) {
-	p, userID, ok := h.ownPost(w, r)
-	if !ok {
-		return
-	}
-	h.updatePostWith(w, r, userID, p)
-}
-
-func (h *Handler) deletePost(w http.ResponseWriter, r *http.Request) {
-	p, _, ok := h.ownPost(w, r)
-	if !ok {
-		return
-	}
-	if err := h.store.DeletePost(r.Context(), p.ID); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
-}
-
-func (h *Handler) setLike(on bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		userID, _ := userauth.UserID(r.Context())
-		id, err := httpx.IDParam(r)
-		if err != nil {
-			httpx.Fail(w, err)
-			return
-		}
-		if _, err := h.store.PostExists(r.Context(), id); err != nil {
-			httpx.Fail(w, err)
-			return
-		}
-		if err := h.store.SetLike(r.Context(), id, userID, on); err != nil {
-			httpx.Fail(w, err)
-			return
-		}
-		p, err := h.store.GetPost(r.Context(), userID, id)
-		if err != nil {
-			httpx.Fail(w, err)
-			return
-		}
-		p.Mine = p.AuthorID == userID
-		httpx.JSON(w, http.StatusOK, p)
-	}
-}
-
 // ---- admin moderation ----
 
 func (h *Handler) adminListComments(w http.ResponseWriter, r *http.Request) {
@@ -396,47 +187,6 @@ func (h *Handler) adminUpdateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, c)
-}
-
-func (h *Handler) adminListPosts(w http.ResponseWriter, r *http.Request) {
-	f, ok := postFilter(r)
-	if !ok {
-		httpx.Fail(w, &httpx.ValidationError{Fields: map[string]string{"kind": "Неизвестный тип поста"}})
-		return
-	}
-	items, err := h.store.ListPosts(r.Context(), 0, f)
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	httpx.JSON(w, http.StatusOK, items)
-}
-
-func (h *Handler) adminUpdatePost(w http.ResponseWriter, r *http.Request) {
-	id, err := httpx.IDParam(r)
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	p, err := h.store.GetPost(r.Context(), 0, id)
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	h.updatePostWith(w, r, 0, p)
-}
-
-func (h *Handler) adminDeletePost(w http.ResponseWriter, r *http.Request) {
-	id, err := httpx.IDParam(r)
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	if err := h.store.DeletePost(r.Context(), id); err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // adminSearchStats returns what students search for and what they fail to find.

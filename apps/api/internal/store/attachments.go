@@ -15,7 +15,7 @@ const attachmentURL = `'/api/v1/files/' || a.id || '/' || a.slug`
 
 const attachmentCols = `a.id, ` + attachmentURL + ` AS url, a.name, a.content_type, a.size, a.width, a.height, a.created_at`
 
-// attachmentsOf is a subquery with the files of one comment or post as a JSON
+// attachmentsOf is a subquery with the files of one comment as a JSON
 // array in display order; pgx decodes it straight into []models.Attachment.
 func attachmentsOf(column, ref string) string {
 	return `COALESCE((SELECT json_agg(json_build_object('id', a.id, 'url', ` + attachmentURL + `,
@@ -24,10 +24,9 @@ func attachmentsOf(column, ref string) string {
 		FROM attachments a WHERE a.` + column + ` = ` + ref + `), '[]'::json)`
 }
 
-const attachmentPlace = `CASE WHEN a.comment_id IS NOT NULL THEN 'comment' WHEN a.post_id IS NOT NULL THEN 'post'
-	WHEN a.scope = 'content' THEN 'content' WHEN a.scope = 'avatar' THEN 'avatar' ELSE 'pending' END`
+const attachmentPlace = `CASE WHEN a.comment_id IS NOT NULL THEN 'comment' WHEN a.scope = 'content' THEN 'content' WHEN a.scope = 'avatar' THEN 'avatar' ELSE 'pending' END`
 
-// Attachment scopes: files linked from MDX texts vs. files of comments and posts.
+// Attachment scopes: files linked from MDX texts vs. files of comments.
 const (
 	ScopeContent = "content"
 	ScopeSocial  = "social"
@@ -69,7 +68,7 @@ func (s *Store) GetAttachment(ctx context.Context, id string) (models.Attachment
 
 // ContentAttachmentBySHA finds an identical file for texts, so re-uploading it
 // (say, `content.ts note push` twice) reuses it instead of storing a copy.
-// Files of comments and posts are never shared: they die with their owner.
+// Files of comments are never shared: they die with their owner.
 func (s *Store) ContentAttachmentBySHA(ctx context.Context, sha string) (models.Attachment, error) {
 	return one[models.Attachment](ctx, s.db, `SELECT `+attachmentCols+` FROM attachments a
 		WHERE a.scope = 'content' AND a.sha256 = $1 ORDER BY a.created_at LIMIT 1`, sha)
@@ -80,20 +79,12 @@ type AttachmentAccess struct {
 	models.Attachment
 	UserID *int64                 `db:"user_id"`
 	Place  models.AttachmentPlace `db:"place"`
-	// GroupOnly: the file belongs to a post or a comment under a post, which
-	// only students of the site's group may see.
-	GroupOnly bool `db:"group_only"`
 }
 
 // GetAttachmentAccess loads a file with its owner and where it lives.
 func (s *Store) GetAttachmentAccess(ctx context.Context, id string) (AttachmentAccess, error) {
-	return one[AttachmentAccess](ctx, s.db, `SELECT `+attachmentCols+`, a.user_id, `+attachmentPlace+` AS place,
-		(p.id IS NOT NULL OR pc.id IS NOT NULL) AS group_only
-		FROM attachments a
-		LEFT JOIN posts p ON p.id = a.post_id
-		LEFT JOIN comments c ON c.id = a.comment_id
-		LEFT JOIN posts pc ON c.target_type = 'post' AND pc.id = c.target_id
-		WHERE a.id = $1`, id)
+	return one[AttachmentAccess](ctx, s.db, `SELECT `+attachmentCols+`, a.user_id, `+attachmentPlace+` AS place
+		FROM attachments a WHERE a.id = $1`, id)
 }
 
 // CountUserUploads returns how many files the student uploaded since the given moment.
@@ -126,14 +117,11 @@ func (s *Store) ListAttachments(ctx context.Context, limit int) ([]models.AdminA
 	return many[models.AdminAttachment](ctx, s.db, fileRefs+`
 		SELECT `+attachmentCols+`, `+attachmentPlace+` AS place,
 			CASE WHEN u.id IS NOT NULL THEN `+userNameExpr+` END AS author_name,
-			CASE WHEN a.post_id IS NOT NULL THEN COALESCE(NULLIF(p.title, ''), left(p.body, 60))
-				WHEN a.comment_id IS NOT NULL THEN `+commentTargetTitle+` END AS target_title,
-			CASE WHEN a.post_id IS NOT NULL THEN `+postPath+`
-				WHEN a.comment_id IS NOT NULL THEN `+commentTargetPath+` END AS target_path,
+			CASE WHEN a.comment_id IS NOT NULL THEN `+commentTargetTitle+` END AS target_title,
+			CASE WHEN a.comment_id IS NOT NULL THEN `+commentTargetPath+` END AS target_path,
 			COALESCE(used.used_in, '[]'::jsonb) AS used_in
 		FROM attachments a
 		LEFT JOIN users u ON u.id = a.user_id
-		LEFT JOIN posts p ON p.id = a.post_id
 		LEFT JOIN comments c ON c.id = a.comment_id
 		LEFT JOIN used ON used.id = a.id
 		WHERE a.scope <> 'avatar'
@@ -146,10 +134,10 @@ func (s *Store) DeleteAttachment(ctx context.Context, id string) error {
 	return s.exec(ctx, `DELETE FROM attachments WHERE id = $1`, id)
 }
 
-// DeleteStaleUploads drops comment and post uploads that were never attached.
+// DeleteStaleUploads drops comment uploads that were never attached.
 func (s *Store) DeleteStaleUploads(ctx context.Context, before time.Time) (int64, error) {
 	tag, err := s.db.Exec(ctx, `DELETE FROM attachments
-		WHERE scope = 'social' AND comment_id IS NULL AND post_id IS NULL AND created_at < $1`, before)
+		WHERE scope = 'social' AND comment_id IS NULL AND created_at < $1`, before)
 	if err != nil {
 		return 0, wrap(err)
 	}
@@ -174,8 +162,8 @@ func (s *Store) AttachmentIDs(ctx context.Context) (map[string]bool, error) {
 }
 
 // attachTo moves pending uploads of the uploader (nil = admin) onto a comment
-// or post and orders them as listed. Files already on this target may stay in
-// the list; anything else (someone else's file, a file on another post, a file
+// and orders them as listed. Files already on this target may stay in
+// the list; anything else (someone else's file, a file on another comment, a file
 // for texts) fails the whole write. column is a constant from the caller,
 // never user input.
 func attachTo(ctx context.Context, tx pgx.Tx, column string, targetID int64, uploader *int64, ids []string) error {
@@ -183,7 +171,7 @@ func attachTo(ctx context.Context, tx pgx.Tx, column string, targetID int64, upl
 		return nil
 	}
 	tag, err := tx.Exec(ctx, `UPDATE attachments SET `+column+` = $1, position = array_position($2::text[], id)
-		WHERE id = ANY($2::text[]) AND (`+column+` = $1 OR (scope = 'social' AND comment_id IS NULL AND post_id IS NULL
+		WHERE id = ANY($2::text[]) AND (`+column+` = $1 OR (scope = 'social' AND comment_id IS NULL
 			AND user_id IS NOT DISTINCT FROM $3::bigint))`,
 		targetID, ids, uploader)
 	if err != nil {
@@ -197,7 +185,7 @@ func attachTo(ctx context.Context, tx pgx.Tx, column string, targetID int64, upl
 	return nil
 }
 
-// syncAttachments makes ids the complete file list of a comment or post:
+// syncAttachments makes ids the complete file list of a comment:
 // dropped files are deleted, new ones must be the uploader's pending uploads.
 func syncAttachments(ctx context.Context, tx pgx.Tx, column string, targetID int64, uploader *int64, ids []string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM attachments WHERE `+column+` = $1 AND NOT (id = ANY($2::text[]))`,

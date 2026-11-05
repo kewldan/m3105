@@ -29,7 +29,7 @@ type Policy struct {
 }
 
 var (
-	// StudentPolicy covers comments and posts.
+	// StudentPolicy covers comments.
 	StudentPolicy = Policy{MaxSize: 10 << 20}
 	// AdminPolicy covers files in notes, labs and pages.
 	AdminPolicy = Policy{MaxSize: 50 << 20, AnyType: true}

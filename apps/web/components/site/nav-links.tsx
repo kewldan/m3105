@@ -17,7 +17,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -29,26 +28,20 @@ const useIsoLayoutEffect =
 /**
  * Desktop navigation. The active background is a single pill that slides
  * horizontally between items (x and width only), so it never "flies in"
- * from another row. Extra links go into a dropdown ("Ещё" by default); with
- * `moreLink` the dropdown is named after it, ends with a link to it and is
- * active on every page under it.
+ * from another row. Extra links go into "Ещё".
  */
 export function NavLinks({
   links,
   more = [],
-  moreLink,
   className,
 }: {
   links: NavLink[];
   more?: NavLink[];
-  moreLink?: NavLink;
   className?: string;
 }) {
   const pathname = usePathname();
   const reduce = useReducedMotion();
-  const moreActive =
-    more.some((l) => isActivePath(pathname, l)) ||
-    (moreLink ? isActivePath(pathname, moreLink) : false);
+  const moreActive = more.some((l) => isActivePath(pathname, l));
   const activeKey =
     links.find((l) => isActivePath(pathname, l))?.href ??
     (moreActive ? MORE_KEY : null);
@@ -140,10 +133,10 @@ export function NavLinks({
               "inline-flex items-center gap-1",
             )}
           >
-            {moreLink?.label ?? "Ещё"}
+            Ещё
             <ChevronDownIcon className="size-3.5 opacity-70" aria-hidden />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-56">
+          <DropdownMenuContent align="start" className="min-w-44">
             {more.map((link) => (
               <DropdownMenuItem
                 key={link.href}
@@ -153,17 +146,6 @@ export function NavLinks({
                 {link.label}
               </DropdownMenuItem>
             ))}
-            {moreLink ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  render={<Link href={moreLink.href} />}
-                  className={cn(pathname === moreLink.href && "bg-accent")}
-                >
-                  Все страницы
-                </DropdownMenuItem>
-              </>
-            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}

@@ -34,15 +34,8 @@ export function SiteHeader({ site }: { site: SettingsResponse }) {
           <ItmoLogo size={36} />
           <span>{site.settings.siteTitle}</span>
         </Link>
-        {/* Страницы из меню в ряд не влезают: они в выпадающем «Полезном». */}
-        <NavLinks
-          links={
-            pageLinks.length ? PRIMARY_LINKS : [...PRIMARY_LINKS, USEFUL_LINK]
-          }
-          more={pageLinks}
-          moreLink={pageLinks.length ? USEFUL_LINK : undefined}
-          className="ml-4 hidden lg:flex"
-        />
+        {/* Шапка и так полна: «Полезное» и страницы — на главной, в подвале и в мобильном меню. */}
+        <NavLinks links={PRIMARY_LINKS} className="ml-4 hidden lg:flex" />
         <div className="ml-auto flex items-center gap-1.5">
           <SearchDialog />
           <ThemeToggle />

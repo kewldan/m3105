@@ -1,6 +1,7 @@
 import {
   BookOpenTextIcon,
   ChevronRightIcon,
+  FileTextIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import type { Metadata } from "next";
@@ -20,7 +21,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { getHome } from "@/lib/api/public";
+import { getHome, getPages } from "@/lib/api/public";
 import { getViewerScope } from "@/lib/api/viewer";
 import { fmtDateOnly, plural } from "@/lib/format";
 import { DEFAULT_DESCRIPTION, pageMetadata } from "@/lib/seo";
@@ -44,9 +45,15 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
+/** How many useful pages the home page lists; the rest are on /p. */
+const HOME_PAGES = 5;
+
 export default async function HomePage() {
   const scope = await getViewerScope();
-  const home = await getHome(scope.forGroup);
+  const [home, pages] = await Promise.all([
+    getHome(scope.forGroup),
+    getPages().catch(() => []),
+  ]);
   const tz = home.settings.timezone;
 
   return (
@@ -179,6 +186,41 @@ export default async function HomePage() {
               )}
             </Section>
           </FadeIn>
+          {pages.length > 0 ? (
+            <FadeIn delay={0.18}>
+              <Section title="Полезное" href="/p">
+                <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+                  {pages.slice(0, HOME_PAGES).map((p) => (
+                    <li key={p.id}>
+                      <Link
+                        href={`/p/${p.slug}`}
+                        className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40"
+                      >
+                        <FileTextIcon
+                          className="size-4 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">
+                            {p.title}
+                          </div>
+                          {p.category ? (
+                            <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {p.category}
+                            </div>
+                          ) : null}
+                        </div>
+                        <ChevronRightIcon
+                          className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                          aria-hidden
+                        />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </Section>
+            </FadeIn>
+          ) : null}
         </div>
       </div>
 

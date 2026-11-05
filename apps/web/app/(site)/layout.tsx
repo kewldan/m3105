@@ -1,3 +1,4 @@
+import Script from "next/script";
 import type { ReactNode } from "react";
 
 import { JsonLd } from "@/components/site/json-ld";
@@ -57,6 +58,8 @@ export default async function SiteLayout({
       />
       {children}
       <ServiceWorker />
+      {/* Umami: пустой скрипт, пока не задан UMAMI_WEBSITE_ID. */}
+      <Script src="/insights.js" strategy="afterInteractive" />
     </SiteShell>
   );
 }

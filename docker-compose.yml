@@ -39,6 +39,8 @@ services:
       NEXT_PUBLIC_SITE_URL: https://${DOMAIN:-m3105.ru}
       # Общий секрет: по нему api сбрасывает кеш публичного контента.
       REVALIDATE_TOKEN: ${REVALIDATE_TOKEN:-}
+      # Umami на stats.kewldan.ru: id сайта из панели, без него трекер не грузится.
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
       TZ: ${TZ:-Europe/Moscow}
     expose:
       - 3000

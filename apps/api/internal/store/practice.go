@@ -25,6 +25,8 @@ type PracticeFilter struct {
 	To          *time.Time
 	// For is the viewer's group (see LabFilter.For).
 	For string
+	// Within keeps sessions addressed only to an editor's zone.
+	Within []string
 }
 
 // ListPracticeSessions returns sessions ordered by start time.
@@ -44,6 +46,7 @@ func (s *Store) ListPracticeSessions(ctx context.Context, f PracticeFilter) ([]m
 		q += ` AND ps.starts_at <= $` + itoa(len(args))
 	}
 	q += audienceIn("ps", f.For, &args)
+	q += audienceWithin("ps", f.Within, &args)
 	q += ` ORDER BY ps.starts_at`
 	return many[models.PracticeSession](ctx, s.db, q, args...)
 }

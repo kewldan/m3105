@@ -40,13 +40,20 @@ erDiagram
     users ||--o{ attachments : "user_id"
     labs ||--o{ bot_announced_labs : "lab_id"
     users ||--o{ comments : "user_id"
+    users ||--o{ editor_roles : "granted_by"
+    users ||--o{ editor_roles : "user_id"
+    users ||--o{ edits : "actor_id"
     subjects ||--o{ events : "subject_id"
     grade_sources ||--o{ grade_rows : "source_id"
     subjects ||--o{ grade_sources : "subject_id"
     labs ||--o{ lab_completions : "lab_id"
     users ||--o{ lab_completions : "user_id"
+    users ||--o{ labs : "author_id"
     subjects ||--o{ labs : "subject_id"
+    users ||--o{ labs : "updated_by"
+    users ||--o{ notes : "author_id"
     subjects ||--o{ notes : "subject_id"
+    users ||--o{ notes : "updated_by"
     users ||--o{ passkeys : "user_id"
     posts ||--o{ post_likes : "post_id"
     users ||--o{ post_likes : "user_id"
@@ -94,13 +101,20 @@ erDiagram
     users ||--o{ attachments : "user_id"
     labs ||--o{ bot_announced_labs : "lab_id"
     users ||--o{ comments : "user_id"
+    users ||--o{ editor_roles : "granted_by"
+    users ||--o{ editor_roles : "user_id"
+    users ||--o{ edits : "actor_id"
     subjects ||--o{ events : "subject_id"
     grade_sources ||--o{ grade_rows : "source_id"
     subjects ||--o{ grade_sources : "subject_id"
     labs ||--o{ lab_completions : "lab_id"
     users ||--o{ lab_completions : "user_id"
+    users ||--o{ labs : "author_id"
     subjects ||--o{ labs : "subject_id"
+    users ||--o{ labs : "updated_by"
+    users ||--o{ notes : "author_id"
     subjects ||--o{ notes : "subject_id"
+    users ||--o{ notes : "updated_by"
     users ||--o{ passkeys : "user_id"
     posts ||--o{ post_likes : "post_id"
     users ||--o{ post_likes : "user_id"
@@ -156,6 +170,27 @@ erDiagram
         text body
         timestamptz created_at
         timestamptz updated_at
+    }
+    editor_roles {
+        int8 id PK
+        int8 user_id FK
+        text scope
+        int8 granted_by FK "может быть пустым"
+        timestamptz created_at
+    }
+    edits {
+        int8 id PK
+        int8 actor_id FK "может быть пустым"
+        text actor_name
+        text entity
+        int8 entity_id
+        text action
+        text title
+        text_array audience
+        jsonb before "может быть пустым"
+        jsonb after "может быть пустым"
+        timestamptz reverted_at "может быть пустым"
+        timestamptz created_at
     }
     events {
         int8 id PK
@@ -241,6 +276,8 @@ erDiagram
         timestamptz updated_at
         tsvector search_vector "может быть пустым"
         text_array audience
+        int8 author_id FK "может быть пустым"
+        int8 updated_by FK "может быть пустым"
     }
     notes {
         int8 id PK
@@ -256,6 +293,8 @@ erDiagram
         timestamptz updated_at
         tsvector search_vector "может быть пустым"
         text_array audience
+        int8 author_id FK "может быть пустым"
+        int8 updated_by FK "может быть пустым"
     }
     pages {
         int8 id PK

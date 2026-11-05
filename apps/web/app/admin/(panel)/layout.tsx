@@ -5,6 +5,7 @@ import type React from "react";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ApiError, apiServer } from "@/lib/api/client";
+import type { StaffMe } from "@/lib/api/types";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +26,11 @@ export default async function AdminPanelLayout({
     .join("; ");
 
   let state: "ok" | "unauthorized" | "unreachable" = "ok";
+  let staff: StaffMe = { authenticated: true, role: "admin" };
   try {
-    await apiServer("/auth/me", { headers: { cookie: cookieHeader } });
+    staff = await apiServer<StaffMe>("/auth/me", {
+      headers: { cookie: cookieHeader },
+    });
   } catch (err) {
     state =
       err instanceof ApiError && err.status === 401
@@ -51,5 +55,9 @@ export default async function AdminPanelLayout({
   }
 
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
-  return <AdminShell defaultOpen={sidebarOpen}>{children}</AdminShell>;
+  return (
+    <AdminShell defaultOpen={sidebarOpen} staff={staff}>
+      {children}
+    </AdminShell>
+  );
 }

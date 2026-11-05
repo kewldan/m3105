@@ -39,11 +39,3 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	h.auth.ClearCookie(w)
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
-
-func (h *Handler) adminMe(w http.ResponseWriter, r *http.Request) {
-	if !h.auth.Authenticated(r.Context(), r) {
-		httpx.Error(w, http.StatusUnauthorized, "unauthorized", "Не авторизован")
-		return
-	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"authenticated": true, "role": "admin"})
-}

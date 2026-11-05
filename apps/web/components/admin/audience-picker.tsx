@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Toggle } from "@/components/ui/toggle";
+import { useStaff } from "@/lib/admin/staff";
 import { adminApi } from "@/lib/api/admin";
 import type { StudyGroup } from "@/lib/api/types";
 import { formatAudience } from "@/lib/audience";
@@ -47,6 +48,15 @@ export function AudiencePicker({
   id?: string;
 }) {
   const groups = useStudyGroups();
+  const { isAdmin, zone } = useStaff();
+  // An editor addresses content only inside their zone, never "for everyone".
+  const allowed = (t: string) => isAdmin || zone.includes(t);
+  const { editor } = useStaff();
+  const scopes = editor?.scopes;
+  // A new item of an editor starts with their own stream or group.
+  useEffect(() => {
+    if (!isAdmin && value.length === 0 && scopes?.length) onChange(scopes);
+  }, [isAdmin, value.length, scopes, onChange]);
   const streams = useMemo(() => {
     const map = new Map<number, string[]>();
     for (const g of groups ?? []) {
@@ -77,6 +87,7 @@ export function AudiencePicker({
           size="sm"
           className={toggleClass}
           pressed={value.length === 0}
+          disabled={!isAdmin}
           onPressedChange={() => onChange([])}
         >
           Для всех
@@ -87,6 +98,7 @@ export function AudiencePicker({
             size="sm"
             className={toggleClass}
             pressed={has(`stream:${n}`)}
+            disabled={!allowed(`stream:${n}`)}
             onPressedChange={(on) => toggle(`stream:${n}`, on)}
           >
             Поток {n}
@@ -114,7 +126,7 @@ export function AudiencePicker({
                           size="sm"
                           className={cn(toggleClass, "tabular-nums")}
                           pressed={covered || has(`group:${g}`)}
-                          disabled={covered}
+                          disabled={covered || !allowed(`group:${g}`)}
                           onPressedChange={(on) => toggle(`group:${g}`, on)}
                         >
                           {g}
@@ -129,7 +141,9 @@ export function AudiencePicker({
       ) : null}
       <p className="text-xs text-muted-foreground">
         {value.length === 0
-          ? "Видно всем. Студенты других потоков тоже увидят это в своих списках."
+          ? isAdmin
+            ? "Видно всем. Студенты других потоков тоже увидят это в своих списках."
+            : "Выберите свой поток или группу: материалы «для всех» правит только админ."
           : `Только: ${formatAudience(value)}. Остальным — по кнопке «Показать всё».`}
       </p>
     </div>

@@ -11,6 +11,7 @@ import {
   MapPinIcon,
   PlusIcon,
   SendIcon,
+  ShieldCheckIcon,
   Trash2Icon,
   UsersRoundIcon,
 } from "lucide-react";
@@ -53,6 +54,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ApiError } from "@/lib/api/client";
 import type { Lab, MeResponse } from "@/lib/api/types";
 import { userApi } from "@/lib/api/user";
+import { formatAudience } from "@/lib/audience";
 import {
   browserSupportsWebAuthn,
   PasskeyCancelled,
@@ -180,6 +182,16 @@ export function Profile({
                   не выбран в списке
                 </span>
               )}
+              {(me.editorScopes ?? []).map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                  title="Правите материалы этой зоны в админке"
+                >
+                  <ShieldCheckIcon className="size-3" aria-hidden />
+                  ответственный: {formatAudience([s])}
+                </span>
+              ))}
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {me.user.telegramUsername ? (
@@ -196,15 +208,18 @@ export function Profile({
               <span>С нами с {fmtDateYear(me.user.createdAt, tz)}</span>
             </div>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="shrink-0"
-            onClick={onLogout}
-          >
-            <LogOutIcon data-icon="inline-start" />
-            Выйти
-          </Button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {(me.editorScopes ?? []).length > 0 ? (
+              <Button render={<Link href="/admin/labs" />}>
+                <ShieldCheckIcon data-icon="inline-start" />
+                Админка
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" onClick={onLogout}>
+              <LogOutIcon data-icon="inline-start" />
+              Выйти
+            </Button>
+          </div>
         </section>
       </StaggerItem>
 

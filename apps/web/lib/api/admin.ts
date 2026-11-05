@@ -7,6 +7,9 @@ import type {
   AdminUser,
   AdminUserInput,
   Comment,
+  Edit,
+  EditorCandidate,
+  EditorRole,
   Event,
   EventInput,
   FAQInput,
@@ -94,6 +97,26 @@ export const adminApi = {
     /** Отвязывает аккаунт от выбранного студента: он выберет себя заново. */
     unclaim: (id: number) =>
       apiClient<User>(`/admin/users/${id}/student`, { method: "DELETE" }),
+  },
+  /** Ответственные за потоки и группы. */
+  editors: {
+    list: () => apiClient<EditorRole[]>("/admin/editors"),
+    candidates: () => apiClient<EditorCandidate[]>("/admin/editors/candidates"),
+    grant: (input: { userId: number; scope: string }) =>
+      apiClient<EditorRole>("/admin/editors", { method: "POST", body: input }),
+    revoke: (id: number) =>
+      apiClient<{ ok: true }>(`/admin/editors/${id}`, { method: "DELETE" }),
+  },
+  /** Журнал правок контента. */
+  journal: {
+    list: (entity?: string) =>
+      apiClient<Edit[]>(
+        `/admin/journal${entity ? `?entity=${encodeURIComponent(entity)}` : ""}`,
+      ),
+    revert: (id: number) =>
+      apiClient<{ ok: true; entityId: number }>(`/admin/journal/${id}/revert`, {
+        method: "POST",
+      }),
   },
   /** Группы из списка курса с потоками — для выбора аудитории. */
   studyGroups: () => apiClient<StudyGroup[]>("/admin/study-groups"),

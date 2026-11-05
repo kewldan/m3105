@@ -20,10 +20,12 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ADMIN_NAV, isNavActive } from "@/lib/admin/nav";
+import { useStaff } from "@/lib/admin/staff";
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
+  const { isAdmin, editor } = useStaff();
 
   return (
     <Sidebar collapsible="icon" variant="inset">
@@ -33,7 +35,10 @@ export function AppSidebar() {
             <SidebarMenuButton
               size="lg"
               render={
-                <Link href="/admin" onClick={() => setOpenMobile(false)} />
+                <Link
+                  href={isAdmin ? "/admin" : "/admin/labs"}
+                  onClick={() => setOpenMobile(false)}
+                />
               }
             >
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary font-heading text-sm font-bold text-primary-foreground">
@@ -44,7 +49,7 @@ export function AppSidebar() {
                   М3105
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  Админка
+                  {isAdmin ? "Админка" : (editor?.userName ?? "Ответственный")}
                 </span>
               </div>
             </SidebarMenuButton>
@@ -57,23 +62,25 @@ export function AppSidebar() {
           <SidebarGroupLabel>Разделы</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {ADMIN_NAV.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    isActive={isNavActive(item, pathname)}
-                    tooltip={item.title}
-                    render={
-                      <Link
-                        href={item.href}
-                        onClick={() => setOpenMobile(false)}
-                      />
-                    }
-                  >
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {ADMIN_NAV.filter((item) => isAdmin || item.editor).map(
+                (item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      isActive={isNavActive(item, pathname)}
+                      tooltip={item.title}
+                      render={
+                        <Link
+                          href={item.href}
+                          onClick={() => setOpenMobile(false)}
+                        />
+                      }
+                    >
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ),
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -92,9 +99,11 @@ export function AppSidebar() {
               <span>Открыть сайт</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <LogoutButton variant="menu" />
-          </SidebarMenuItem>
+          {isAdmin ? (
+            <SidebarMenuItem>
+              <LogoutButton variant="menu" />
+            </SidebarMenuItem>
+          ) : null}
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />

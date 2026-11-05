@@ -148,6 +148,10 @@ export type Lab = SubjectJoin & {
   createdAt: DateTime;
   updatedAt: DateTime;
   audience: Audience;
+  /** Автор — студент-ответственный; `null` — админ */
+  authorId: number | null;
+  /** Имя автора; пусто, если автора нет */
+  authorName: string;
 };
 
 export type Note = SubjectJoin & {
@@ -166,6 +170,10 @@ export type Note = SubjectJoin & {
   /** Опубликованные квизы, привязанные к конспекту */
   quizzesCount: number;
   audience: Audience;
+  /** Автор — студент-ответственный; `null` — админ */
+  authorId: number | null;
+  /** Имя автора; пусто, если автора нет */
+  authorName: string;
 };
 
 export type NoteResponse = Note & {

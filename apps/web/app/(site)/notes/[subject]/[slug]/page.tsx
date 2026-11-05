@@ -1,4 +1,9 @@
-import { CalendarIcon, ChevronRightIcon, SparklesIcon } from "lucide-react";
+import {
+  CalendarIcon,
+  ChevronRightIcon,
+  PenLineIcon,
+  SparklesIcon,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -178,6 +183,12 @@ export default async function NotePage({ params }: { params: Params }) {
           {note.summary ? (
             <p className="max-w-2xl text-lg text-muted-foreground text-pretty">
               {note.summary}
+            </p>
+          ) : null}
+          {note.authorName ? (
+            <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+              <PenLineIcon className="size-4" aria-hidden />
+              Автор конспекта: {note.authorName}
             </p>
           ) : null}
         </header>

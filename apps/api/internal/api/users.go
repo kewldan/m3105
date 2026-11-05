@@ -94,7 +94,11 @@ func (h *Handler) meBundle(r *http.Request, userID int64) (models.MeResponse, er
 	if err != nil {
 		return models.MeResponse{}, err
 	}
-	return models.MeResponse{User: user, CompletedLabIDs: completed, Signups: signups, Passkeys: passkeys, Grades: grades}, nil
+	scopes, err := h.store.EditorScopes(ctx, userID)
+	if err != nil {
+		return models.MeResponse{}, err
+	}
+	return models.MeResponse{User: user, CompletedLabIDs: completed, Signups: signups, Passkeys: passkeys, Grades: grades, EditorScopes: scopes}, nil
 }
 
 func (h *Handler) respondMe(w http.ResponseWriter, r *http.Request, userID int64) {

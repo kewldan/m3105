@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { AudiencePicker } from "@/components/admin/audience-picker";
+import { AuthorField } from "@/components/admin/author-field";
 import { DatePicker } from "@/components/admin/date-picker";
 import { FormActions } from "@/components/admin/form-actions";
 import {
@@ -25,6 +26,7 @@ import { adminApi } from "@/lib/api/admin";
 import type { Note, NoteInput, Subject } from "@/lib/api/types";
 
 const schema = z.object({
+  authorId: z.number().nullable(),
   audience: z.array(z.string()),
   subjectId: z.number().int().positive("Выберите предмет"),
   number: z.string().regex(/^\d+$/, "Введите номер лекции"),
@@ -41,6 +43,7 @@ type FormValues = z.infer<typeof schema>;
 function toForm(note: Note | null, subjects: Subject[]): FormValues {
   return {
     subjectId: note?.subjectId ?? (subjects.length === 1 ? subjects[0].id : 0),
+    authorId: note?.authorId ?? null,
     audience:
       note?.audience ?? (subjects.length === 1 ? subjects[0].audience : []),
     number: note ? String(note.number) : "1",
@@ -69,6 +72,7 @@ export function NoteForm({
 
   async function onSubmit(values: FormValues) {
     const input: NoteInput = {
+      authorId: values.authorId,
       audience: values.audience,
       subjectId: values.subjectId,
       number: Number(values.number),
@@ -208,6 +212,24 @@ export function NoteForm({
           >
             <Textarea id="nt-summary" rows={2} {...form.register("summary")} />
           </FormField>
+          <Controller
+            control={form.control}
+            name="authorId"
+            render={({ field }) => (
+              <FormField
+                label="Автор"
+                htmlFor="note-author"
+                description="Подпись на сайте. Ответственный становится автором того, что создаёт."
+              >
+                <AuthorField
+                  id="note-author"
+                  value={field.value}
+                  name={note?.authorName ?? ""}
+                  onChange={field.onChange}
+                />
+              </FormField>
+            )}
+          />
           <Controller
             control={form.control}
             name="audience"

@@ -2,8 +2,8 @@
 
 import { ExternalLinkIcon } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Fragment, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Fragment, type ReactNode, useEffect } from "react";
 
 import { AppSidebar } from "@/components/admin/app-sidebar";
 import { LogoutButton } from "@/components/admin/logout-button";
@@ -24,6 +24,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { breadcrumbsFor } from "@/lib/admin/nav";
+import { StaffProvider, useStaff } from "@/lib/admin/staff";
+import type { StaffMe } from "@/lib/api/types";
 
 function AdminBreadcrumbs() {
   const pathname = usePathname();
@@ -63,15 +65,44 @@ function AdminBreadcrumbs() {
   );
 }
 
+/** Editors have no overview: their start page is the labs list. */
+function EditorHome() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { isAdmin } = useStaff();
+  useEffect(() => {
+    if (!isAdmin && pathname === "/admin") router.replace("/admin/labs");
+  }, [isAdmin, pathname, router]);
+  return null;
+}
+
 export function AdminShell({
   children,
+  staff,
   defaultOpen = true,
 }: {
   children: ReactNode;
+  staff: StaffMe;
   defaultOpen?: boolean;
 }) {
   return (
+    <StaffProvider value={staff}>
+      <AdminShellInner defaultOpen={defaultOpen}>{children}</AdminShellInner>
+    </StaffProvider>
+  );
+}
+
+function AdminShellInner({
+  children,
+  defaultOpen,
+}: {
+  children: ReactNode;
+  defaultOpen: boolean;
+}) {
+  const { isAdmin } = useStaff();
+  return (
     <SidebarProvider defaultOpen={defaultOpen}>
+      <EditorHome />
       <AppSidebar />
       <SidebarInset>
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur supports-backdrop-filter:bg-background/70 md:rounded-t-xl md:px-4">
@@ -97,7 +128,13 @@ export function AdminShell({
             </Button>
             <ThemeToggle />
             <div className="hidden sm:block">
-              <LogoutButton />
+              {isAdmin ? (
+                <LogoutButton />
+              ) : (
+                <Button variant="ghost" size="sm" render={<Link href="/me" />}>
+                  Профиль
+                </Button>
+              )}
             </div>
           </div>
         </header>

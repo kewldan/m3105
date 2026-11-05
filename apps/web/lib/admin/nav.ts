@@ -6,6 +6,7 @@ import {
   ContactIcon,
   FileTextIcon,
   FlaskConicalIcon,
+  HistoryIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
   type LucideIcon,
@@ -15,6 +16,7 @@ import {
   PaperclipIcon,
   SearchIcon,
   SettingsIcon,
+  ShieldCheckIcon,
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
@@ -24,25 +26,50 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   exact?: boolean;
+  /** Open to editors (responsible students), not only to the admin. */
+  editor?: boolean;
 };
 
 export const ADMIN_NAV: NavItem[] = [
   { title: "Обзор", href: "/admin", icon: LayoutDashboardIcon, exact: true },
   { title: "Предметы", href: "/admin/subjects", icon: BookOpenIcon },
-  { title: "Лабы", href: "/admin/labs", icon: FlaskConicalIcon },
+  { title: "Лабы", href: "/admin/labs", icon: FlaskConicalIcon, editor: true },
   {
     title: "Дедлайны и события",
     href: "/admin/events",
     icon: CalendarClockIcon,
+    editor: true,
   },
-  { title: "Сдачи", href: "/admin/practice", icon: ClipboardCheckIcon },
-  { title: "Конспекты", href: "/admin/notes", icon: NotebookPenIcon },
-  { title: "Квизы", href: "/admin/quizzes", icon: ListChecksIcon },
+  {
+    title: "Сдачи",
+    href: "/admin/practice",
+    icon: ClipboardCheckIcon,
+    editor: true,
+  },
+  {
+    title: "Конспекты",
+    href: "/admin/notes",
+    icon: NotebookPenIcon,
+    editor: true,
+  },
+  {
+    title: "Квизы",
+    href: "/admin/quizzes",
+    icon: ListChecksIcon,
+    editor: true,
+  },
   { title: "ЧаВо", href: "/admin/faq", icon: CircleQuestionMarkIcon },
   { title: "Страницы", href: "/admin/pages", icon: FileTextIcon },
   { title: "Файлы", href: "/admin/files", icon: PaperclipIcon },
   { title: "Студенты", href: "/admin/users", icon: UsersIcon },
   { title: "Список курса", href: "/admin/students", icon: ContactIcon },
+  {
+    title: "Ответственные",
+    href: "/admin/editors",
+    icon: ShieldCheckIcon,
+    editor: true,
+  },
+  { title: "Журнал", href: "/admin/journal", icon: HistoryIcon, editor: true },
   { title: "Баллы", href: "/admin/grades", icon: TrophyIcon },
   { title: "Посты", href: "/admin/posts", icon: NewspaperIcon },
   { title: "Комментарии", href: "/admin/comments", icon: MessageCircleIcon },

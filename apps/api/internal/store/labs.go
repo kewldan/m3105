@@ -8,12 +8,12 @@ import (
 )
 
 const labCols = `l.id, l.subject_id, l.number, l.slug, l.title, l.summary, l.content, l.requirements, l.submission,
-	l.variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at, l.audience,
+	l.variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at, l.audience, l.author_id, COALESCE((SELECT COALESCE(NULLIF(au.display_name, ''), au.name) FROM users au WHERE au.id = l.author_id), '') AS author_name,
 	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
 	s.practice_teacher AS subject_practice_teacher`
 
 const labListCols = `l.id, l.subject_id, l.number, l.slug, l.title, l.summary, '' AS content, '' AS requirements, '' AS submission,
-	'' AS variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at, l.audience,
+	'' AS variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at, l.audience, l.author_id, COALESCE((SELECT COALESCE(NULLIF(au.display_name, ''), au.name) FROM users au WHERE au.id = l.author_id), '') AS author_name,
 	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
 	s.practice_teacher AS subject_practice_teacher`
 
@@ -24,6 +24,8 @@ type LabFilter struct {
 	PublishedOnly bool
 	// For is the viewer's group: only labs for everyone, the group or its stream. Empty — all.
 	For string
+	// Within keeps labs addressed only to these tokens (an editor's zone); nil — no narrowing.
+	Within []string
 }
 
 // ListLabs returns labs (without long MDX bodies) matching the filter.
@@ -42,6 +44,7 @@ func (s *Store) ListLabs(ctx context.Context, f LabFilter) ([]models.Lab, error)
 		q += ` AND l.status = 'published'`
 	}
 	q += audienceIn("l", f.For, &args)
+	q += audienceWithin("l", f.Within, &args)
 	q += ` ORDER BY s.position, s.name, l.number, l.title`
 	return many[models.Lab](ctx, s.db, q, args...)
 }
@@ -137,6 +140,28 @@ func audienceIn(alias, group string, args *[]any) string {
 	*args = append(*args, group)
 	col := "COALESCE(" + alias + ".audience, '{}')"
 	return ` AND (` + col + ` = '{}' OR ` + col + ` && audience_scope($` + itoa(len(*args)) + `))`
+}
+
+// audienceWithin keeps rows addressed only to the zone; nil zone — no narrowing,
+// an empty one matches nothing.
+func audienceWithin(alias string, zone []string, args *[]any) string {
+	if zone == nil {
+		return ""
+	}
+	*args = append(*args, zone)
+	return ` AND ` + alias + `.audience <> '{}' AND ` + alias + `.audience <@ $` + itoa(len(*args)) + `::text[]`
+}
+
+// SetAuthor records who created a lab or note and who edited it last; nil is the admin.
+// keepAuthor leaves the author as it is (an edit, not a create or an admin's choice).
+func (s *Store) SetAuthor(ctx context.Context, table string, id int64, author, editor *int64, keepAuthor bool) error {
+	if table != "labs" && table != "notes" {
+		panic("SetAuthor: unknown table " + table)
+	}
+	if keepAuthor {
+		return s.exec(ctx, `UPDATE `+table+` SET updated_by = $2 WHERE id = $1`, id, editor)
+	}
+	return s.exec(ctx, `UPDATE `+table+` SET author_id = $2, updated_by = $3 WHERE id = $1`, id, author, editor)
 }
 
 // setAudience stores who a row is for; table is one of the audienced tables.

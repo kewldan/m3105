@@ -32,6 +32,14 @@ func (s *Store) ListEvents(ctx context.Context, from, to *time.Time, subjectSlug
 	return many[models.Event](ctx, s.db, q, args...)
 }
 
+// ListEventsWithin returns events addressed only to an editor's zone.
+func (s *Store) ListEventsWithin(ctx context.Context, zone []string) ([]models.Event, error) {
+	args := []any{}
+	q := `SELECT ` + eventCols + ` FROM events e LEFT JOIN subjects s ON s.id = e.subject_id WHERE 1=1` +
+		audienceWithin("e", zone, &args) + ` ORDER BY e.starts_at`
+	return many[models.Event](ctx, s.db, q, args...)
+}
+
 // GetEvent fetches an event by id.
 func (s *Store) GetEvent(ctx context.Context, id int64) (models.Event, error) {
 	return one[models.Event](ctx, s.db, `SELECT `+eventCols+` FROM events e LEFT JOIN subjects s ON s.id = e.subject_id WHERE e.id = $1`, id)

@@ -213,6 +213,9 @@ type SubjectRef struct {
 
 // Lab is a laboratory assignment.
 type Lab struct {
+	// AuthorID is who wrote it (nil — the admin); AuthorName is their name or "".
+	AuthorID   *int64 `db:"author_id" json:"authorId"`
+	AuthorName string `db:"author_name" json:"authorName"`
 	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
 	Audience     []string   `db:"audience" json:"audience"`
 	ID           int64      `db:"id" json:"id"`
@@ -245,6 +248,8 @@ type Lab struct {
 
 // LabInput is the create/update payload for a lab.
 type LabInput struct {
+	// AuthorID sets the author (admin only; an editor becomes the author of what they create).
+	AuthorID *int64 `json:"authorId"`
 	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
 	Audience     []string   `json:"audience"`
 	SubjectID    int64      `json:"subjectId"`
@@ -488,6 +493,9 @@ func (in *PageInput) Validate() error {
 
 // Note is a lecture summary written in MDX.
 type Note struct {
+	// AuthorID is who wrote it (nil — the admin); AuthorName is their name or "".
+	AuthorID   *int64 `db:"author_id" json:"authorId"`
+	AuthorName string `db:"author_name" json:"authorName"`
 	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
 	Audience    []string    `db:"audience" json:"audience"`
 	ID          int64       `db:"id" json:"id"`
@@ -513,6 +521,8 @@ type Note struct {
 
 // NoteInput is the create/update payload for a note.
 type NoteInput struct {
+	// AuthorID sets the author (admin only; an editor becomes the author of what they create).
+	AuthorID *int64 `json:"authorId"`
 	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
 	Audience    []string    `json:"audience"`
 	SubjectID   int64       `json:"subjectId"`

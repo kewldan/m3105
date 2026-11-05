@@ -206,6 +206,21 @@ func userCard(site, title string, u models.User, status string) string {
 	return b.String()
 }
 
+var editVerbs = map[string]string{"create": "создал(а)", "update": "изменил(а)", "delete": "удалил(а)"}
+
+var editKinds = map[string]string{"labs": "лабу", "notes": "конспект", "quizzes": "квиз", "events": "событие", "practice": "сдачу"}
+
+// editedMessage is the admin's note about an editor's change.
+func editedMessage(site string, e models.Edit) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "✏️ <b>%s</b> %s %s\n%s", esc(e.ActorName), editVerbs[e.Action], editKinds[e.Entity], esc(e.Title))
+	if len(e.Audience) > 0 {
+		b.WriteString("\nДля: " + esc(strings.Join(e.Audience, ", ")))
+	}
+	fmt.Fprintf(&b, "\n\n<a href=\"%s/admin/journal\">Журнал правок</a>", strings.TrimRight(site, "/"))
+	return b.String()
+}
+
 // fmtScore prints 11.04 as "11,04" and 12 as "12".
 func fmtScore(v float64) string {
 	return strings.ReplaceAll(strconv.FormatFloat(math.Round(v*100)/100, 'f', -1, 64), ".", ",")

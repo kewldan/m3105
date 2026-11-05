@@ -30,6 +30,8 @@ type QuizFilter struct {
 	PublishedOnly bool
 	// For is the viewer's group: quizzes follow the audience of their note.
 	For string
+	// Within keeps quizzes whose note is addressed only to an editor's zone.
+	Within []string
 }
 
 const quizFrom = ` FROM quizzes q LEFT JOIN subjects s ON s.id = q.subject_id LEFT JOIN notes n ON n.id = q.note_id`
@@ -50,6 +52,7 @@ func (s *Store) ListQuizzes(ctx context.Context, f QuizFilter) ([]QuizSummary, e
 		q += ` AND q.status = 'published'`
 	}
 	q += audienceIn("n", f.For, &args)
+	q += audienceWithin("n", f.Within, &args)
 	q += ` ORDER BY s.position, s.name, q.title`
 	return many[QuizSummary](ctx, s.db, q, args...)
 }

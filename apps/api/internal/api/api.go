@@ -49,6 +49,8 @@ type Handler struct {
 	grades *grades.Syncer
 	// cpp checks C++ style; nil when neither the service nor local tools are available.
 	cpp cpplint.Service
+	// reverters replay journal snapshots per entity; filled by mountAdmin.
+	reverters map[string]reverter
 }
 
 // New constructs the handler set. fs may be nil: uploads then answer 503.
@@ -182,7 +184,7 @@ func (h *Handler) Router() http.Handler {
 		})
 
 		r.Route("/admin", func(r chi.Router) {
-			r.Use(h.auth.Require)
+			r.Use(h.requireStaff)
 			r.Use(h.revalidateCache)
 			h.mountAdmin(r)
 		})

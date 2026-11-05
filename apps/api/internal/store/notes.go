@@ -8,10 +8,10 @@ import (
 
 const quizzesCountCol = `(SELECT count(*) FROM quizzes q WHERE q.note_id = n.id AND q.status = 'published')::int AS quizzes_count`
 
-const noteCols = `n.id, n.subject_id, n.number, n.slug, n.title, n.summary, n.content, n.lecture_date, n.status, n.created_at, n.updated_at, n.audience,
+const noteCols = `n.id, n.subject_id, n.number, n.slug, n.title, n.summary, n.content, n.lecture_date, n.status, n.created_at, n.updated_at, n.audience, n.author_id, COALESCE((SELECT COALESCE(NULLIF(au.display_name, ''), au.name) FROM users au WHERE au.id = n.author_id), '') AS author_name,
 	` + quizzesCountCol + `, s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon`
 
-const noteListCols = `n.id, n.subject_id, n.number, n.slug, n.title, n.summary, '' AS content, n.lecture_date, n.status, n.created_at, n.updated_at, n.audience,
+const noteListCols = `n.id, n.subject_id, n.number, n.slug, n.title, n.summary, '' AS content, n.lecture_date, n.status, n.created_at, n.updated_at, n.audience, n.author_id, COALESCE((SELECT COALESCE(NULLIF(au.display_name, ''), au.name) FROM users au WHERE au.id = n.author_id), '') AS author_name,
 	` + quizzesCountCol + `, s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon`
 
 // NoteFilter narrows note listings.
@@ -22,6 +22,8 @@ type NoteFilter struct {
 	Limit         int
 	// For is the viewer's group (see LabFilter.For).
 	For string
+	// Within keeps notes addressed only to an editor's zone (see LabFilter.Within).
+	Within []string
 }
 
 // ListNotes returns notes without bodies.
@@ -40,6 +42,7 @@ func (s *Store) ListNotes(ctx context.Context, f NoteFilter) ([]models.Note, err
 		q += ` AND n.status = 'published'`
 	}
 	q += audienceIn("n", f.For, &args)
+	q += audienceWithin("n", f.Within, &args)
 	if f.Limit > 0 {
 		q += ` ORDER BY n.updated_at DESC LIMIT ` + itoa(f.Limit)
 	} else {

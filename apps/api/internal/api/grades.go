@@ -180,7 +180,7 @@ func (h *Handler) mountGradeSources(r chi.Router) {
 		}
 		httpx.JSON(w, http.StatusOK, res)
 	})
-	mount[models.GradeSource, models.GradeSourceInput](r, crud[models.GradeSource, models.GradeSourceInput]{
+	mount[models.GradeSource, models.GradeSourceInput](h, r, crud[models.GradeSource, models.GradeSourceInput]{
 		list:   func(ctx context.Context, _ *http.Request) (any, error) { return st.ListGradeSources(ctx, false) },
 		get:    st.GetGradeSource,
 		create: st.CreateGradeSource,

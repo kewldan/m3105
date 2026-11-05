@@ -752,7 +752,9 @@ components:
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
             audience: { $ref: "#/components/schemas/Audience" }
-          required: [id, subjectId, number, slug, title, summary, content, requirements, submission, variants, materials, deadlineAt, deadlineNote, maxScore, teacher, subjectPracticeTeacher, status, createdAt, updatedAt, audience]
+            authorId: { oneOf: [{ type: integer }, { type: "null" }], description: "Автор — студент-ответственный; `null` — админ" }
+            authorName: { type: string, description: "Имя автора; пусто, если автора нет" }
+          required: [id, subjectId, number, slug, title, summary, content, requirements, submission, variants, materials, deadlineAt, deadlineNote, maxScore, teacher, subjectPracticeTeacher, status, createdAt, updatedAt, audience, authorId, authorName]
 
     Note:
       allOf:
@@ -772,7 +774,9 @@ components:
             updatedAt: { $ref: "#/components/schemas/DateTime" }
             quizzesCount: { type: integer, description: "Опубликованные квизы, привязанные к конспекту" }
             audience: { $ref: "#/components/schemas/Audience" }
-          required: [id, subjectId, number, slug, title, summary, content, lectureDate, status, createdAt, updatedAt, quizzesCount, audience]
+            authorId: { oneOf: [{ type: integer }, { type: "null" }], description: "Автор — студент-ответственный; `null` — админ" }
+            authorName: { type: string, description: "Имя автора; пусто, если автора нет" }
+          required: [id, subjectId, number, slug, title, summary, content, lectureDate, status, createdAt, updatedAt, quizzesCount, audience, authorId, authorName]
 
     NoteResponse:
       allOf:

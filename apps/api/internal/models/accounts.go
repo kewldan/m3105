@@ -329,4 +329,6 @@ type MeResponse struct {
 	Signups         []MySignup `json:"signups"`
 	Passkeys        []Passkey  `json:"passkeys"`
 	Grades          []MyGrade  `json:"grades"`
+	// EditorScopes are the student's editor roles ("stream:1", "group:М3105").
+	EditorScopes []string `json:"editorScopes"`
 }

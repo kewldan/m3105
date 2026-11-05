@@ -95,6 +95,8 @@ type SubjectJoin = {
 };
 
 export type LabInput = {
+  /** Автор (только админ выбирает); null — без автора. */
+  authorId?: number | null;
   /** Для кого: "stream:1", "group:М3105"; пусто — для всех. */
   audience: string[];
   subjectId: number;
@@ -162,6 +164,8 @@ export type PageInput = {
 };
 
 export type NoteInput = {
+  /** Автор (только админ выбирает); null — без автора. */
+  authorId?: number | null;
   /** Для кого: "stream:1", "group:М3105"; пусто — для всех. */
   audience: string[];
   subjectId: number;
@@ -264,6 +268,51 @@ export type StudentChoice = { id: number; fullName: string; groupName: string };
 
 export type StudentInput = { isu: string; fullName: string; groupName: string };
 
+/** An editor role: a student responsible for a stream or a group. */
+export type EditorRole = {
+  id: number;
+  userId: number;
+  userName: string;
+  userGroup: string;
+  photoUrl: string;
+  /** "stream:1" or "group:М3105". */
+  scope: string;
+  /** Who granted it; null — the admin. */
+  grantedBy: string | null;
+  createdAt: string;
+};
+
+export type EditorCandidate = { id: number; name: string; group: string };
+
+/** /auth/me for the admin panel. */
+export type StaffMe = {
+  authenticated: boolean;
+  role: "admin" | "editor";
+  editor?: {
+    userId: number;
+    userName: string;
+    scopes: string[];
+    /** Every token the editor may address content to. */
+    zone: string[];
+  };
+};
+
+/** A journal entry: a create, update or delete of content. */
+export type Edit = {
+  id: number;
+  actorId: number | null;
+  actorName: string;
+  entity: "labs" | "notes" | "quizzes" | "events" | "practice";
+  entityId: number;
+  action: "create" | "update" | "delete";
+  title: string;
+  audience: string[];
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  revertedAt: string | null;
+  createdAt: string;
+};
+
 export type StudyGroup = { name: string; stream: number; students: number };
 
 export type StudentImportResult = {
@@ -299,6 +348,8 @@ export type MeResponse = {
   signups: MySignup[];
   passkeys: Passkey[];
   grades: MyGrade[];
+  /** Editor roles of the student: "stream:1", "group:М3105". */
+  editorScopes: string[];
 };
 
 // ---- scores from external sheets ----

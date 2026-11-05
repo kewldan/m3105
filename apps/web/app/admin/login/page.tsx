@@ -100,6 +100,17 @@ export default function AdminLoginPage() {
           Войти
         </Button>
 
+        <p className="rounded-lg bg-muted/60 p-3 text-center text-xs text-muted-foreground">
+          Ответственный за поток или группу?{" "}
+          <Link
+            href="/login?next=%2Fadmin"
+            className="font-medium text-foreground underline underline-offset-4"
+          >
+            Войдите через Telegram
+          </Link>{" "}
+          — пароль не нужен.
+        </p>
+
         <p className="text-center text-xs text-muted-foreground">
           <Link
             href="/"

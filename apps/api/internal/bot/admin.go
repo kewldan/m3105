@@ -47,6 +47,21 @@ func (n *AdminNotifier) Claimed(u models.User, st models.Student) {
 	}()
 }
 
+// Edited tells the admin what an editor changed, with a link to the journal.
+// Like Claimed, it does not block the caller.
+func (n *AdminNotifier) Edited(e models.Edit) {
+	if n == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := n.api.SendHTML(ctx, n.chatID, editedMessage(n.site, e), SendOptions{DisablePreview: true}); err != nil {
+			n.log.Warn("edited", "edit", e.ID, "err", err)
+		}
+	}()
+}
+
 const (
 	unclaimPrefix = "unclaim:"
 	// approvePrefix is the button of the old manual confirmation, still under older messages.

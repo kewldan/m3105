@@ -5,6 +5,7 @@ import {
   FileTextIcon,
   ListOrderedIcon,
   PaperclipIcon,
+  PenLineIcon,
   SendIcon,
   ShuffleIcon,
   TrophyIcon,
@@ -162,6 +163,12 @@ export default async function LabPage({ params }: Params) {
           ) : null}
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+          {lab.authorName ? (
+            <span className="inline-flex items-center gap-1.5">
+              <PenLineIcon className="size-4" aria-hidden />
+              Автор: {lab.authorName}
+            </span>
+          ) : null}
           {teacher ? (
             <span className="inline-flex items-center gap-1.5">
               <UserRoundIcon className="size-4" aria-hidden />

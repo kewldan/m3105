@@ -4,7 +4,6 @@ import {
   BookOpenIcon,
   FileTextIcon,
   FlaskConicalIcon,
-  HelpCircleIcon,
   ListChecksIcon,
   SearchIcon,
 } from "lucide-react";
@@ -34,7 +33,6 @@ const KIND: Record<
   note: { label: "Конспекты", icon: BookOpenIcon },
   lab: { label: "Лабы", icon: FlaskConicalIcon },
   quiz: { label: "Квизы", icon: ListChecksIcon },
-  faq: { label: "ЧаВо", icon: HelpCircleIcon },
   page: { label: "Страницы", icon: FileTextIcon },
   subject: { label: "Предметы", icon: BookOpenIcon },
 };
@@ -44,7 +42,6 @@ const ORDER: SearchResult["kind"][] = [
   "lab",
   "quiz",
   "subject",
-  "faq",
   "page",
 ];
 
@@ -168,7 +165,7 @@ export function SearchDialog({ className }: { className?: string }) {
         open={open}
         onOpenChange={setOpen}
         title="Поиск по сайту"
-        description="Конспекты, лабы, квизы, ЧаВо и страницы"
+        description="Конспекты, лабы, квизы и страницы"
         className="sm:max-w-xl"
       >
         {/* Фильтрует сервер, cmdk пусть показывает всё, что пришло. */}
@@ -181,7 +178,7 @@ export function SearchDialog({ className }: { className?: string }) {
           <CommandList className="max-h-[60vh]">
             {query.trim().length < 2 ? (
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                Введите пару букв — ищем по конспектам, лабам, квизам, ЧаВо и
+                Введите пару букв — ищем по конспектам, лабам, квизам и
                 страницам.
               </div>
             ) : loading && results.length === 0 ? (

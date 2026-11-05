@@ -122,7 +122,6 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/labs/{subject}/{slug}", h.getLab)
 		r.Get("/calendar", h.getCalendar)
 		r.Get("/calendar.ics", h.getCalendarICS)
-		r.Get("/faq", h.listFAQ)
 		r.Get("/pages", h.listPages)
 		r.Get("/pages/{slug}", h.getPage)
 		r.Get("/notes", h.listNotes)

@@ -6,7 +6,6 @@ import type {
   CalendarResponse,
   Comment,
   CommentTarget,
-  FAQItem,
   GradesResponse,
   Health,
   HomeResponse,
@@ -80,7 +79,6 @@ export const getCalendar = (
     tags: [TAG.calendar],
   });
 };
-export const getFAQ = () => apiServer<FAQItem[]>("/faq", { tags: [TAG.faq] });
 export const getPages = () =>
   apiServer<Page[]>("/pages", { tags: [TAG.pages] });
 export const getPage = (slug: string) =>

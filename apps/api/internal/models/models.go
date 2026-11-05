@@ -398,44 +398,6 @@ func (in *EventInput) Validate() error {
 	return nil
 }
 
-// ---------- FAQ ----------
-
-// FAQItem is a question/answer pair.
-type FAQItem struct {
-	ID        int64     `db:"id" json:"id"`
-	Question  string    `db:"question" json:"question"`
-	Answer    string    `db:"answer" json:"answer"`
-	Category  string    `db:"category" json:"category"`
-	Position  int       `db:"position" json:"position"`
-	CreatedAt time.Time `db:"created_at" json:"createdAt"`
-	UpdatedAt time.Time `db:"updated_at" json:"updatedAt"`
-}
-
-// FAQInput is the create/update payload for an FAQ item.
-type FAQInput struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-	Category string `json:"category"`
-	Position int    `json:"position"`
-}
-
-// Validate normalises and checks the payload.
-func (in *FAQInput) Validate() error {
-	ve := httpx.NewValidation()
-	in.Question = strings.TrimSpace(in.Question)
-	in.Category = strings.TrimSpace(in.Category)
-	if in.Question == "" {
-		ve.Add("question", "Укажите вопрос")
-	}
-	if strings.TrimSpace(in.Answer) == "" {
-		ve.Add("answer", "Укажите ответ")
-	}
-	if !ve.Empty() {
-		return ve
-	}
-	return nil
-}
-
 // ---------- Pages ----------
 
 // Page is a static informational page.

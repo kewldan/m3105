@@ -50,7 +50,7 @@ type AdminAttachment struct {
 	AuthorName  *string         `db:"author_name" json:"authorName"`
 	TargetTitle *string         `db:"target_title" json:"targetTitle"`
 	TargetPath  *string         `db:"target_path" json:"targetPath"`
-	// UsedIn lists notes, labs, pages, FAQ answers and subjects whose text links
+	// UsedIn lists notes, labs, pages and subjects whose text links
 	// to the file (content files only).
 	UsedIn []ContentRef `db:"used_in" json:"usedIn"`
 }

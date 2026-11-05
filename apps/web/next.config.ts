@@ -40,7 +40,6 @@ const MARKDOWN_PAGES = [
   "/subjects",
   "/subjects/:slug",
   "/p/:slug",
-  "/faq",
 ];
 const acceptsMarkdown = [
   { type: "header" as const, key: "accept", value: ".*text/markdown.*" },

@@ -5,8 +5,8 @@ import {
   BookOpenTextIcon,
   CalendarDaysIcon,
   ClipboardCheckIcon,
+  FileTextIcon,
   FlaskConicalIcon,
-  HelpCircleIcon,
   HomeIcon,
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
@@ -20,7 +20,7 @@ const LINKS = [
   { href: "/labs", label: "Лабы", icon: FlaskConicalIcon },
   { href: "/practice", label: "Сдачи", icon: ClipboardCheckIcon },
   { href: "/notes", label: "Конспекты", icon: BookOpenTextIcon },
-  { href: "/faq", label: "ЧаВо", icon: HelpCircleIcon },
+  { href: "/p", label: "Полезное", icon: FileTextIcon },
 ];
 
 const ease = [0.22, 1, 0.36, 1] as const;

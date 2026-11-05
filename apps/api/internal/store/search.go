@@ -66,12 +66,6 @@ func (s *Store) Search(ctx context.Context, query string, limit int) ([]SearchRe
 		WHERE qz.status = 'published' AND n.status = 'published'
 			AND (qz.search_vector @@ q.tsq OR qz.title % q.raw)
 		UNION ALL
-		SELECT 'faq', f.question, COALESCE(NULLIF(f.category, ''), 'ЧаВо'), '/faq#faq-' || f.id,
-			f.answer,
-			ts_rank_cd(f.search_vector, q.tsq) + similarity(f.question, q.raw)
-		FROM faq_items f, q
-		WHERE f.search_vector @@ q.tsq OR f.question % q.raw
-		UNION ALL
 		SELECT 'page', p.title, 'Страница', '/p/' || p.slug,
 			p.content,
 			ts_rank_cd(p.search_vector, q.tsq) + similarity(p.title, q.raw)

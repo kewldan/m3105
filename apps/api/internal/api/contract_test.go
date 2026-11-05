@@ -156,7 +156,7 @@ func TestCacheTagsMatchFrontend(t *testing.T) {
 	}
 	for _, path := range []string{
 		"/api/v1/admin/subjects/1", "/api/v1/admin/labs/1", "/api/v1/admin/notes/1",
-		"/api/v1/admin/quizzes/1", "/api/v1/admin/faq/1", "/api/v1/admin/pages/1",
+		"/api/v1/admin/quizzes/1", "/api/v1/admin/pages/1",
 		"/api/v1/admin/settings", "/api/v1/admin/events/1", "/api/v1/admin/practice/1",
 		"/api/v1/admin/grade-sources/1",
 	} {
@@ -190,7 +190,6 @@ func TestResponsesMatchSpec(t *testing.T) {
 		"title": "Контрактный квиз", "status": "published", "questions": []map[string]any{
 			{"type": "single", "prompt": "Вопрос?", "options": []map[string]any{{"text": "Да", "correct": true}, {"text": "Нет"}}},
 		}}, 201)
-	c.do("POST", "/api/v1/admin/faq", map[string]any{"question": "Контрактный вопрос?", "answer": "Ответ"}, 201)
 	c.do("POST", "/api/v1/admin/pages", map[string]any{"title": "Контрактная страница", "content": "Текст", "status": "published"}, 201)
 
 	lists := []struct{ path, schema string }{
@@ -198,7 +197,6 @@ func TestResponsesMatchSpec(t *testing.T) {
 		{"/api/v1/labs", "Lab"},
 		{"/api/v1/notes", "Note"},
 		{"/api/v1/quizzes", "QuizSummary"},
-		{"/api/v1/faq", "FAQItem"},
 		{"/api/v1/pages", "Page"},
 		{"/api/v1/search?q=контрактн", "SearchResult"},
 	}

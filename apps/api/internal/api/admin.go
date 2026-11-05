@@ -354,15 +354,6 @@ func (h *Handler) mountAdmin(r chi.Router) {
 		r.Delete("/files/{id}", h.adminDeleteFile)
 		r.Post("/journal/{id}/revert", h.revertEdit)
 		r.Route("/grade-sources", h.mountGradeSources)
-		r.Route("/faq", func(r chi.Router) {
-			mount[models.FAQItem, models.FAQInput](h, r, crud[models.FAQItem, models.FAQInput]{
-				list:   func(ctx context.Context, _ *http.Request) (any, error) { return st.ListFAQ(ctx) },
-				get:    st.GetFAQ,
-				create: st.CreateFAQ,
-				update: st.UpdateFAQ,
-				del:    st.DeleteFAQ,
-			})
-		})
 		r.Route("/pages", func(r chi.Router) {
 			mount[models.Page, models.PageInput](h, r, crud[models.Page, models.PageInput]{
 				list:   func(ctx context.Context, _ *http.Request) (any, error) { return st.ListPages(ctx, false) },
@@ -564,7 +555,6 @@ type overviewResponse struct {
 	LabsDraft int `json:"labsDraft"`
 	Notes     int `json:"notes"`
 	Quizzes   int `json:"quizzes"`
-	FAQ       int `json:"faq"`
 	Pages     int `json:"pages"`
 	Events    int `json:"events"`
 	Users     int `json:"users"`
@@ -611,12 +601,6 @@ func (h *Handler) adminOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp.Quizzes = len(quizzes)
-	faq, err := h.store.ListFAQ(ctx)
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	resp.FAQ = len(faq)
 	pages, err := h.store.ListPages(ctx, false)
 	if err != nil {
 		httpx.Fail(w, err)

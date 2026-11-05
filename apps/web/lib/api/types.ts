@@ -13,7 +13,6 @@ export type Comment = Schema.Comment;
 export type CppCheckResult = Schema.CppCheckResult;
 export type CppDiagnostic = Schema.CppDiagnostic;
 export type CppEdit = Schema.CppEdit;
-export type FAQItem = Schema.FAQItem;
 export type GradeColumn = Schema.GradeColumn;
 export type GradeEntry = Schema.GradeEntry;
 export type GradeSourceSummary = Schema.GradeSourceSummary;
@@ -144,13 +143,6 @@ export type EventInput = {
   url: string;
 };
 
-export type FAQInput = {
-  question: string;
-  answer: string;
-  category: string;
-  position: number;
-};
-
 export type PageInput = {
   slug?: string;
   title: string;
@@ -200,7 +192,6 @@ export type OverviewResponse = {
   labsDraft: number;
   notes: number;
   quizzes: number;
-  faq: number;
   pages: number;
   events: number;
   users: number;
@@ -458,7 +449,7 @@ export type AdminComment = Comment & {
 export type AttachmentPlace = "content" | "comment" | "pending";
 
 export type ContentRef = {
-  type: "note" | "lab" | "page" | "faq" | "subject";
+  type: "note" | "lab" | "page" | "subject";
   title: string;
   path: string;
 };

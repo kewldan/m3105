@@ -284,21 +284,6 @@ paths:
               schema: { $ref: "#/components/schemas/Quiz" }
         "404": { $ref: "#/components/responses/NotFound" }
 
-  /faq:
-    get:
-      tags: [content]
-      summary: Частые вопросы
-      operationId: listFAQ
-      responses:
-        "200":
-          description: Вопросы в порядке `position`
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/FAQItem" }
-        "4XX": { $ref: "#/components/responses/ClientError" }
-
   /pages:
     get:
       tags: [content]
@@ -822,18 +807,6 @@ components:
             questionsCount: { type: integer }
           required: [questionsCount]
 
-    FAQItem:
-      type: object
-      properties:
-        id: { type: integer }
-        question: { type: string }
-        answer: { type: string, description: "MDX" }
-        category: { type: string }
-        position: { type: integer }
-        createdAt: { $ref: "#/components/schemas/DateTime" }
-        updatedAt: { $ref: "#/components/schemas/DateTime" }
-      required: [id, question, answer, category, position, createdAt, updatedAt]
-
     Page:
       type: object
       properties:
@@ -878,7 +851,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [lab, note, quiz, faq, page, subject]
+          enum: [lab, note, quiz, page, subject]
         title: { type: string }
         subtitle: { type: string }
         path: { type: string, description: "Путь на сайте" }

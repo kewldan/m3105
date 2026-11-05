@@ -12,8 +12,6 @@ import type {
   EditorRole,
   Event,
   EventInput,
-  FAQInput,
-  FAQItem,
   GradeSource,
   GradeSourceInput,
   GradeSyncResult,
@@ -185,7 +183,6 @@ export const adminApi = {
       }),
   },
   events: resource<Event, EventInput>("/admin/events"),
-  faq: resource<FAQItem, FAQInput>("/admin/faq"),
   pages: resource<Page, PageInput>("/admin/pages"),
   notes: resource<Note, NoteInput>("/admin/notes"),
   quizzes: {

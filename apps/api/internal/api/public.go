@@ -244,15 +244,6 @@ func (h *Handler) getCalendarICS(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(body))
 }
 
-func (h *Handler) listFAQ(w http.ResponseWriter, r *http.Request) {
-	items, err := h.store.ListFAQ(r.Context())
-	if err != nil {
-		httpx.Fail(w, err)
-		return
-	}
-	httpx.JSON(w, http.StatusOK, items)
-}
-
 func (h *Handler) listPages(w http.ResponseWriter, r *http.Request) {
 	items, err := h.store.ListPages(r.Context(), true)
 	if err != nil {

@@ -26,7 +26,6 @@
 | GET | `/labs/{subject}/{slug}` | лаба целиком |
 | GET | `/calendar?from=&to=&subject=` | `{ items, from, to, now }` — только дедлайны лаб |
 | GET | `/calendar.ics?subject=` | iCalendar-фид дедлайнов лаб с напоминаниями за сутки |
-| GET | `/faq` | список вопросов |
 | GET | `/pages`, `/pages/{slug}` | статические страницы |
 | GET | `/notes?subject=`, `/notes/{subject}/{slug}` | конспекты; страница отдаёт ещё `quizzes`, `prev`, `next` |
 | GET | `/quizzes?subject=`, `/quizzes/{slug}` | квизы |
@@ -48,7 +47,7 @@
 ## Админка (`/admin/*`, требует куку)
 
 `GET/PUT /admin/settings`, `GET /admin/overview` и стандартный CRUD для
-`subjects`, `labs`, `events`, `faq`, `pages`, `notes`, `quizzes`:
+`subjects`, `labs`, `events`, `pages`, `notes`, `quizzes`:
 `GET /`, `POST /`, `GET /{id}`, `PUT /{id}`, `DELETE /{id}`.
 Квиз обязательно привязан к конспекту (`noteId`), предмет берётся из него; на сайте квизы показываются под конспектом. `POST /admin/quizzes/validate` проверяет массив вопросов и возвращает
 нормализованный вариант. Слаги генерируются из названия транслитерацией и
@@ -232,7 +231,7 @@
   ширины, GIF, SVG, `?download=1`, недоступный imgproxy — всё это отдаёт оригинал.
 - Админка: `GET /admin/files` — последние 500 файлов с `place` (`content` — для текстов,
   `comment`, `pending`), автором, ссылкой на комментарий и `usedIn` — где на файл
-  ссылаются тексты конспектов, лаб, страниц, ЧаВо и предметов; `DELETE /admin/files/{id}` удаляет любой файл.
+  ссылаются тексты конспектов, лаб, страниц и предметов; `DELETE /admin/files/{id}` удаляет любой файл.
   `POST /admin/files?scope=social` грузит файл для чужого комментария: его можно передать в
   `attachmentIds` в `PUT /admin/comments/{id}`, в тексты он не попадает и повторно
   не переиспользуется. Админ (кука или Bearer) видит любые файлы, включая незаконченные загрузки.

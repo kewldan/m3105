@@ -25,8 +25,6 @@ func tagsForPath(path string) []string {
 		return []string{"notes", "home"}
 	case "quizzes":
 		return []string{"quizzes", "notes", "home"}
-	case "faq":
-		return []string{"faq"}
 	case "pages":
 		// Страницы попадают в навигацию, а она приезжает вместе с настройками.
 		return []string{"pages", "settings"}

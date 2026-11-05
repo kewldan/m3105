@@ -310,43 +310,6 @@ await ev({
 });
 console.log("✓ события");
 
-const faq = (f: Record<string, unknown>) => call("POST", "/admin/faq", f);
-await faq({
-  question: "Как сдавать лабораторные?",
-  answer:
-    "Через **pull request** в свой репозиторий. Ссылку отправьте преподавателю в личку.",
-  category: "Сдача",
-  position: 1,
-});
-await faq({
-  question: "Что будет, если пропустить дедлайн?",
-  answer:
-    "Дедлайны мягкие: работу примут, но с штрафом. Подробности — на странице каждой лабы.",
-  category: "Сдача",
-  position: 2,
-});
-await faq({
-  question: "Как узнать, чётная сейчас неделя или нечётная?",
-  answer: "Смотрите чип недели в шапке сайта.",
-  category: "Организация",
-  position: 3,
-});
-await faq({
-  question: "Где взять методички?",
-  answer:
-    "Ссылки собраны на страницах предметов и в разделе «Материалы» у лаб.",
-  category: "Материалы",
-  position: 4,
-});
-await faq({
-  question: "Как подписаться на дедлайны в календаре?",
-  answer:
-    "На странице календаря нажмите «Добавить в календарь» и вставьте ссылку в Google Calendar или Apple Calendar.",
-  category: "Календарь",
-  position: 5,
-});
-console.log("✓ ЧаВо");
-
 type Note = { id: number; slug: string };
 const note = (n: Record<string, unknown>) =>
   call<Note>("POST", "/admin/notes", { status: "published", ...n });

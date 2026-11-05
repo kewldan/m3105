@@ -1,5 +1,4 @@
 import {
-  faqMarkdown,
   homeMarkdown,
   labMarkdown,
   labsMarkdown,
@@ -45,8 +44,6 @@ function render(path: string[]): Promise<string | null> {
       return subjectMarkdown(a);
     case "p/2":
       return pageMarkdown(a);
-    case "faq/1":
-      return faqMarkdown();
     default:
       return Promise.resolve(null);
   }

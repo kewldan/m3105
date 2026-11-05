@@ -1,7 +1,6 @@
 import {
   BookOpenIcon,
   CalendarClockIcon,
-  CircleQuestionMarkIcon,
   ClipboardCheckIcon,
   ContactIcon,
   FileTextIcon,
@@ -57,7 +56,6 @@ export const ADMIN_NAV: NavItem[] = [
     icon: ListChecksIcon,
     editor: true,
   },
-  { title: "ЧаВо", href: "/admin/faq", icon: CircleQuestionMarkIcon },
   { title: "Страницы", href: "/admin/pages", icon: FileTextIcon },
   { title: "Файлы", href: "/admin/files", icon: PaperclipIcon },
   { title: "Студенты", href: "/admin/users", icon: UsersIcon },

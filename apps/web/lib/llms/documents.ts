@@ -2,7 +2,6 @@ import "server-only";
 
 import { isNotFound } from "@/lib/api/client";
 import {
-  getFAQ,
   getHome,
   getLab,
   getLabs,
@@ -16,7 +15,6 @@ import {
 } from "@/lib/api/public";
 import type {
   CalendarItem,
-  FAQItem,
   Lab,
   Note,
   Page,
@@ -310,29 +308,6 @@ function pageDoc(page: Page): string {
   );
 }
 
-export async function faqMarkdown(): Promise<string> {
-  return faqDoc(await getFAQ());
-}
-
-function faqDoc(items: FAQItem[]): string {
-  const url = absoluteUrl("/faq");
-  const groups = new Map<string, FAQItem[]>();
-  for (const it of items) {
-    const key = it.category || "Общее";
-    groups.set(key, [...(groups.get(key) ?? []), it]);
-  }
-  return doc(
-    "# Частые вопросы",
-    facts([["Страница", url]]),
-    ...[...groups].map(
-      ([category, list]) =>
-        `## ${category}\n\n${list
-          .map((it) => `### ${it.question}\n\n${mdxToMarkdown(it.answer, url)}`)
-          .join("\n\n")}`,
-    ),
-  );
-}
-
 export async function labsMarkdown(): Promise<string> {
   const [labs, { tz }] = await Promise.all([getLabs(), site()]);
   return doc(
@@ -382,7 +357,6 @@ export async function llmsTxt(): Promise<string> {
       entry("Предметы", mdUrl("/subjects")),
       entry("Лабораторные", mdUrl("/labs")),
       entry("Конспекты", mdUrl("/notes")),
-      entry("Частые вопросы", mdUrl("/faq")),
     ].join("\n")}`,
     subjects.length > 0 &&
       `## Предметы\n\n${subjects.map((s) => subjectEntry(s)).join("\n")}`,
@@ -409,14 +383,13 @@ export async function llmsTxt(): Promise<string> {
   );
 }
 
-/** Every published note, lab, page and the FAQ in one document. */
+/** Every published note, lab and page in one document. */
 export async function llmsFullTxt(): Promise<string> {
-  const [{ title, description }, labs, notes, pages, faq] = await Promise.all([
+  const [{ title, description }, labs, notes, pages] = await Promise.all([
     site(),
     getLabs(),
     getNotes(),
     getPages(),
-    getFAQ(),
   ]);
   // Списки приходят без текста: полные версии по одной, они в Data Cache.
   const [labDocs, noteDocs, pageDocs] = await Promise.all([
@@ -438,7 +411,6 @@ export async function llmsFullTxt(): Promise<string> {
     part("Лабораторные", labDocs),
     part("Конспекты", noteDocs),
     part("Страницы", pageDocs),
-    faq.length > 0 && demote(faqDoc(faq), 1),
   );
 }
 

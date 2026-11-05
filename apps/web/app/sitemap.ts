@@ -1,12 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import {
-  getFAQ,
-  getLabs,
-  getNotes,
-  getPages,
-  getSubjects,
-} from "@/lib/api/public";
+import { getLabs, getNotes, getPages, getSubjects } from "@/lib/api/public";
 import { SITE_URL } from "@/lib/seo";
 
 type Freq = "daily" | "weekly" | "monthly";
@@ -33,12 +27,11 @@ const route = (
 });
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [subjects, labs, notes, pages, faq] = await Promise.all([
+  const [subjects, labs, notes, pages] = await Promise.all([
     getSubjects().catch(() => []),
     getLabs().catch(() => []),
     getNotes().catch(() => []),
     getPages().catch(() => []),
-    getFAQ().catch(() => []),
   ]);
   return [
     route("", 1, "daily", latest([...labs, ...notes, ...subjects])),
@@ -47,7 +40,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     route("/notes", 0.8, "daily", latest(notes)),
     route("/subjects", 0.7, "weekly", latest(subjects)),
     route("/practice", 0.6, "daily"),
-    route("/faq", 0.5, "weekly", latest(faq)),
     route("/cpp", 0.5, "monthly"),
     route("/p", 0.5, "weekly", latest(pages)),
     ...subjects.map((s) =>

@@ -103,8 +103,6 @@ const fileRefs = `WITH refs AS (
 		FROM labs l JOIN subjects s ON s.id = l.subject_id, regexp_matches(l.content, 'files/([a-z2-7]{26})', 'g') AS m
 	UNION ALL SELECT m[1], 'page', pg.title, '/p/' || pg.slug
 		FROM pages pg, regexp_matches(pg.content, 'files/([a-z2-7]{26})', 'g') AS m
-	UNION ALL SELECT m[1], 'faq', f.question, '/faq'
-		FROM faq_items f, regexp_matches(f.answer, 'files/([a-z2-7]{26})', 'g') AS m
 	UNION ALL SELECT m[1], 'subject', s.name, '/subjects/' || s.slug
 		FROM subjects s, regexp_matches(s.description, 'files/([a-z2-7]{26})', 'g') AS m
 ), used AS (

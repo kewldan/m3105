@@ -268,11 +268,10 @@ func TestEndToEnd(t *testing.T) {
 	c.do("POST", "/api/v1/admin/labs", map[string]any{"subjectId": subjectID, "number": 2, "title": "Черновик", "status": "draft"}, 201)
 	c.do("POST", "/api/v1/admin/labs", map[string]any{"subjectId": 999, "number": 1, "title": "X"}, 422)
 
-	// Events, schedule, FAQ, pages, notes, quizzes.
+	// Events, schedule, pages, notes, quizzes.
 	c.do("POST", "/api/v1/admin/events", map[string]any{"title": "Контрольная", "kind": "test", "subjectId": subjectID,
 		"startsAt": time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)}, 201)
 	c.do("POST", "/api/v1/admin/events", map[string]any{"title": "", "startsAt": deadline}, 422)
-	c.do("POST", "/api/v1/admin/faq", map[string]any{"question": "Как сдавать?", "answer": "Через **git**", "category": "Сдача"}, 201)
 	c.do("POST", "/api/v1/admin/pages", map[string]any{"title": "О группе", "content": "Привет", "status": "published", "showInNav": true}, 201)
 	note := c.do("POST", "/api/v1/admin/notes", map[string]any{"subjectId": subjectID, "number": 1, "title": "Лекция 1",
 		"content": "# Введение\n\n$E = mc^2$", "lectureDate": "2026-09-02", "status": "published"}, 201)
@@ -356,9 +355,7 @@ func TestEndToEnd(t *testing.T) {
 	if quizPage["noteSlug"] != "lektsiya-1" {
 		t.Fatalf("expected note slug on quiz: %v", quizPage["noteSlug"])
 	}
-	if faq := pub.list("/api/v1/faq", 200); len(faq) != 1 {
-		t.Fatalf("expected faq: %v", faq)
-	}
+	pub.do("GET", "/api/v1/faq", nil, 404)
 	pub.do("GET", "/api/v1/pages/o-gruppe", nil, 200)
 	hits := pub.list("/api/v1/search?q=hello", 200)
 	if len(hits) != 1 || hits[0]["kind"] != "lab" {

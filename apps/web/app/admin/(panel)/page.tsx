@@ -3,7 +3,6 @@
 import {
   BookOpenIcon,
   CalendarClockIcon,
-  CircleQuestionMarkIcon,
   ClipboardCheckIcon,
   FileTextIcon,
   FlaskConicalIcon,
@@ -72,12 +71,6 @@ const STATS: Stat[] = [
     label: "Квизы",
     href: "/admin/quizzes",
     icon: ListChecksIcon,
-  },
-  {
-    key: "faq",
-    label: "Вопросы ЧаВо",
-    href: "/admin/faq",
-    icon: CircleQuestionMarkIcon,
   },
   { key: "pages", label: "Страницы", href: "/admin/pages", icon: FileTextIcon },
   {

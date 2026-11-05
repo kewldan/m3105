@@ -225,17 +225,6 @@ export type QuizSummary = Quiz & {
   questionsCount: number;
 };
 
-export type FAQItem = {
-  id: number;
-  question: string;
-  /** MDX */
-  answer: string;
-  category: string;
-  position: number;
-  createdAt: DateTime;
-  updatedAt: DateTime;
-};
-
 export type Page = {
   id: number;
   slug: string;
@@ -275,7 +264,7 @@ export type CalendarItem = {
 };
 
 export type SearchResult = {
-  kind: "lab" | "note" | "quiz" | "faq" | "page" | "subject";
+  kind: "lab" | "note" | "quiz" | "page" | "subject";
   title: string;
   subtitle: string;
   /** Путь на сайте */

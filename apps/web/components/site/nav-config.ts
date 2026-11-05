@@ -11,7 +11,6 @@ export const PRIMARY_LINKS: NavLink[] = [
   { href: "/practice", label: "Сдачи" },
   { href: "/grades", label: "Баллы" },
   { href: "/notes", label: "Конспекты" },
-  { href: "/faq", label: "ЧаВо" },
   { href: "/cpp", label: "C++" },
 ];
 

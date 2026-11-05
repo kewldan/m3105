@@ -11,7 +11,6 @@ export const TAG = {
   labs: "labs",
   notes: "notes",
   quizzes: "quizzes",
-  faq: "faq",
   pages: "pages",
   calendar: "calendar",
   practice: "practice",

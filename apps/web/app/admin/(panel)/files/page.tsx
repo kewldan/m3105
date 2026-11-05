@@ -45,7 +45,6 @@ const REF_LABEL: Record<AdminAttachment["usedIn"][number]["type"], string> = {
   note: "Конспект",
   lab: "Лаба",
   page: "Страница",
-  faq: "ЧаВо",
   subject: "Предмет",
 };
 

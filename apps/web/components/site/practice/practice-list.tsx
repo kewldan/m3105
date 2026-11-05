@@ -22,10 +22,13 @@ export function PracticeList({
   initial,
   tz,
   highlightId,
+  forGroup,
 }: {
   initial: PracticeListResponse;
   tz: string;
   highlightId: number | null;
+  /** Viewer's group filter from the page, kept on client reloads. */
+  forGroup: string;
 }) {
   const reduce = useReducedMotion();
   const [sessions, setSessions] = useState<PracticeSessionView[]>(
@@ -51,7 +54,7 @@ export function PracticeList({
     setShowPast(value);
     setLoading(true);
     try {
-      const res = await userApi.practiceList({ past: value });
+      const res = await userApi.practiceList({ past: value, for: forGroup });
       setSessions(res.sessions);
     } catch {
       toast.error("Не удалось загрузить сдачи");

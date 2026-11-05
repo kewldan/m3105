@@ -156,7 +156,7 @@ func (b *Bot) handle(ctx context.Context, m *Message) {
 }
 
 func helpText(site string) string {
-	return "🤖 <b>Бот группы М3105</b>\n\n" +
+	return "🤖 <b>Учебный бот</b>\n\n" +
 		"• Сообщает о новых лабах сразу после публикации.\n" +
 		"• Каждое утро напоминает о несданных лабах, у которых дедлайн в ближайшие дни.\n" +
 		"• /deadlines — дедлайны несданных лаб, /labs — все лабы семестра.\n" +
@@ -172,7 +172,7 @@ func (b *Bot) start(ctx context.Context, m *Message) error {
 	}
 	var sb strings.Builder
 	sb.WriteString("👋 Привет, " + esc(chat.FirstName) + "!\n\n")
-	sb.WriteString("Я бот группы М3105. Уведомления включены: пришлю новую лабу, как только её опубликуют, и напомню о дедлайнах несданных.\n\n")
+	sb.WriteString("Я учебный бот. Уведомления включены: пришлю новую лабу, как только её опубликуют, и напомню о дедлайнах несданных.\n\n")
 	if user, err := b.store.GetUserByTelegramID(ctx, m.From.ID); err == nil {
 		sb.WriteString("Аккаунт на сайте: <b>" + esc(user.Name) + "</b>. Лабы, отмеченные сданными, в напоминания не попадают.")
 	} else if errors.Is(err, httpx.ErrNotFound) {
@@ -293,6 +293,13 @@ func (b *Bot) announceNewLabs(ctx context.Context) {
 		}
 		msg := newLabMessage(b.opts.SiteURL, lab, now, loc)
 		sent := 0
+		chats := chats
+		if len(lab.Audience) > 0 {
+			if chats, err = b.store.ListBotChatsForLab(ctx, lab.ID); err != nil {
+				b.log.Warn("lab chats", "lab", lab.ID, "err", err)
+				continue
+			}
+		}
 		for _, chat := range chats {
 			if b.send(ctx, chat.ChatID, msg) {
 				sent++

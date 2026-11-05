@@ -67,10 +67,13 @@ export function CalendarView({
   items,
   now,
   tz,
+  feedGroup = "",
 }: {
   items: CalendarItem[];
   now: string;
   tz: string;
+  /** Group the subscription feed is narrowed to; empty — everything. */
+  feedGroup?: string;
 }) {
   const reduce = useReducedMotion();
   const today = toYmd(now, tz);
@@ -161,7 +164,10 @@ export function CalendarView({
             </SelectContent>
           </Select>
         </div>
-        <SubscribeDialog subject={subject === ALL ? undefined : subject} />
+        <SubscribeDialog
+          subject={subject === ALL ? undefined : subject}
+          group={feedGroup || undefined}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

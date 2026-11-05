@@ -342,10 +342,20 @@ const (
 
 // calendarItems merges lab deadlines, events and practice sessions inside [from, to]
 // according to the scope.
-func (h *Handler) calendarItems(ctx context.Context, from, to time.Time, subjectSlug string, scope calendarScope) ([]models.CalendarItem, error) {
+// viewerGroup is the ?for= parameter: the group whose content the viewer wants.
+// Empty — everything. The site passes the signed-in student's group.
+func viewerGroup(r *http.Request) string {
+	g := models.NormalizeGroup(r.URL.Query().Get("for"))
+	if len([]rune(g)) > 40 {
+		return ""
+	}
+	return g
+}
+
+func (h *Handler) calendarItems(ctx context.Context, from, to time.Time, subjectSlug, viewer string, scope calendarScope) ([]models.CalendarItem, error) {
 	items := []models.CalendarItem{}
 	if scope == scopeLabs || scope == scopeAll {
-		labs, err := h.store.ListLabDeadlines(ctx, from, to, subjectSlug)
+		labs, err := h.store.ListLabDeadlines(ctx, from, to, subjectSlug, viewer)
 		if err != nil {
 			return nil, err
 		}
@@ -354,11 +364,11 @@ func (h *Handler) calendarItems(ctx context.Context, from, to time.Time, subject
 		}
 	}
 	if scope == scopeEvents || scope == scopeAll {
-		events, err := h.store.ListEvents(ctx, &from, &to, subjectSlug)
+		events, err := h.store.ListEvents(ctx, &from, &to, subjectSlug, viewer)
 		if err != nil {
 			return nil, err
 		}
-		sessions, err := h.store.ListPracticeSessions(ctx, store.PracticeFilter{SubjectSlug: subjectSlug, From: &from, To: &to})
+		sessions, err := h.store.ListPracticeSessions(ctx, store.PracticeFilter{SubjectSlug: subjectSlug, From: &from, To: &to, For: viewer})
 		if err != nil {
 			return nil, err
 		}

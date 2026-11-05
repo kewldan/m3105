@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-
+import { ScopeSwitch } from "@/components/site/audience/scope-switch";
 import { CalendarView } from "@/components/site/calendar/calendar-view";
 import { PageHeader } from "@/components/site/page-header";
 import { getCalendar, getSettings } from "@/lib/api/public";
+import { getViewerScope } from "@/lib/api/viewer";
 import { inTz, toYmd } from "@/lib/format";
 import { pageMetadata } from "@/lib/seo";
 
@@ -14,7 +15,7 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default async function CalendarPage() {
-  const site = await getSettings();
+  const [site, scope] = await Promise.all([getSettings(), getViewerScope()]);
   const tz = site.settings.timezone;
   const nowTz = inTz(site.now, tz);
   const from = new Date(nowTz.getFullYear(), nowTz.getMonth() - 1, 1);
@@ -22,6 +23,7 @@ export default async function CalendarPage() {
   const calendar = await getCalendar({
     from: toYmd(from, tz),
     to: toYmd(to, tz),
+    for: scope.forGroup,
   });
   return (
     <div className="space-y-6">
@@ -29,8 +31,14 @@ export default async function CalendarPage() {
         eyebrow="Дедлайны и события"
         title="Календарь"
         description="Дедлайны лабораторных, контрольные, экзамены и сдачи. Подпишитесь, чтобы напоминания приходили в ваш календарь."
+        actions={<ScopeSwitch group={scope.group} all={scope.all} />}
       />
-      <CalendarView items={calendar.items} now={calendar.now} tz={tz} />
+      <CalendarView
+        items={calendar.items}
+        now={calendar.now}
+        tz={tz}
+        feedGroup={scope.forGroup}
+      />
     </div>
   );
 }

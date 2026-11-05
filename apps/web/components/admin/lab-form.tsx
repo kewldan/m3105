@@ -7,6 +7,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { AudiencePicker } from "@/components/admin/audience-picker";
 import { DateTimePicker } from "@/components/admin/date-time-picker";
 import { FormActions } from "@/components/admin/form-actions";
 import {
@@ -27,6 +28,7 @@ import { adminApi } from "@/lib/api/admin";
 import type { Lab, LabInput, Subject } from "@/lib/api/types";
 
 const schema = z.object({
+  audience: z.array(z.string()),
   subjectId: z.number().int().positive("Выберите предмет"),
   number: z.string().regex(/^\d+$/, "Введите номер лабы"),
   slug: z.string().trim(),
@@ -49,6 +51,8 @@ type FormValues = z.infer<typeof schema>;
 function toForm(lab: Lab | null, subjects: Subject[]): FormValues {
   return {
     subjectId: lab?.subjectId ?? (subjects.length === 1 ? subjects[0].id : 0),
+    audience:
+      lab?.audience ?? (subjects.length === 1 ? subjects[0].audience : []),
     number: lab ? String(lab.number) : "1",
     slug: lab?.slug ?? "",
     title: lab?.title ?? "",
@@ -109,6 +113,7 @@ export function LabForm({
 
   async function onSubmit(values: FormValues) {
     const input: LabInput = {
+      audience: values.audience,
       subjectId: values.subjectId,
       number: Number(values.number),
       slug: values.slug || undefined,
@@ -163,7 +168,12 @@ export function LabForm({
                   id="lab-subject"
                   subjects={subjects}
                   value={field.value || null}
-                  onChange={(v) => field.onChange(v ?? 0)}
+                  onChange={(v) => {
+                    field.onChange(v ?? 0);
+                    // A new lab is for the subject's audience unless changed.
+                    const s = subjects.find((x) => x.id === v);
+                    if (!lab && s) form.setValue("audience", s.audience);
+                  }}
                   invalid={!!errors.subjectId}
                 />
               </FormField>
@@ -245,6 +255,20 @@ export function LabForm({
           >
             <Input id="lab-teacher" {...form.register("teacher")} />
           </FormField>
+          <Controller
+            control={form.control}
+            name="audience"
+            render={({ field }) => (
+              <FormField
+                label="Для кого"
+                description="Студенты видят только своё, пока не включат «Показать всё»."
+                error={form.formState.errors.audience?.message}
+                className="sm:col-span-2"
+              >
+                <AudiencePicker value={field.value} onChange={field.onChange} />
+              </FormField>
+            )}
+          />
         </FormGrid>
       </FormSection>
 

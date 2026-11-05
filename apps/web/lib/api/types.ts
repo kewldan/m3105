@@ -72,6 +72,8 @@ export type EventKind = "deadline" | "test" | "exam" | "consultation" | "other";
 export type CalendarKind = EventKind | "practice";
 
 export type SubjectInput = {
+  /** Для кого: "stream:1", "group:М3105"; пусто — для всех. */
+  audience: string[];
   slug?: string;
   name: string;
   shortName: string;
@@ -93,6 +95,8 @@ type SubjectJoin = {
 };
 
 export type LabInput = {
+  /** Для кого: "stream:1", "group:М3105"; пусто — для всех. */
+  audience: string[];
   subjectId: number;
   number: number;
   slug?: string;
@@ -111,6 +115,7 @@ export type LabInput = {
 };
 
 export type Event = SubjectJoin & {
+  audience: string[];
   id: number;
   title: string;
   kind: EventKind;
@@ -126,6 +131,8 @@ export type Event = SubjectJoin & {
 };
 
 export type EventInput = {
+  /** Для кого: "stream:1", "group:М3105"; пусто — для всех. */
+  audience: string[];
   title: string;
   kind: EventKind;
   subjectId: number | null;
@@ -155,6 +162,8 @@ export type PageInput = {
 };
 
 export type NoteInput = {
+  /** Для кого: "stream:1", "group:М3105"; пусто — для всех. */
+  audience: string[];
   subjectId: number;
   number: number;
   slug?: string;
@@ -242,6 +251,8 @@ export type Student = {
   /** "Фамилия Имя Отчество". */
   fullName: string;
   groupName: string;
+  /** Stream number of the group; 0 when the list did not say. */
+  stream: number;
   createdAt: string;
   /** The account that picked this row, if any. */
   userId: number | null;
@@ -252,6 +263,8 @@ export type Student = {
 export type StudentChoice = { id: number; fullName: string; groupName: string };
 
 export type StudentInput = { isu: string; fullName: string; groupName: string };
+
+export type StudyGroup = { name: string; stream: number; students: number };
 
 export type StudentImportResult = {
   added: number;
@@ -268,6 +281,8 @@ export type Passkey = {
 };
 
 export type PracticeSessionInput = {
+  /** Для кого: "stream:1", "group:М3105"; пусто — для всех. */
+  audience: string[];
   subjectId: number;
   startsAt: string;
   endsAt: string | null;

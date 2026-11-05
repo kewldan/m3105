@@ -64,12 +64,13 @@ type homeResponse struct {
 
 func (h *Handler) getHome(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	viewer := viewerGroup(r)
 	sc, err := h.site(ctx)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	upcoming, err := h.calendarItems(ctx, sc.Now, sc.Now.AddDate(0, 0, 21), "", scopeLabs)
+	upcoming, err := h.calendarItems(ctx, sc.Now, sc.Now.AddDate(0, 0, 21), "", viewer, scopeLabs)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -77,12 +78,12 @@ func (h *Handler) getHome(w http.ResponseWriter, r *http.Request) {
 	if len(upcoming) > 8 {
 		upcoming = upcoming[:8]
 	}
-	overdue, err := h.calendarItems(ctx, sc.Now.AddDate(0, 0, -14), sc.Now, "", scopeLabs)
+	overdue, err := h.calendarItems(ctx, sc.Now.AddDate(0, 0, -14), sc.Now, "", viewer, scopeLabs)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	events, err := h.calendarItems(ctx, sc.Now, sc.Now.AddDate(0, 0, 21), "", scopeEvents)
+	events, err := h.calendarItems(ctx, sc.Now, sc.Now.AddDate(0, 0, 21), "", viewer, scopeEvents)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -91,12 +92,12 @@ func (h *Handler) getHome(w http.ResponseWriter, r *http.Request) {
 		events = events[:6]
 	}
 	week := sc.week(sc.Now)
-	notes, err := h.store.ListNotes(ctx, store.NoteFilter{PublishedOnly: true, Limit: 5})
+	notes, err := h.store.ListNotes(ctx, store.NoteFilter{PublishedOnly: true, Limit: 5, For: viewer})
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	subjects, err := h.store.ListSubjectsWithCounts(ctx)
+	subjects, err := h.store.ListSubjectsWithCounts(ctx, viewer)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -114,7 +115,7 @@ func (h *Handler) getHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listSubjects(w http.ResponseWriter, r *http.Request) {
-	items, err := h.store.ListSubjectsWithCounts(r.Context())
+	items, err := h.store.ListSubjectsWithCounts(r.Context(), viewerGroup(r))
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -132,22 +133,23 @@ type subjectResponse struct {
 func (h *Handler) getSubject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := chi.URLParam(r, "slug")
+	viewer := viewerGroup(r)
 	subj, err := h.store.GetSubjectBySlug(ctx, slug)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	labs, err := h.store.ListLabs(ctx, store.LabFilter{SubjectSlug: slug, PublishedOnly: true})
+	labs, err := h.store.ListLabs(ctx, store.LabFilter{SubjectSlug: slug, PublishedOnly: true, For: viewer})
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	notes, err := h.store.ListNotes(ctx, store.NoteFilter{SubjectSlug: slug, PublishedOnly: true})
+	notes, err := h.store.ListNotes(ctx, store.NoteFilter{SubjectSlug: slug, PublishedOnly: true, For: viewer})
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	quizzes, err := h.store.ListQuizzes(ctx, store.QuizFilter{SubjectSlug: slug, PublishedOnly: true})
+	quizzes, err := h.store.ListQuizzes(ctx, store.QuizFilter{SubjectSlug: slug, PublishedOnly: true, For: viewer})
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -156,7 +158,7 @@ func (h *Handler) getSubject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listLabs(w http.ResponseWriter, r *http.Request) {
-	items, err := h.store.ListLabs(r.Context(), store.LabFilter{SubjectSlug: r.URL.Query().Get("subject"), PublishedOnly: true})
+	items, err := h.store.ListLabs(r.Context(), store.LabFilter{SubjectSlug: r.URL.Query().Get("subject"), PublishedOnly: true, For: viewerGroup(r)})
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -185,7 +187,7 @@ func (h *Handler) getCalendar(w http.ResponseWriter, r *http.Request) {
 	if len(q.Get("to")) == 10 { // date-only "to" should include the whole day
 		to = to.Add(24*time.Hour - time.Nanosecond)
 	}
-	items, err := h.calendarItems(r.Context(), from, to, q.Get("subject"), scopeAll)
+	items, err := h.calendarItems(r.Context(), from, to, q.Get("subject"), viewerGroup(r), scopeAll)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -199,7 +201,7 @@ func (h *Handler) getCalendarICS(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	items, err := h.calendarItems(r.Context(), sc.Now.AddDate(0, -2, 0), sc.Now.AddDate(1, 0, 0), r.URL.Query().Get("subject"), scopeAll)
+	items, err := h.calendarItems(r.Context(), sc.Now.AddDate(0, -2, 0), sc.Now.AddDate(1, 0, 0), r.URL.Query().Get("subject"), viewerGroup(r), scopeAll)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -270,7 +272,7 @@ func (h *Handler) getPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listNotes(w http.ResponseWriter, r *http.Request) {
-	items, err := h.store.ListNotes(r.Context(), store.NoteFilter{SubjectSlug: r.URL.Query().Get("subject"), PublishedOnly: true})
+	items, err := h.store.ListNotes(r.Context(), store.NoteFilter{SubjectSlug: r.URL.Query().Get("subject"), PublishedOnly: true, For: viewerGroup(r)})
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -297,7 +299,7 @@ func (h *Handler) getNote(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	siblings, err := h.store.ListNotes(ctx, store.NoteFilter{SubjectSlug: note.SubjectSlug, PublishedOnly: true})
+	siblings, err := h.store.ListNotes(ctx, store.NoteFilter{SubjectSlug: note.SubjectSlug, PublishedOnly: true, For: viewerGroup(r)})
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -317,7 +319,7 @@ func (h *Handler) getNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listQuizzes(w http.ResponseWriter, r *http.Request) {
-	items, err := h.store.ListQuizzes(r.Context(), store.QuizFilter{SubjectSlug: r.URL.Query().Get("subject"), PublishedOnly: true})
+	items, err := h.store.ListQuizzes(r.Context(), store.QuizFilter{SubjectSlug: r.URL.Query().Get("subject"), PublishedOnly: true, For: viewerGroup(r)})
 	if err != nil {
 		httpx.Fail(w, err)
 		return

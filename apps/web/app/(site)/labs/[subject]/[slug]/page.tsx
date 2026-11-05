@@ -13,7 +13,7 @@ import {
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
+import { AudienceBadge } from "@/components/site/audience/audience-badge";
 import {
   breadcrumbs,
   JsonLd,
@@ -150,6 +150,7 @@ export default async function LabPage({ params }: Params) {
             <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-medium">
               Лаба {lab.number}
             </span>
+            <AudienceBadge audience={lab.audience} className="text-sm" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-balance break-words sm:text-4xl">
             {lab.title}

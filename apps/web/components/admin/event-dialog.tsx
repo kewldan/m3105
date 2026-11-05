@@ -6,6 +6,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { AudiencePicker } from "@/components/admin/audience-picker";
 import { DatePicker } from "@/components/admin/date-picker";
 import { DateTimePicker } from "@/components/admin/date-time-picker";
 import { EntityDialog } from "@/components/admin/entity-dialog";
@@ -23,6 +24,7 @@ import { adminApi } from "@/lib/api/admin";
 import type { Event, EventInput, Subject } from "@/lib/api/types";
 
 const schema = z.object({
+  audience: z.array(z.string()),
   title: z.string().trim().min(1, "Укажите название события"),
   kind: z.enum(["deadline", "test", "exam", "consultation", "other"]),
   subjectId: z.number().nullable(),
@@ -40,6 +42,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 const EMPTY: FormValues = {
+  audience: [],
   title: "",
   kind: "test",
   subjectId: null,
@@ -85,6 +88,7 @@ export function EventDialog({
             location: event.location,
             description: event.description,
             url: event.url,
+            audience: event.audience ?? [],
           }
         : EMPTY,
     );
@@ -92,6 +96,7 @@ export function EventDialog({
 
   async function onSubmit(values: FormValues) {
     const input: EventInput = {
+      audience: values.audience,
       title: values.title,
       kind: values.kind,
       subjectId: values.subjectId,
@@ -171,7 +176,11 @@ export function EventDialog({
                 id="ev-subject"
                 subjects={subjects}
                 value={field.value}
-                onChange={field.onChange}
+                onChange={(v) => {
+                  field.onChange(v);
+                  const s = subjects.find((x) => x.id === v);
+                  if (!event && s) form.setValue("audience", s.audience);
+                }}
                 allowClear
                 placeholder="Без предмета"
               />
@@ -291,6 +300,20 @@ export function EventDialog({
             {...form.register("description")}
           />
         </FormField>
+        <Controller
+          control={form.control}
+          name="audience"
+          render={({ field }) => (
+            <FormField
+              label="Для кого"
+              description="Студенты видят только своё, пока не включат «Показать всё»."
+              error={form.formState.errors.audience?.message}
+              className="sm:col-span-2"
+            >
+              <AudiencePicker value={field.value} onChange={field.onChange} />
+            </FormField>
+          )}
+        />
       </FormGrid>
     </EntityDialog>
   );

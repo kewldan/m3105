@@ -134,6 +134,8 @@ type Passkey struct {
 
 // PracticeSession is a class where completed labs can be handed in.
 type PracticeSession struct {
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience  []string   `db:"audience" json:"audience"`
 	ID        int64      `db:"id" json:"id"`
 	SubjectID int64      `db:"subject_id" json:"subjectId"`
 	StartsAt  time.Time  `db:"starts_at" json:"startsAt"`
@@ -159,6 +161,8 @@ type PracticeSession struct {
 
 // PracticeSessionInput is the admin create/update payload.
 type PracticeSessionInput struct {
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience  []string   `json:"audience"`
 	SubjectID int64      `json:"subjectId"`
 	StartsAt  time.Time  `json:"startsAt"`
 	EndsAt    *time.Time `json:"endsAt"`
@@ -170,6 +174,7 @@ type PracticeSessionInput struct {
 // Validate normalises and checks the payload.
 func (in *PracticeSessionInput) Validate() error {
 	ve := httpx.NewValidation()
+	checkAudience(ve, &in.Audience)
 	in.Location = strings.TrimSpace(in.Location)
 	in.Note = strings.TrimSpace(in.Note)
 	if in.SubjectID <= 0 {

@@ -20,7 +20,7 @@ func TestParseTabs(t *testing.T) {
 	if rows[0].ISU != "561586" || rows[0].FullName != "Морозов Артур Иванович" || rows[0].GroupName != "М3105" {
 		t.Fatalf("first row %+v", rows[0])
 	}
-	if rows[1].GroupName != "М3104" {
+	if rows[0].Stream != 1 || rows[1].GroupName != "М3104" {
 		t.Fatalf("second row %+v", rows[1])
 	}
 }

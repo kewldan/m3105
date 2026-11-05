@@ -7,12 +7,12 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/models"
 )
 
-const eventCols = `e.id, e.title, e.kind, e.subject_id, e.starts_at, e.ends_at, e.all_day, e.location, e.description, e.url,
+const eventCols = `e.id, e.title, e.kind, e.subject_id, e.starts_at, e.ends_at, e.all_day, e.location, e.description, e.url, e.audience,
 	e.created_at, e.updated_at, COALESCE(s.slug, '') AS subject_slug, COALESCE(s.name, '') AS subject_name,
 	COALESCE(s.short_name, '') AS subject_short_name, COALESCE(s.color, '') AS subject_color, COALESCE(s.icon, '') AS subject_icon`
 
 // ListEvents returns events, optionally restricted to a time window and subject.
-func (s *Store) ListEvents(ctx context.Context, from, to *time.Time, subjectSlug string) ([]models.Event, error) {
+func (s *Store) ListEvents(ctx context.Context, from, to *time.Time, subjectSlug, viewerGroup string) ([]models.Event, error) {
 	q := `SELECT ` + eventCols + ` FROM events e LEFT JOIN subjects s ON s.id = e.subject_id WHERE 1=1`
 	args := []any{}
 	if from != nil {
@@ -27,6 +27,7 @@ func (s *Store) ListEvents(ctx context.Context, from, to *time.Time, subjectSlug
 		args = append(args, subjectSlug)
 		q += ` AND s.slug = $` + itoa(len(args))
 	}
+	q += audienceIn("e", viewerGroup, &args)
 	q += ` ORDER BY e.starts_at`
 	return many[models.Event](ctx, s.db, q, args...)
 }
@@ -45,6 +46,9 @@ func (s *Store) CreateEvent(ctx context.Context, in *models.EventInput) (models.
 	if err != nil {
 		return models.Event{}, wrap(err)
 	}
+	if err := s.setAudience(ctx, "events", id, in.Audience); err != nil {
+		return models.Event{}, err
+	}
 	return s.GetEvent(ctx, id)
 }
 
@@ -53,6 +57,9 @@ func (s *Store) UpdateEvent(ctx context.Context, id int64, in *models.EventInput
 	if err := s.exec(ctx, `UPDATE events SET title=$1, kind=$2, subject_id=$3, starts_at=$4, ends_at=$5, all_day=$6,
 		location=$7, description=$8, url=$9, updated_at=now() WHERE id = $10`,
 		in.Title, in.Kind, in.SubjectID, in.StartsAt, in.EndsAt, in.AllDay, in.Location, in.Description, in.URL, id); err != nil {
+		return models.Event{}, err
+	}
+	if err := s.setAudience(ctx, "events", id, in.Audience); err != nil {
 		return models.Event{}, err
 	}
 	return s.GetEvent(ctx, id)

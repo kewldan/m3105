@@ -6,6 +6,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { AudiencePicker } from "@/components/admin/audience-picker";
 import { DatePicker } from "@/components/admin/date-picker";
 import { FormActions } from "@/components/admin/form-actions";
 import {
@@ -24,6 +25,7 @@ import { adminApi } from "@/lib/api/admin";
 import type { Note, NoteInput, Subject } from "@/lib/api/types";
 
 const schema = z.object({
+  audience: z.array(z.string()),
   subjectId: z.number().int().positive("Выберите предмет"),
   number: z.string().regex(/^\d+$/, "Введите номер лекции"),
   slug: z.string().trim(),
@@ -39,6 +41,8 @@ type FormValues = z.infer<typeof schema>;
 function toForm(note: Note | null, subjects: Subject[]): FormValues {
   return {
     subjectId: note?.subjectId ?? (subjects.length === 1 ? subjects[0].id : 0),
+    audience:
+      note?.audience ?? (subjects.length === 1 ? subjects[0].audience : []),
     number: note ? String(note.number) : "1",
     slug: note?.slug ?? "",
     title: note?.title ?? "",
@@ -65,6 +69,7 @@ export function NoteForm({
 
   async function onSubmit(values: FormValues) {
     const input: NoteInput = {
+      audience: values.audience,
       subjectId: values.subjectId,
       number: Number(values.number),
       slug: values.slug || undefined,
@@ -111,7 +116,11 @@ export function NoteForm({
                   id="nt-subject"
                   subjects={subjects}
                   value={field.value || null}
-                  onChange={(v) => field.onChange(v ?? 0)}
+                  onChange={(v) => {
+                    field.onChange(v ?? 0);
+                    const s = subjects.find((x) => x.id === v);
+                    if (!note && s) form.setValue("audience", s.audience);
+                  }}
                   invalid={!!errors.subjectId}
                 />
               </FormField>
@@ -199,6 +208,20 @@ export function NoteForm({
           >
             <Textarea id="nt-summary" rows={2} {...form.register("summary")} />
           </FormField>
+          <Controller
+            control={form.control}
+            name="audience"
+            render={({ field }) => (
+              <FormField
+                label="Для кого"
+                description="Студенты видят только своё, пока не включат «Показать всё»."
+                error={form.formState.errors.audience?.message}
+                className="sm:col-span-2"
+              >
+                <AudiencePicker value={field.value} onChange={field.onChange} />
+              </FormField>
+            )}
+          />
         </FormGrid>
       </FormSection>
 

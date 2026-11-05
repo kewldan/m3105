@@ -8,12 +8,12 @@ import (
 )
 
 const labCols = `l.id, l.subject_id, l.number, l.slug, l.title, l.summary, l.content, l.requirements, l.submission,
-	l.variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at,
+	l.variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at, l.audience,
 	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
 	s.practice_teacher AS subject_practice_teacher`
 
 const labListCols = `l.id, l.subject_id, l.number, l.slug, l.title, l.summary, '' AS content, '' AS requirements, '' AS submission,
-	'' AS variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at,
+	'' AS variants, l.materials, l.deadline_at, l.deadline_note, l.max_score, l.teacher, l.status, l.created_at, l.updated_at, l.audience,
 	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
 	s.practice_teacher AS subject_practice_teacher`
 
@@ -22,6 +22,8 @@ type LabFilter struct {
 	SubjectID     *int64
 	SubjectSlug   string
 	PublishedOnly bool
+	// For is the viewer's group: only labs for everyone, the group or its stream. Empty — all.
+	For string
 }
 
 // ListLabs returns labs (without long MDX bodies) matching the filter.
@@ -39,6 +41,7 @@ func (s *Store) ListLabs(ctx context.Context, f LabFilter) ([]models.Lab, error)
 	if f.PublishedOnly {
 		q += ` AND l.status = 'published'`
 	}
+	q += audienceIn("l", f.For, &args)
 	q += ` ORDER BY s.position, s.name, l.number, l.title`
 	return many[models.Lab](ctx, s.db, q, args...)
 }
@@ -78,6 +81,9 @@ func (s *Store) CreateLab(ctx context.Context, in *models.LabInput) (models.Lab,
 	if err != nil {
 		return models.Lab{}, wrap(err)
 	}
+	if err := s.setAudience(ctx, "labs", id, in.Audience); err != nil {
+		return models.Lab{}, err
+	}
 	return s.GetLab(ctx, id)
 }
 
@@ -94,6 +100,9 @@ func (s *Store) UpdateLab(ctx context.Context, id int64, in *models.LabInput) (m
 		in.Variants, in.Materials, in.DeadlineAt, in.DeadlineNote, in.MaxScore, in.Teacher, in.Status, id); err != nil {
 		return models.Lab{}, err
 	}
+	if err := s.setAudience(ctx, "labs", id, in.Audience); err != nil {
+		return models.Lab{}, err
+	}
 	return s.GetLab(ctx, id)
 }
 
@@ -106,7 +115,7 @@ func (s *Store) DeleteLab(ctx context.Context, id int64) error {
 }
 
 // ListLabDeadlines returns published labs with a deadline inside [from, to].
-func (s *Store) ListLabDeadlines(ctx context.Context, from, to time.Time, subjectSlug string) ([]models.Lab, error) {
+func (s *Store) ListLabDeadlines(ctx context.Context, from, to time.Time, subjectSlug, viewerGroup string) ([]models.Lab, error) {
 	q := `SELECT ` + labListCols + ` FROM labs l JOIN subjects s ON s.id = l.subject_id
 		WHERE l.status = 'published' AND l.deadline_at IS NOT NULL AND l.deadline_at >= $1 AND l.deadline_at <= $2`
 	args := []any{from, to}
@@ -114,8 +123,33 @@ func (s *Store) ListLabDeadlines(ctx context.Context, from, to time.Time, subjec
 		args = append(args, subjectSlug)
 		q += ` AND s.slug = $3`
 	}
+	q += audienceIn("l", viewerGroup, &args)
 	q += ` ORDER BY l.deadline_at`
 	return many[models.Lab](ctx, s.db, q, args...)
+}
+
+// audienceIn narrows a query to rows for everyone or for the viewer's group and
+// its stream (audience_scope in SQL). An empty group means no narrowing.
+func audienceIn(alias, group string, args *[]any) string {
+	if group == "" {
+		return ""
+	}
+	*args = append(*args, group)
+	col := "COALESCE(" + alias + ".audience, '{}')"
+	return ` AND (` + col + ` = '{}' OR ` + col + ` && audience_scope($` + itoa(len(*args)) + `))`
+}
+
+// setAudience stores who a row is for; table is one of the audienced tables.
+func (s *Store) setAudience(ctx context.Context, table string, id int64, audience []string) error {
+	if audience == nil {
+		audience = []string{}
+	}
+	switch table {
+	case "subjects", "labs", "notes", "events", "practice_sessions":
+	default:
+		panic("setAudience: unknown table " + table)
+	}
+	return s.exec(ctx, `UPDATE `+table+` SET audience = $2 WHERE id = $1`, id, audience)
 }
 
 func itoa(i int) string {

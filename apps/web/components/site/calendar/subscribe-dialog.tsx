@@ -21,14 +21,24 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
-export function SubscribeDialog({ subject }: { subject?: string }) {
+export function SubscribeDialog({
+  subject,
+  group,
+}: {
+  subject?: string;
+  /** Only events for this group and its stream. */
+  group?: string;
+}) {
   const origin = useSyncExternalStore(
     () => () => {},
     () => process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin,
     () => process.env.NEXT_PUBLIC_SITE_URL ?? "",
   );
   const [copied, setCopied] = useState(false);
-  const qs = subject ? `?subject=${encodeURIComponent(subject)}` : "";
+  const params = new URLSearchParams();
+  if (subject) params.set("subject", subject);
+  if (group) params.set("for", group);
+  const qs = params.size > 0 ? `?${params}` : "";
   const url = `${origin}/api/v1/calendar.ics${qs}`;
 
   const webcal = url.replace(/^https?:\/\//, "webcal://");

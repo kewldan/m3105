@@ -62,6 +62,22 @@ func (s *Store) MarkBotDigestSent(ctx context.Context, chatID int64, date string
 	return wrap(err)
 }
 
+// botAudience keeps labs for the linked account's group and stream ($1 is the
+// Telegram id); a chat without an account or a group sees every lab.
+const botAudience = ` AND (l.audience = '{}'
+	OR COALESCE((SELECT u.group_name FROM users u WHERE u.telegram_id = $1), '') = ''
+	OR l.audience && audience_scope((SELECT u.group_name FROM users u WHERE u.telegram_id = $1)))`
+
+// ListBotChatsForLab returns subscribed chats the lab is meant for: its audience
+// covers the linked account's group, or the chat has no account or group.
+func (s *Store) ListBotChatsForLab(ctx context.Context, labID int64) ([]BotChat, error) {
+	return many[BotChat](ctx, s.db, `SELECT `+botChatCols+` FROM bot_chats c WHERE c.subscribed AND EXISTS (
+		SELECT 1 FROM labs l WHERE l.id = $1 AND (l.audience = '{}'
+			OR COALESCE((SELECT u.group_name FROM users u WHERE u.telegram_id = c.telegram_id), '') = ''
+			OR l.audience && audience_scope((SELECT u.group_name FROM users u WHERE u.telegram_id = c.telegram_id))))
+		ORDER BY c.chat_id`, labID)
+}
+
 // ListUnannouncedLabs returns published labs that were never broadcast.
 func (s *Store) ListUnannouncedLabs(ctx context.Context) ([]models.Lab, error) {
 	return many[models.Lab](ctx, s.db, `SELECT `+labListCols+` FROM labs l JOIN subjects s ON s.id = l.subject_id
@@ -86,7 +102,7 @@ type BotLab struct {
 func (s *Store) ListLabsForTelegramUser(ctx context.Context, telegramID int64, from, to *time.Time) ([]BotLab, error) {
 	q := `SELECT ` + labListCols + `,
 		EXISTS (SELECT 1 FROM lab_completions c JOIN users u ON u.id = c.user_id WHERE u.telegram_id = $1 AND c.lab_id = l.id) AS done
-		FROM labs l JOIN subjects s ON s.id = l.subject_id WHERE l.status = 'published'`
+		FROM labs l JOIN subjects s ON s.id = l.subject_id WHERE l.status = 'published'` + botAudience
 	args := []any{telegramID}
 	if from != nil {
 		args = append(args, *from)

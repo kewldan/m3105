@@ -9,7 +9,7 @@ export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
 export const DEFAULT_DESCRIPTION =
-  "Сайт группы М3105: дедлайны лабораторных, календарь с ICS-подпиской, конспекты лекций, квизы для самопроверки и запись на сдачи.";
+  "Учебный сайт первого курса ИТМО: дедлайны лабораторных, календарь с ICS-подпиской, конспекты лекций, квизы для самопроверки и запись на сдачи.";
 export const LOCALE = "ru_RU";
 
 export function absoluteUrl(path = "/"): string {

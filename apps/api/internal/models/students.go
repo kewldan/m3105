@@ -10,10 +10,12 @@ import (
 // Student is a row of the course list. Accounts are confirmed by picking one:
 // the account then gets its ISU number, name and group from here.
 type Student struct {
-	ID        int64     `db:"id" json:"id"`
-	ISU       string    `db:"isu" json:"isu"`
-	FullName  string    `db:"full_name" json:"fullName"`
-	GroupName string    `db:"group_name" json:"groupName"`
+	ID        int64  `db:"id" json:"id"`
+	ISU       string `db:"isu" json:"isu"`
+	FullName  string `db:"full_name" json:"fullName"`
+	GroupName string `db:"group_name" json:"groupName"`
+	// Stream is the stream number of the group; 0 when the list did not say.
+	Stream    int       `db:"stream" json:"stream"`
 	CreatedAt time.Time `db:"created_at" json:"createdAt"`
 	// UserID and UserName describe the account that picked the student, if any.
 	UserID   *int64  `db:"user_id" json:"userId"`
@@ -32,6 +34,8 @@ type StudentInput struct {
 	ISU       string `json:"isu"`
 	FullName  string `json:"fullName"`
 	GroupName string `json:"groupName"`
+	// Stream is optional: 0 keeps what the list already knows.
+	Stream int `json:"stream"`
 }
 
 // Validate normalises and checks the row.
@@ -56,10 +60,20 @@ func (in *StudentInput) Validate() error {
 	case n > 40:
 		ve.Add("groupName", "Не длиннее 40 символов")
 	}
+	if in.Stream < 0 || in.Stream > 99 {
+		ve.Add("stream", "Поток — число от 1 до 99")
+	}
 	if !ve.Empty() {
 		return ve
 	}
 	return nil
+}
+
+// StudyGroup is a group from the course list with its stream.
+type StudyGroup struct {
+	Name     string `db:"name" json:"name"`
+	Stream   int    `db:"stream" json:"stream"`
+	Students int    `db:"students" json:"students"`
 }
 
 // StudentImport is a pasted table or a saved page with the group lists.

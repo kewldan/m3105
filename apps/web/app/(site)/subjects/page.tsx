@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-
+import { ScopeSwitch } from "@/components/site/audience/scope-switch";
 import { EmptyState } from "@/components/site/empty-state";
 import { Stagger, StaggerItem } from "@/components/site/motion";
 import { PageHeader } from "@/components/site/page-header";
 import { SubjectCard } from "@/components/site/subjects/subject-card";
 import { getSubjects } from "@/lib/api/public";
+import { getViewerScope } from "@/lib/api/viewer";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
@@ -16,13 +17,15 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default async function SubjectsPage() {
-  const subjects = await getSubjects();
+  const scope = await getViewerScope();
+  const subjects = await getSubjects(scope.forGroup);
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Семестр"
         title="Предметы"
         description="Выберите предмет, чтобы увидеть его лабы, конспекты и квизы."
+        actions={<ScopeSwitch group={scope.group} all={scope.all} />}
       />
       {subjects.length === 0 ? (
         <EmptyState

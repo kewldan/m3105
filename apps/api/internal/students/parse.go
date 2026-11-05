@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/quotedprintable"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -15,11 +16,12 @@ import (
 )
 
 var (
-	rowRe   = regexp.MustCompile(`(?is)<tr\b[^>]*>(.*?)</tr>`)
-	cellRe  = regexp.MustCompile(`(?is)<t[dh]\b[^>]*>(.*?)</t[dh]>`)
-	tagRe   = regexp.MustCompile(`(?s)<[^>]*>`)
-	isuRe   = regexp.MustCompile(`^\d{5,7}$`)
-	groupRe = regexp.MustCompile(`^[MМ]\d{4,5}[а-яa-z]?$`)
+	rowRe    = regexp.MustCompile(`(?is)<tr\b[^>]*>(.*?)</tr>`)
+	cellRe   = regexp.MustCompile(`(?is)<t[dh]\b[^>]*>(.*?)</t[dh]>`)
+	tagRe    = regexp.MustCompile(`(?s)<[^>]*>`)
+	isuRe    = regexp.MustCompile(`^\d{5,7}$`)
+	streamRe = regexp.MustCompile(`^\d{1,2}$`)
+	groupRe  = regexp.MustCompile(`^[MМ]\d{4,5}[а-яa-z]?$`)
 )
 
 // Parse extracts rows. A row needs an ISU number, a group like "M3105" and a
@@ -68,6 +70,8 @@ func fromCells(cells []string) (in models.StudentInput, ok, partial bool) {
 		case c == "":
 		case in.ISU == "" && isuRe.MatchString(c):
 			in.ISU = c
+		case in.Stream == 0 && streamRe.MatchString(c):
+			in.Stream, _ = strconv.Atoi(c)
 		case in.GroupName == "" && groupRe.MatchString(strings.ToUpper(strings.ReplaceAll(c, " ", ""))):
 			in.GroupName = c
 		case in.FullName == "" && isName(c):

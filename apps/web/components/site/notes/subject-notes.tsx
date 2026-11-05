@@ -19,6 +19,7 @@ import {
   useState,
 } from "react";
 
+import { AudienceBadge } from "@/components/site/audience/audience-badge";
 import { EmptyState } from "@/components/site/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -310,6 +311,10 @@ export function SubjectNotes({
                             <span className="truncate text-sm font-medium group-hover:text-primary">
                               <Highlight text={n.title} query={q} />
                             </span>
+                            <AudienceBadge
+                              audience={n.audience}
+                              className="shrink-0 px-1.5 py-0.5 text-[10px]"
+                            />
                             {n.quizzesCount > 0 ? (
                               <span
                                 className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"

@@ -9,7 +9,7 @@ import { ApiError, apiServer } from "@/lib/api/client";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { default: "Админка", template: "%s — Админка М3105" },
+  title: { default: "Админка", template: "%s — Админка" },
   robots: { index: false, follow: false },
 };
 

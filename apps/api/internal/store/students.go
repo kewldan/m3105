@@ -12,7 +12,7 @@ import (
 
 // ListStudents returns the course list with the account that picked each row (admin).
 func (s *Store) ListStudents(ctx context.Context) ([]models.Student, error) {
-	return many[models.Student](ctx, s.db, `SELECT st.id, st.isu, st.full_name, st.group_name, st.created_at,
+	return many[models.Student](ctx, s.db, `SELECT st.id, st.isu, st.full_name, st.group_name, st.stream, st.created_at,
 		u.id AS user_id, `+userNameExpr+` AS user_name
 		FROM students st LEFT JOIN users u ON u.isu = st.isu
 		ORDER BY st.group_name, st.full_name`)
@@ -39,10 +39,12 @@ func (s *Store) ImportStudents(ctx context.Context, rows []models.StudentInput) 
 	defer func() { _ = tx.Rollback(ctx) }()
 	for _, r := range rows {
 		var inserted bool
-		err := tx.QueryRow(ctx, `INSERT INTO students (isu, full_name, group_name) VALUES ($1, $2, $3)
-			ON CONFLICT (isu) DO UPDATE SET full_name = EXCLUDED.full_name, group_name = EXCLUDED.group_name, updated_at = now()
+		err := tx.QueryRow(ctx, `INSERT INTO students (isu, full_name, group_name, stream) VALUES ($1, $2, $3, $4)
+			ON CONFLICT (isu) DO UPDATE SET full_name = EXCLUDED.full_name, group_name = EXCLUDED.group_name,
+				stream = CASE WHEN EXCLUDED.stream > 0 THEN EXCLUDED.stream ELSE students.stream END, updated_at = now()
 			WHERE (students.full_name, students.group_name) IS DISTINCT FROM (EXCLUDED.full_name, EXCLUDED.group_name)
-			RETURNING (xmax = 0)`, r.ISU, r.FullName, r.GroupName).Scan(&inserted)
+				OR (EXCLUDED.stream > 0 AND EXCLUDED.stream <> students.stream)
+			RETURNING (xmax = 0)`, r.ISU, r.FullName, r.GroupName, r.Stream).Scan(&inserted)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows): // unchanged
 		case err != nil:
@@ -61,6 +63,12 @@ func (s *Store) ImportStudents(ctx context.Context, rows []models.StudentInput) 
 		}
 	}
 	return added, updated, wrap(tx.Commit(ctx))
+}
+
+// ListStudyGroups returns the groups of the course list with their streams.
+func (s *Store) ListStudyGroups(ctx context.Context) ([]models.StudyGroup, error) {
+	return many[models.StudyGroup](ctx, s.db, `SELECT group_name AS name, max(stream) AS stream, count(*)::int AS students
+		FROM students GROUP BY group_name ORDER BY max(stream), group_name`)
 }
 
 // CountStudents returns the size of the list.
@@ -98,7 +106,7 @@ func (s *Store) ClaimStudent(ctx context.Context, userID, studentID int64) (mode
 	if approved {
 		return models.User{}, models.Student{}, ErrAlreadyClaimed
 	}
-	st, err := one[models.Student](ctx, tx, `SELECT id, isu, full_name, group_name, created_at FROM students WHERE id = $1`, studentID)
+	st, err := one[models.Student](ctx, tx, `SELECT id, isu, full_name, group_name, stream, created_at FROM students WHERE id = $1`, studentID)
 	if err != nil {
 		return models.User{}, models.Student{}, err
 	}

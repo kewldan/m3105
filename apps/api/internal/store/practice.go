@@ -11,7 +11,7 @@ import (
 	"github.com/kewldan/edu3105/apps/api/internal/queue"
 )
 
-const practiceCols = `ps.id, ps.subject_id, ps.starts_at, ps.ends_at, ps.location, ps.capacity, ps.note, ps.created_at, ps.updated_at,
+const practiceCols = `ps.id, ps.subject_id, ps.starts_at, ps.ends_at, ps.location, ps.capacity, ps.note, ps.created_at, ps.updated_at, ps.audience,
 	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
 	(SELECT count(DISTINCT g.user_id) FROM practice_signups g WHERE g.session_id = ps.id)::int AS signups_count,
 	ps.queue_manual, (ps.queue_frozen_at IS NOT NULL) AS queue_frozen`
@@ -23,6 +23,8 @@ type PracticeFilter struct {
 	SubjectSlug string
 	From        *time.Time
 	To          *time.Time
+	// For is the viewer's group (see LabFilter.For).
+	For string
 }
 
 // ListPracticeSessions returns sessions ordered by start time.
@@ -41,6 +43,7 @@ func (s *Store) ListPracticeSessions(ctx context.Context, f PracticeFilter) ([]m
 		args = append(args, *f.To)
 		q += ` AND ps.starts_at <= $` + itoa(len(args))
 	}
+	q += audienceIn("ps", f.For, &args)
 	q += ` ORDER BY ps.starts_at`
 	return many[models.PracticeSession](ctx, s.db, q, args...)
 }
@@ -58,6 +61,9 @@ func (s *Store) CreatePracticeSession(ctx context.Context, in *models.PracticeSe
 	if err != nil {
 		return models.PracticeSession{}, wrap(err)
 	}
+	if err := s.setAudience(ctx, "practice_sessions", id, in.Audience); err != nil {
+		return models.PracticeSession{}, err
+	}
 	return s.GetPracticeSession(ctx, id)
 }
 
@@ -65,6 +71,9 @@ func (s *Store) CreatePracticeSession(ctx context.Context, in *models.PracticeSe
 func (s *Store) UpdatePracticeSession(ctx context.Context, id int64, in *models.PracticeSessionInput) (models.PracticeSession, error) {
 	if err := s.exec(ctx, `UPDATE practice_sessions SET subject_id=$1, starts_at=$2, ends_at=$3, location=$4, capacity=$5, note=$6,
 		updated_at=now() WHERE id = $7`, in.SubjectID, in.StartsAt, in.EndsAt, in.Location, in.Capacity, in.Note, id); err != nil {
+		return models.PracticeSession{}, err
+	}
+	if err := s.setAudience(ctx, "practice_sessions", id, in.Audience); err != nil {
 		return models.PracticeSession{}, err
 	}
 	return s.GetPracticeSession(ctx, id)

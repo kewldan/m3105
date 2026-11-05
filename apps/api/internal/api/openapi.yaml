@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: М3105 API
   version: "1.0"
-  summary: Публичное API сайта группы М3105
+  summary: Публичное API учебного сайта
   description: |
     Публичные эндпоинты сайта группы: предметы, лабораторные с дедлайнами, календарь и ICS-фид,
     конспекты, квизы, ЧаВо, статические страницы, поиск, расписание сдач и рейтинг по баллам.
@@ -81,6 +81,8 @@ paths:
       summary: Сводка для главной страницы
       description: Ближайшие и просроченные дедлайны лаб, события и сдачи, свежие конспекты, предметы.
       operationId: getHome
+      parameters:
+        - $ref: "#/components/parameters/ViewerGroup"
       responses:
         "200":
           description: Сводка
@@ -95,6 +97,8 @@ paths:
       summary: Список предметов
       description: Предметы в порядке `position` со счётчиками опубликованных лаб, конспектов и квизов.
       operationId: listSubjects
+      parameters:
+        - $ref: "#/components/parameters/ViewerGroup"
       responses:
         "200":
           description: Предметы
@@ -112,6 +116,7 @@ paths:
       operationId: getSubject
       parameters:
         - $ref: "#/components/parameters/Slug"
+        - $ref: "#/components/parameters/ViewerGroup"
       responses:
         "200":
           description: Предмет
@@ -128,6 +133,7 @@ paths:
       operationId: listLabs
       parameters:
         - $ref: "#/components/parameters/SubjectFilter"
+        - $ref: "#/components/parameters/ViewerGroup"
       responses:
         "200":
           description: Лабы
@@ -174,6 +180,7 @@ paths:
           schema: { type: string, examples: ["2026-12-31"] }
           description: Конец периода
         - $ref: "#/components/parameters/SubjectFilter"
+        - $ref: "#/components/parameters/ViewerGroup"
       responses:
         "200":
           description: Элементы календаря
@@ -192,6 +199,7 @@ paths:
       operationId: getCalendarICS
       parameters:
         - $ref: "#/components/parameters/SubjectFilter"
+        - $ref: "#/components/parameters/ViewerGroup"
       responses:
         "200":
           description: Файл календаря
@@ -213,6 +221,7 @@ paths:
       operationId: listNotes
       parameters:
         - $ref: "#/components/parameters/SubjectFilter"
+        - $ref: "#/components/parameters/ViewerGroup"
       responses:
         "200":
           description: Конспекты
@@ -232,6 +241,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/SubjectSlug"
         - $ref: "#/components/parameters/Slug"
+        - $ref: "#/components/parameters/ViewerGroup"
       responses:
         "200":
           description: Конспект
@@ -247,6 +257,7 @@ paths:
       operationId: listQuizzes
       parameters:
         - $ref: "#/components/parameters/SubjectFilter"
+        - $ref: "#/components/parameters/ViewerGroup"
       responses:
         "200":
           description: Квизы
@@ -404,6 +415,7 @@ paths:
       operationId: listPractice
       parameters:
         - $ref: "#/components/parameters/SubjectFilter"
+        - $ref: "#/components/parameters/ViewerGroup"
         - name: past
           in: query
           schema: { type: string, examples: ["1"] }
@@ -559,6 +571,13 @@ components:
       in: query
       schema: { type: string }
       description: Слаг предмета для фильтрации
+    ViewerGroup:
+      name: for
+      in: query
+      schema: { type: string, examples: ["М3105"] }
+      description: |
+        Группа зрителя: остаются материалы для всех, для этой группы и для её потока (поток — из списка курса).
+        Без параметра — всё. Сайт передаёт группу вошедшего студента, если он не выключил фильтр.
 
   responses:
     ClientError:
@@ -648,6 +667,11 @@ components:
         devLogin: { type: boolean, description: "Доступен вход по имени (только вне production)" }
       required: [telegramBot, telegramBotId, devLogin]
 
+    Audience:
+      type: array
+      description: Для кого материал — метки `stream:<номер>` и `group:<группа>`; пустой список — для всех
+      items: { type: string, examples: ["stream:1", "group:М3105"] }
+
     SubjectRef:
       type: object
       properties:
@@ -673,7 +697,8 @@ components:
             position: { type: integer }
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
-          required: [lecturer, practiceTeacher, description, links, position, createdAt, updatedAt]
+            audience: { $ref: "#/components/schemas/Audience" }
+          required: [lecturer, practiceTeacher, description, links, position, createdAt, updatedAt, audience]
 
     SubjectWithCounts:
       allOf:
@@ -726,7 +751,8 @@ components:
             status: { $ref: "#/components/schemas/Status" }
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
-          required: [id, subjectId, number, slug, title, summary, content, requirements, submission, variants, materials, deadlineAt, deadlineNote, maxScore, teacher, subjectPracticeTeacher, status, createdAt, updatedAt]
+            audience: { $ref: "#/components/schemas/Audience" }
+          required: [id, subjectId, number, slug, title, summary, content, requirements, submission, variants, materials, deadlineAt, deadlineNote, maxScore, teacher, subjectPracticeTeacher, status, createdAt, updatedAt, audience]
 
     Note:
       allOf:
@@ -745,7 +771,8 @@ components:
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
             quizzesCount: { type: integer, description: "Опубликованные квизы, привязанные к конспекту" }
-          required: [id, subjectId, number, slug, title, summary, content, lectureDate, status, createdAt, updatedAt, quizzesCount]
+            audience: { $ref: "#/components/schemas/Audience" }
+          required: [id, subjectId, number, slug, title, summary, content, lectureDate, status, createdAt, updatedAt, quizzesCount, audience]
 
     NoteResponse:
       allOf:
@@ -1003,7 +1030,8 @@ components:
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
             signupsCount: { type: integer, description: "Число записавшихся студентов" }
-          required: [id, subjectId, startsAt, endsAt, location, capacity, note, createdAt, updatedAt, signupsCount]
+            audience: { $ref: "#/components/schemas/Audience" }
+          required: [id, subjectId, startsAt, endsAt, location, capacity, note, createdAt, updatedAt, signupsCount, audience]
 
     PracticeSessionView:
       allOf:

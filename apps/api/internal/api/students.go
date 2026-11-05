@@ -60,6 +60,16 @@ func (h *Handler) claimStudent(w http.ResponseWriter, r *http.Request) {
 	h.respondMe(w, r, id)
 }
 
+// adminStudyGroups lists groups and streams for the audience picker.
+func (h *Handler) adminStudyGroups(w http.ResponseWriter, r *http.Request) {
+	list, err := h.store.ListStudyGroups(r.Context())
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, list)
+}
+
 func (h *Handler) adminListStudents(w http.ResponseWriter, r *http.Request) {
 	list, err := h.store.ListStudents(r.Context())
 	if err != nil {

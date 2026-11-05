@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
-  title: "Нет связи — М3105",
+  title: "Нет связи",
   description: "Страница недоступна офлайн.",
   robots: { index: false, follow: false },
 };

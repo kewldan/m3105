@@ -2,11 +2,12 @@ package store
 
 import (
 	"context"
+	"strings"
 
 	"github.com/kewldan/edu3105/apps/api/internal/models"
 )
 
-const subjectCols = `s.id, s.slug, s.name, s.short_name, s.color, s.icon, s.lecturer, s.practice_teacher, s.description, s.links, s.position, s.created_at, s.updated_at`
+const subjectCols = `s.id, s.slug, s.name, s.short_name, s.color, s.icon, s.lecturer, s.practice_teacher, s.description, s.links, s.position, s.created_at, s.updated_at, s.audience`
 
 // SubjectWithCounts adds published-content counters for public listings.
 type SubjectWithCounts struct {
@@ -21,13 +22,20 @@ func (s *Store) ListSubjects(ctx context.Context) ([]models.Subject, error) {
 	return many[models.Subject](ctx, s.db, `SELECT `+subjectCols+` FROM subjects s ORDER BY s.position, s.name`)
 }
 
-// ListSubjectsWithCounts returns subjects with published counters.
-func (s *Store) ListSubjectsWithCounts(ctx context.Context) ([]SubjectWithCounts, error) {
+// ListSubjectsWithCounts returns subjects with published counters. With a
+// viewer group only subjects and content for it are listed and counted.
+func (s *Store) ListSubjectsWithCounts(ctx context.Context, viewerGroup string) ([]SubjectWithCounts, error) {
+	args := []any{}
+	labs := audienceIn("l", viewerGroup, &args)
+	notes := strings.ReplaceAll(labs, "l.audience", "n.audience")
+	quizzes := `AND (q.note_id IS NULL OR EXISTS (SELECT 1 FROM notes n WHERE n.id = q.note_id` + notes + `))`
+	subjects := strings.Replace(labs, " AND ", " WHERE ", 1)
+	subjects = strings.ReplaceAll(subjects, "l.audience", "s.audience")
 	return many[SubjectWithCounts](ctx, s.db, `SELECT `+subjectCols+`,
-		(SELECT count(*) FROM labs l WHERE l.subject_id = s.id AND l.status = 'published')::int AS labs_count,
-		(SELECT count(*) FROM notes n WHERE n.subject_id = s.id AND n.status = 'published')::int AS notes_count,
-		(SELECT count(*) FROM quizzes q WHERE q.subject_id = s.id AND q.status = 'published')::int AS quizzes_count
-		FROM subjects s ORDER BY s.position, s.name`)
+		(SELECT count(*) FROM labs l WHERE l.subject_id = s.id AND l.status = 'published'`+labs+`)::int AS labs_count,
+		(SELECT count(*) FROM notes n WHERE n.subject_id = s.id AND n.status = 'published'`+notes+`)::int AS notes_count,
+		(SELECT count(*) FROM quizzes q WHERE q.subject_id = s.id AND q.status = 'published' `+quizzes+`)::int AS quizzes_count
+		FROM subjects s`+subjects+` ORDER BY s.position, s.name`, args...)
 }
 
 // GetSubject fetches a subject by id.
@@ -59,6 +67,9 @@ func (s *Store) CreateSubject(ctx context.Context, in *models.SubjectInput) (mod
 	if err != nil {
 		return models.Subject{}, wrap(err)
 	}
+	if err := s.setAudience(ctx, "subjects", id, in.Audience); err != nil {
+		return models.Subject{}, err
+	}
 	return s.GetSubject(ctx, id)
 }
 
@@ -71,6 +82,9 @@ func (s *Store) UpdateSubject(ctx context.Context, id int64, in *models.SubjectI
 	if err := s.exec(ctx, `UPDATE subjects SET slug=$1, name=$2, short_name=$3, color=$4, icon=$5, lecturer=$6, practice_teacher=$7,
 		description=$8, links=$9, position=$10, updated_at=now() WHERE id = $11`,
 		slug, in.Name, in.ShortName, in.Color, in.Icon, in.Lecturer, in.PracticeTeacher, in.Description, in.Links, in.Position, id); err != nil {
+		return models.Subject{}, err
+	}
+	if err := s.setAudience(ctx, "subjects", id, in.Audience); err != nil {
 		return models.Subject{}, err
 	}
 	return s.GetSubject(ctx, id)

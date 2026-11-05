@@ -6,6 +6,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { AudiencePicker } from "@/components/admin/audience-picker";
 import { EntityDialog } from "@/components/admin/entity-dialog";
 import { FormField, FormGrid } from "@/components/admin/form-field";
 import { IconPicker } from "@/components/admin/icon-picker";
@@ -25,6 +26,7 @@ import { COLOR_LABEL, subjectColor } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
 
 const schema = z.object({
+  audience: z.array(z.string()),
   name: z.string().trim().min(1, "Укажите название предмета"),
   shortName: z.string().trim(),
   slug: z.string().trim(),
@@ -40,6 +42,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 const EMPTY: FormValues = {
+  audience: [],
   name: "",
   shortName: "",
   slug: "",
@@ -89,6 +92,7 @@ export function SubjectDialog({
             position: String(subject.position),
             description: subject.description,
             links: subject.links ?? [],
+            audience: subject.audience ?? [],
           }
         : EMPTY,
     );
@@ -96,6 +100,7 @@ export function SubjectDialog({
 
   async function onSubmit(values: FormValues) {
     const input: SubjectInput = {
+      audience: values.audience,
       name: values.name,
       shortName: values.shortName,
       slug: values.slug || undefined,
@@ -256,6 +261,20 @@ export function SubjectDialog({
             aria-invalid={!!errors.slug || undefined}
           />
         </FormField>
+        <Controller
+          control={form.control}
+          name="audience"
+          render={({ field }) => (
+            <FormField
+              label="Для кого"
+              description="Студенты видят только своё, пока не включат «Показать всё»."
+              error={form.formState.errors.audience?.message}
+              className="sm:col-span-2"
+            >
+              <AudiencePicker value={field.value} onChange={field.onChange} />
+            </FormField>
+          )}
+        />
       </FormGrid>
       <Controller
         control={form.control}

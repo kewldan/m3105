@@ -78,6 +78,9 @@ export type AuthInfo = {
   devLogin: boolean;
 };
 
+/** Для кого материал — метки `stream:<номер>` и `group:<группа>`; пустой список — для всех */
+export type Audience = string[];
+
 export type SubjectRef = {
   id: number;
   slug: string;
@@ -99,6 +102,7 @@ export type Subject = SubjectRef & {
   position: number;
   createdAt: DateTime;
   updatedAt: DateTime;
+  audience: Audience;
 };
 
 export type SubjectWithCounts = Subject & {
@@ -143,6 +147,7 @@ export type Lab = SubjectJoin & {
   status: Status;
   createdAt: DateTime;
   updatedAt: DateTime;
+  audience: Audience;
 };
 
 export type Note = SubjectJoin & {
@@ -160,6 +165,7 @@ export type Note = SubjectJoin & {
   updatedAt: DateTime;
   /** Опубликованные квизы, привязанные к конспекту */
   quizzesCount: number;
+  audience: Audience;
 };
 
 export type NoteResponse = Note & {
@@ -354,6 +360,7 @@ export type PracticeSession = SubjectJoin & {
   updatedAt: DateTime;
   /** Число записавшихся студентов */
   signupsCount: number;
+  audience: Audience;
 };
 
 export type PracticeSessionView = PracticeSession & {

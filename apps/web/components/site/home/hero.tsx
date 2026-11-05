@@ -25,10 +25,13 @@ export function Hero({
   settings,
   week,
   now,
+  group = "",
 }: {
   settings: Settings;
   week: Week;
   now: string;
+  /** The signed-in student's group; the greeting names it. */
+  group?: string;
 }) {
   const reduce = useReducedMotion();
   const tz = settings.timezone;
@@ -37,7 +40,8 @@ export function Hero({
     {
       children: (
         <>
-          {greeting(hour)}, {settings.groupName}
+          {greeting(hour)}
+          {group ? `, ${group}` : ""}
         </>
       ),
       cls: "text-sm font-medium text-primary",

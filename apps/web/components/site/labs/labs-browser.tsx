@@ -11,6 +11,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { AudienceBadge } from "@/components/site/audience/audience-badge";
 import { DeadlineBadge, deadlineState } from "@/components/site/deadline-badge";
 import { EmptyState } from "@/components/site/empty-state";
 import { DoneToggle } from "@/components/site/labs/done-toggle";
@@ -300,6 +301,10 @@ export function LabsBrowser({
                           <span className="text-xs text-muted-foreground">
                             Лаба {lab.number}
                           </span>
+                          <AudienceBadge
+                            audience={lab.audience}
+                            className="px-1.5 text-[10px]"
+                          />
                         </div>
                         <div
                           className={cn(

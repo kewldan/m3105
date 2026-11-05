@@ -58,7 +58,7 @@ export function SiteFooter({
         </nav>
         <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span className="font-medium text-foreground">
-            {settings.groupName}
+            {settings.siteTitle}
           </span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Commit label="фронт" sha={process.env.NEXT_PUBLIC_GIT_SHA ?? ""} />

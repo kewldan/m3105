@@ -8,10 +8,10 @@ import (
 
 const quizzesCountCol = `(SELECT count(*) FROM quizzes q WHERE q.note_id = n.id AND q.status = 'published')::int AS quizzes_count`
 
-const noteCols = `n.id, n.subject_id, n.number, n.slug, n.title, n.summary, n.content, n.lecture_date, n.status, n.created_at, n.updated_at,
+const noteCols = `n.id, n.subject_id, n.number, n.slug, n.title, n.summary, n.content, n.lecture_date, n.status, n.created_at, n.updated_at, n.audience,
 	` + quizzesCountCol + `, s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon`
 
-const noteListCols = `n.id, n.subject_id, n.number, n.slug, n.title, n.summary, '' AS content, n.lecture_date, n.status, n.created_at, n.updated_at,
+const noteListCols = `n.id, n.subject_id, n.number, n.slug, n.title, n.summary, '' AS content, n.lecture_date, n.status, n.created_at, n.updated_at, n.audience,
 	` + quizzesCountCol + `, s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon`
 
 // NoteFilter narrows note listings.
@@ -20,6 +20,8 @@ type NoteFilter struct {
 	SubjectSlug   string
 	PublishedOnly bool
 	Limit         int
+	// For is the viewer's group (see LabFilter.For).
+	For string
 }
 
 // ListNotes returns notes without bodies.
@@ -37,6 +39,7 @@ func (s *Store) ListNotes(ctx context.Context, f NoteFilter) ([]models.Note, err
 	if f.PublishedOnly {
 		q += ` AND n.status = 'published'`
 	}
+	q += audienceIn("n", f.For, &args)
 	if f.Limit > 0 {
 		q += ` ORDER BY n.updated_at DESC LIMIT ` + itoa(f.Limit)
 	} else {
@@ -78,6 +81,9 @@ func (s *Store) CreateNote(ctx context.Context, in *models.NoteInput) (models.No
 	if err != nil {
 		return models.Note{}, wrap(err)
 	}
+	if err := s.setAudience(ctx, "notes", id, in.Audience); err != nil {
+		return models.Note{}, err
+	}
 	return s.GetNote(ctx, id)
 }
 
@@ -90,6 +96,9 @@ func (s *Store) UpdateNote(ctx context.Context, id int64, in *models.NoteInput) 
 	if err := s.exec(ctx, `UPDATE notes SET subject_id=$1, number=$2, slug=$3, title=$4, summary=$5, content=$6, lecture_date=$7,
 		status=$8, updated_at=now() WHERE id = $9`,
 		in.SubjectID, in.Number, slug, in.Title, in.Summary, in.Content, in.LectureDate, in.Status, id); err != nil {
+		return models.Note{}, err
+	}
+	if err := s.setAudience(ctx, "notes", id, in.Audience); err != nil {
 		return models.Note{}, err
 	}
 	return s.GetNote(ctx, id)

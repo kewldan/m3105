@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-
+import { ScopeSwitch } from "@/components/site/audience/scope-switch";
 import { EmptyState } from "@/components/site/empty-state";
 import { NotesOverview } from "@/components/site/notes/notes-overview";
 import { SubjectNotes } from "@/components/site/notes/subject-notes";
@@ -8,6 +8,7 @@ import { SubjectRail } from "@/components/site/notes/subject-rail";
 import { PageHeader } from "@/components/site/page-header";
 import { SubjectIcon } from "@/components/site/subject-icon";
 import { getNotes, getSubjects } from "@/lib/api/public";
+import { getViewerScope } from "@/lib/api/viewer";
 import { plural } from "@/lib/format";
 import { pageMetadata } from "@/lib/seo";
 
@@ -24,9 +25,10 @@ export default async function NotesPage({
 }: {
   searchParams: Promise<{ subject?: string }>;
 }) {
+  const scope = await getViewerScope();
   const [{ subject: subjectSlug }, subjects] = await Promise.all([
     searchParams,
-    getSubjects(),
+    getSubjects(scope.forGroup),
   ]);
   const active = subjectSlug
     ? subjects.find((s) => s.slug === subjectSlug)
@@ -38,7 +40,7 @@ export default async function NotesPage({
 
   // Only the selected subject's lectures are loaded; the overview needs the
   // whole (lightweight, body-less) list to show per-subject freshness.
-  const notes = active ? await getNotes(active.slug) : await getNotes();
+  const notes = await getNotes(active?.slug, scope.forGroup);
 
   return (
     <div className="space-y-6">
@@ -50,6 +52,7 @@ export default async function NotesPage({
             ? `${total} ${plural(total, "лекция", "лекции", "лекций")} по ${subjectsWithNotes} ${plural(subjectsWithNotes, "предмету", "предметам", "предметам")}. Выберите предмет, ищите по названию или номеру.`
             : "Здесь будут появляться конспекты по мере публикации."
         }
+        actions={<ScopeSwitch group={scope.group} all={scope.all} />}
       />
 
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">

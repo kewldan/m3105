@@ -32,22 +32,37 @@ import type {
 // Ответы кешируются в Data Cache с тегами: админка при сохранении дёргает
 // /api/revalidate, и кеш сбрасывается сразу.
 
+/**
+ * Appends ?for=<group>: the API keeps content for everyone, the group and its
+ * stream. Empty group — no narrowing. Each group is its own cache entry.
+ */
+function withFor(path: string, group?: string): string {
+  if (!group) return path;
+  return `${path}${path.includes("?") ? "&" : "?"}for=${encodeURIComponent(group)}`;
+}
+
 /** Which API commit is deployed; checked at most once a minute. */
 export const getHealth = () =>
   apiServer<Health>("/healthz", { tags: [TAG.version], revalidate: 60 });
 export const getSettings = () =>
   apiServer<SettingsResponse>("/settings", { tags: [TAG.settings] });
-export const getHome = () =>
-  apiServer<HomeResponse>("/home", { tags: [TAG.home] });
-export const getSubjects = () =>
-  apiServer<SubjectWithCounts[]>("/subjects", { tags: [TAG.subjects] });
-export const getSubject = (slug: string) =>
-  apiServer<SubjectResponse>(`/subjects/${encodeURIComponent(slug)}`, {
-    tags: [TAG.subjects, TAG.labs, TAG.notes, TAG.quizzes],
+export const getHome = (forGroup?: string) =>
+  apiServer<HomeResponse>(withFor("/home", forGroup), { tags: [TAG.home] });
+export const getSubjects = (forGroup?: string) =>
+  apiServer<SubjectWithCounts[]>(withFor("/subjects", forGroup), {
+    tags: [TAG.subjects],
   });
-export const getLabs = (subject?: string) =>
+export const getSubject = (slug: string, forGroup?: string) =>
+  apiServer<SubjectResponse>(
+    withFor(`/subjects/${encodeURIComponent(slug)}`, forGroup),
+    { tags: [TAG.subjects, TAG.labs, TAG.notes, TAG.quizzes] },
+  );
+export const getLabs = (subject?: string, forGroup?: string) =>
   apiServer<Lab[]>(
-    `/labs${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`,
+    withFor(
+      `/labs${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`,
+      forGroup,
+    ),
     { tags: [TAG.labs] },
   );
 export const getLab = (subject: string, slug: string) =>
@@ -56,12 +71,13 @@ export const getLab = (subject: string, slug: string) =>
     { tags: [TAG.labs] },
   );
 export const getCalendar = (
-  params: { from?: string; to?: string; subject?: string } = {},
+  params: { from?: string; to?: string; subject?: string; for?: string } = {},
 ) => {
   const qs = new URLSearchParams();
   if (params.from) qs.set("from", params.from);
   if (params.to) qs.set("to", params.to);
   if (params.subject) qs.set("subject", params.subject);
+  if (params.for) qs.set("for", params.for);
   const q = qs.toString();
   return apiServer<CalendarResponse>(`/calendar${q ? `?${q}` : ""}`, {
     tags: [TAG.calendar],
@@ -72,14 +88,21 @@ export const getPages = () =>
   apiServer<Page[]>("/pages", { tags: [TAG.pages] });
 export const getPage = (slug: string) =>
   apiServer<Page>(`/pages/${encodeURIComponent(slug)}`, { tags: [TAG.pages] });
-export const getNotes = (subject?: string) =>
+export const getNotes = (subject?: string, forGroup?: string) =>
   apiServer<Note[]>(
-    `/notes${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`,
+    withFor(
+      `/notes${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`,
+      forGroup,
+    ),
     { tags: [TAG.notes] },
   );
-export const getNote = (subject: string, slug: string) =>
+/** `forGroup` narrows only the neighbours (prev/next): the note itself is open to all. */
+export const getNote = (subject: string, slug: string, forGroup?: string) =>
   apiServer<NoteResponse>(
-    `/notes/${encodeURIComponent(subject)}/${encodeURIComponent(slug)}`,
+    withFor(
+      `/notes/${encodeURIComponent(subject)}/${encodeURIComponent(slug)}`,
+      forGroup,
+    ),
     { tags: [TAG.notes, TAG.quizzes] },
   );
 export const getQuizzes = (subject?: string) =>
@@ -122,11 +145,12 @@ export const getGrades = (cookie?: string, source?: number) =>
 /** Practice (lab defence) sessions; pass the Cookie header to get participants. */
 export const getPractice = (
   cookie?: string,
-  params: { subject?: string; past?: boolean } = {},
+  params: { subject?: string; past?: boolean; for?: string } = {},
 ) => {
   const qs = new URLSearchParams();
   if (params.subject) qs.set("subject", params.subject);
   if (params.past) qs.set("past", "1");
+  if (params.for) qs.set("for", params.for);
   const q = qs.toString();
   return apiServer<PracticeListResponse>(
     `/practice${q ? `?${q}` : ""}`,

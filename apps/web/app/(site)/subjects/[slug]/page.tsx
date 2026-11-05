@@ -19,6 +19,7 @@ import { SubjectIcon } from "@/components/site/subject-icon";
 import { isNotFound } from "@/lib/api/client";
 import { getSettings, getSubject } from "@/lib/api/public";
 import type { SubjectResponse } from "@/lib/api/types";
+import { getViewerScope } from "@/lib/api/viewer";
 import { fmtDateOnly, fmtDateTime, plural } from "@/lib/format";
 import { absoluteUrl, metaText, pageMetadata, SITE_NAME } from "@/lib/seo";
 import { subjectColor } from "@/lib/subject-colors";
@@ -29,9 +30,9 @@ type Params = { params: Promise<{ slug: string }> };
 
 const NOTES_PREVIEW = 12;
 
-async function load(slug: string): Promise<SubjectResponse> {
+async function load(slug: string, forGroup: string): Promise<SubjectResponse> {
   try {
-    return await getSubject(slug);
+    return await getSubject(slug, forGroup);
   } catch (err) {
     if (isNotFound(err)) notFound();
     throw err;
@@ -69,7 +70,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function SubjectPage({ params }: Params) {
   const { slug } = await params;
-  const [data, site] = await Promise.all([load(slug), getSettings()]);
+  const scope = await getViewerScope();
+  const [data, site] = await Promise.all([
+    load(slug, scope.forGroup),
+    getSettings(),
+  ]);
   const { subject, labs, notes } = data;
   const tz = site.settings.timezone;
   const c = subjectColor(subject.color);

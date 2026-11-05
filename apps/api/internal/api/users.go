@@ -521,7 +521,7 @@ func (h *Handler) listPractice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.freezeQueues(r.Context(), sc.Loc)
-	f := store.PracticeFilter{SubjectSlug: r.URL.Query().Get("subject")}
+	f := store.PracticeFilter{SubjectSlug: r.URL.Query().Get("subject"), For: viewerGroup(r)}
 	if r.URL.Query().Get("past") == "" {
 		from := sc.Now
 		f.From = &from

@@ -64,7 +64,7 @@ export default function AdminLoginPage() {
           </div>
           <h1 className="font-heading text-xl font-semibold">Вход в админку</h1>
           <p className="text-sm text-muted-foreground">
-            Панель управления сайтом группы М3105
+            Панель управления сайтом
           </p>
         </div>
 

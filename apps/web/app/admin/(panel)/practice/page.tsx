@@ -86,6 +86,7 @@ function PracticePageInner() {
         location: s.location,
         capacity: s.capacity,
         note: s.note,
+        audience: s.audience,
       });
       toast.success("Сдача продублирована на неделю вперёд");
       sessions.reload();

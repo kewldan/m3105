@@ -128,6 +128,8 @@ func (s *Settings) Validate() error {
 
 // Subject is a course/discipline.
 type Subject struct {
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience        []string  `db:"audience" json:"audience"`
 	ID              int64     `db:"id" json:"id"`
 	Slug            string    `db:"slug" json:"slug"`
 	Name            string    `db:"name" json:"name"`
@@ -145,21 +147,24 @@ type Subject struct {
 
 // SubjectInput is the create/update payload for a subject.
 type SubjectInput struct {
-	Slug            string `json:"slug"`
-	Name            string `json:"name"`
-	ShortName       string `json:"shortName"`
-	Color           string `json:"color"`
-	Icon            string `json:"icon"`
-	Lecturer        string `json:"lecturer"`
-	PracticeTeacher string `json:"practiceTeacher"`
-	Description     string `json:"description"`
-	Links           []Link `json:"links"`
-	Position        int    `json:"position"`
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience        []string `json:"audience"`
+	Slug            string   `json:"slug"`
+	Name            string   `json:"name"`
+	ShortName       string   `json:"shortName"`
+	Color           string   `json:"color"`
+	Icon            string   `json:"icon"`
+	Lecturer        string   `json:"lecturer"`
+	PracticeTeacher string   `json:"practiceTeacher"`
+	Description     string   `json:"description"`
+	Links           []Link   `json:"links"`
+	Position        int      `json:"position"`
 }
 
 // Validate normalises and checks the payload.
 func (in *SubjectInput) Validate() error {
 	ve := httpx.NewValidation()
+	checkAudience(ve, &in.Audience)
 	in.Name = strings.TrimSpace(in.Name)
 	in.ShortName = strings.TrimSpace(in.ShortName)
 	in.Lecturer = strings.TrimSpace(in.Lecturer)
@@ -208,6 +213,8 @@ type SubjectRef struct {
 
 // Lab is a laboratory assignment.
 type Lab struct {
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience     []string   `db:"audience" json:"audience"`
 	ID           int64      `db:"id" json:"id"`
 	SubjectID    int64      `db:"subject_id" json:"subjectId"`
 	Number       int        `db:"number" json:"number"`
@@ -238,6 +245,8 @@ type Lab struct {
 
 // LabInput is the create/update payload for a lab.
 type LabInput struct {
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience     []string   `json:"audience"`
 	SubjectID    int64      `json:"subjectId"`
 	Number       int        `json:"number"`
 	Slug         string     `json:"slug"`
@@ -258,6 +267,7 @@ type LabInput struct {
 // Validate normalises and checks the payload.
 func (in *LabInput) Validate() error {
 	ve := httpx.NewValidation()
+	checkAudience(ve, &in.Audience)
 	in.Title = strings.TrimSpace(in.Title)
 	in.Summary = strings.TrimSpace(in.Summary)
 	in.Teacher = strings.TrimSpace(in.Teacher)
@@ -304,6 +314,8 @@ var EventKinds = []string{"deadline", "test", "exam", "consultation", "other"}
 
 // Event is a standalone calendar entry (not derived from a lab deadline).
 type Event struct {
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience    []string   `db:"audience" json:"audience"`
 	ID          int64      `db:"id" json:"id"`
 	Title       string     `db:"title" json:"title"`
 	Kind        string     `db:"kind" json:"kind"`
@@ -326,6 +338,8 @@ type Event struct {
 
 // EventInput is the create/update payload for an event.
 type EventInput struct {
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience    []string   `json:"audience"`
 	Title       string     `json:"title"`
 	Kind        string     `json:"kind"`
 	SubjectID   *int64     `json:"subjectId"`
@@ -340,6 +354,7 @@ type EventInput struct {
 // Validate normalises and checks the payload.
 func (in *EventInput) Validate() error {
 	ve := httpx.NewValidation()
+	checkAudience(ve, &in.Audience)
 	in.Title = strings.TrimSpace(in.Title)
 	in.Location = strings.TrimSpace(in.Location)
 	in.URL = strings.TrimSpace(in.URL)
@@ -473,6 +488,8 @@ func (in *PageInput) Validate() error {
 
 // Note is a lecture summary written in MDX.
 type Note struct {
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience    []string    `db:"audience" json:"audience"`
 	ID          int64       `db:"id" json:"id"`
 	SubjectID   int64       `db:"subject_id" json:"subjectId"`
 	Number      int         `db:"number" json:"number"`
@@ -496,6 +513,8 @@ type Note struct {
 
 // NoteInput is the create/update payload for a note.
 type NoteInput struct {
+	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
+	Audience    []string    `json:"audience"`
 	SubjectID   int64       `json:"subjectId"`
 	Number      int         `json:"number"`
 	Slug        string      `json:"slug"`
@@ -509,6 +528,7 @@ type NoteInput struct {
 // Validate normalises and checks the payload.
 func (in *NoteInput) Validate() error {
 	ve := httpx.NewValidation()
+	checkAudience(ve, &in.Audience)
 	in.Title = strings.TrimSpace(in.Title)
 	in.Summary = strings.TrimSpace(in.Summary)
 	in.Slug = strings.TrimSpace(strings.ToLower(in.Slug))

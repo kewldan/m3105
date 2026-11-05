@@ -74,10 +74,13 @@ export const userApi = {
       method: done ? "PUT" : "DELETE",
     }),
 
-  practiceList: (params: { subject?: string; past?: boolean } = {}) => {
+  practiceList: (
+    params: { subject?: string; past?: boolean; for?: string } = {},
+  ) => {
     const qs = new URLSearchParams();
     if (params.subject) qs.set("subject", params.subject);
     if (params.past) qs.set("past", "1");
+    if (params.for) qs.set("for", params.for);
     const q = qs.toString();
     return apiClient<PracticeListResponse>(`/practice${q ? `?${q}` : ""}`);
   },

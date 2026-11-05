@@ -102,7 +102,7 @@ export type OgProps = {
 };
 
 const KIND_LABEL: Record<OgKind, string> = {
-  site: "сайт группы",
+  site: "учебный сайт",
   subject: "предмет",
   lab: "лабораторная",
   note: "конспект",

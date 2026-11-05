@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 import { SiteFooter } from "@/components/site/footer";
 import { SiteHeader } from "@/components/site/header";
 import { UserProvider } from "@/components/site/user-provider";
-import { cookieHeader } from "@/lib/api/cookies";
-import { getHealth, getMe, getSettings } from "@/lib/api/public";
-import type { MeResponse, SettingsResponse } from "@/lib/api/types";
+import { getHealth, getSettings } from "@/lib/api/public";
+import type { SettingsResponse } from "@/lib/api/types";
+import { getViewer } from "@/lib/api/viewer";
 import { isGroupMember } from "@/lib/group";
 
 const FALLBACK: SettingsResponse = {
@@ -36,13 +36,7 @@ const FALLBACK: SettingsResponse = {
   },
 };
 
-async function loadMe(): Promise<MeResponse | null> {
-  try {
-    return await getMe(await cookieHeader());
-  } catch {
-    return null;
-  }
-}
+const loadMe = getViewer;
 
 async function loadSite(): Promise<SettingsResponse> {
   try {

@@ -150,6 +150,7 @@ func (h *Handler) mountAdmin(r chi.Router) {
 	r.Delete("/users/{id}", h.adminDeleteUser)
 	r.Delete("/users/{id}/student", h.adminUnclaimUser)
 	r.Get("/students", h.adminListStudents)
+	r.Get("/study-groups", h.adminStudyGroups)
 	r.Post("/students", h.adminCreateStudent)
 	r.Post("/students/import", h.adminImportStudents)
 	r.Delete("/students/{id}", h.adminDeleteStudent)
@@ -183,7 +184,7 @@ func (h *Handler) mountAdmin(r chi.Router) {
 
 	r.Route("/subjects", func(r chi.Router) {
 		mount[models.Subject, models.SubjectInput](r, crud[models.Subject, models.SubjectInput]{
-			list:   func(ctx context.Context, _ *http.Request) (any, error) { return st.ListSubjectsWithCounts(ctx) },
+			list:   func(ctx context.Context, _ *http.Request) (any, error) { return st.ListSubjectsWithCounts(ctx, "") },
 			get:    st.GetSubject,
 			create: st.CreateSubject,
 			update: st.UpdateSubject,
@@ -203,7 +204,7 @@ func (h *Handler) mountAdmin(r chi.Router) {
 	})
 	r.Route("/events", func(r chi.Router) {
 		mount[models.Event, models.EventInput](r, crud[models.Event, models.EventInput]{
-			list:   func(ctx context.Context, _ *http.Request) (any, error) { return st.ListEvents(ctx, nil, nil, "") },
+			list:   func(ctx context.Context, _ *http.Request) (any, error) { return st.ListEvents(ctx, nil, nil, "", "") },
 			get:    st.GetEvent,
 			create: st.CreateEvent,
 			update: st.UpdateEvent,
@@ -331,7 +332,7 @@ func (h *Handler) adminOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp.Pages = len(pages)
-	events, err := h.store.ListEvents(ctx, nil, nil, "")
+	events, err := h.store.ListEvents(ctx, nil, nil, "", "")
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -355,7 +356,7 @@ func (h *Handler) adminOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp.Practice = len(practice)
-	resp.Upcoming, err = h.calendarItems(ctx, sc.Now, sc.Now.AddDate(0, 0, 30), "", scopeAll)
+	resp.Upcoming, err = h.calendarItems(ctx, sc.Now, sc.Now.AddDate(0, 0, 30), "", "", scopeAll)
 	if err != nil {
 		httpx.Fail(w, err)
 		return

@@ -36,6 +36,7 @@ import type {
   Student,
   StudentImportResult,
   StudentInput,
+  StudyGroup,
   Subject,
   SubjectInput,
   SubjectWithCounts,
@@ -94,6 +95,8 @@ export const adminApi = {
     unclaim: (id: number) =>
       apiClient<User>(`/admin/users/${id}/student`, { method: "DELETE" }),
   },
+  /** Группы из списка курса с потоками — для выбора аудитории. */
+  studyGroups: () => apiClient<StudyGroup[]>("/admin/study-groups"),
   students: {
     list: () => apiClient<Student[]>("/admin/students"),
     /** Таблица, скопированная со страницы, CSV или сохранённая страница (.html, .mht). */

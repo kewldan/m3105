@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-
+import { ScopeSwitch } from "@/components/site/audience/scope-switch";
 import { DeadlineList } from "@/components/site/deadline-list";
 import { EmptyState } from "@/components/site/empty-state";
 import { Hero } from "@/components/site/home/hero";
@@ -21,15 +21,16 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { getHome } from "@/lib/api/public";
+import { getViewerScope } from "@/lib/api/viewer";
 import { fmtDateOnly, plural } from "@/lib/format";
 import { DEFAULT_DESCRIPTION, pageMetadata } from "@/lib/seo";
 
 export async function generateMetadata(): Promise<Metadata> {
-  let title = "М3105 — сайт группы";
+  let title = "М3105 — учебный сайт";
   let description = DEFAULT_DESCRIPTION;
   try {
     const { settings } = await getHome();
-    title = `${settings.siteTitle || "М3105"} — сайт группы`;
+    title = `${settings.siteTitle || "М3105"} — учебный сайт`;
     description = settings.description || DEFAULT_DESCRIPTION;
   } catch {
     // keep defaults
@@ -44,12 +45,21 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const home = await getHome();
+  const scope = await getViewerScope();
+  const home = await getHome(scope.forGroup);
   const tz = home.settings.timezone;
 
   return (
     <div className="space-y-10 sm:space-y-12">
-      <Hero settings={home.settings} week={home.week} now={home.now} />
+      <div className="space-y-3">
+        <Hero
+          settings={home.settings}
+          week={home.week}
+          now={home.now}
+          group={scope.group}
+        />
+        <ScopeSwitch group={scope.group} all={scope.all} />
+      </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-6">
         <div className="space-y-8 lg:col-span-2">

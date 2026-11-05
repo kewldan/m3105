@@ -28,6 +28,8 @@ type QuizFilter struct {
 	SubjectSlug   string
 	NoteID        *int64
 	PublishedOnly bool
+	// For is the viewer's group: quizzes follow the audience of their note.
+	For string
 }
 
 const quizFrom = ` FROM quizzes q LEFT JOIN subjects s ON s.id = q.subject_id LEFT JOIN notes n ON n.id = q.note_id`
@@ -47,6 +49,7 @@ func (s *Store) ListQuizzes(ctx context.Context, f QuizFilter) ([]QuizSummary, e
 	if f.PublishedOnly {
 		q += ` AND q.status = 'published'`
 	}
+	q += audienceIn("n", f.For, &args)
 	q += ` ORDER BY s.position, s.name, q.title`
 	return many[QuizSummary](ctx, s.db, q, args...)
 }

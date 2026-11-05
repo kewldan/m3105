@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-
+import { AudienceBadge } from "@/components/site/audience/audience-badge";
 import {
   breadcrumbs,
   JsonLd,
@@ -23,6 +23,7 @@ import { isNotFound } from "@/lib/api/client";
 import { cookieHeader } from "@/lib/api/cookies";
 import { getComments, getNote, getNotes } from "@/lib/api/public";
 import type { NoteResponse } from "@/lib/api/types";
+import { getViewerScope } from "@/lib/api/viewer";
 import { fmtDateOnly } from "@/lib/format";
 import { renderMdx } from "@/lib/mdx/render";
 import { noteKind } from "@/lib/notes";
@@ -31,9 +32,13 @@ import { absoluteUrl, metaText, pageMetadata, SITE_NAME } from "@/lib/seo";
 type Params = Promise<{ subject: string; slug: string }>;
 
 const load = cache(
-  async (subject: string, slug: string): Promise<NoteResponse | null> => {
+  async (
+    subject: string,
+    slug: string,
+    forGroup = "",
+  ): Promise<NoteResponse | null> => {
     try {
-      return await getNote(subject, slug);
+      return await getNote(subject, slug, forGroup);
     } catch (err) {
       if (isNotFound(err)) return null;
       throw err;
@@ -66,9 +71,10 @@ export async function generateMetadata({
 
 export default async function NotePage({ params }: { params: Params }) {
   const { subject, slug } = await params;
+  const scope = await getViewerScope();
   const [note, siblings] = await Promise.all([
-    load(subject, slug),
-    getNotes(subject).catch(() => []),
+    load(subject, slug, scope.forGroup),
+    getNotes(subject, scope.forGroup).catch(() => []),
   ]);
   if (!note) notFound();
   const [rendered, comments] = await Promise.all([
@@ -154,6 +160,7 @@ export default async function NotePage({ params }: { params: Params }) {
             {kind ? (
               <span className="font-medium text-primary">{kind}</span>
             ) : null}
+            <AudienceBadge audience={note.audience} />
             {note.lectureDate ? (
               <span className="inline-flex items-center gap-1 text-muted-foreground">
                 <CalendarIcon className="size-3.5" />

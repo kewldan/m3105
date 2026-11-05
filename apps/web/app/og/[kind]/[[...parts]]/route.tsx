@@ -35,7 +35,7 @@ async function siteImage() {
   } catch {
     // API is down: fall back to static text.
   }
-  return ogImage({ kind: "site", eyebrow: "Сайт группы", title, description });
+  return ogImage({ kind: "site", eyebrow: "Учебный сайт", title, description });
 }
 
 async function subjectImage(slug: string) {

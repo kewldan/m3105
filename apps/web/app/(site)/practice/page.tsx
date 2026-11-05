@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-
+import { ScopeSwitch } from "@/components/site/audience/scope-switch";
 import { PageHeader } from "@/components/site/page-header";
 import { PracticeList } from "@/components/site/practice/practice-list";
 import { QueueRules } from "@/components/site/practice/queue-rules";
 import { cookieHeader } from "@/lib/api/cookies";
 import { getPractice, getSettings } from "@/lib/api/public";
+import { getViewerScope } from "@/lib/api/viewer";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
@@ -19,10 +20,11 @@ export default async function PracticePage({
 }: {
   searchParams: Promise<{ session?: string | string[] }>;
 }) {
+  const scope = await getViewerScope();
   const [{ session }, site, data] = await Promise.all([
     searchParams,
     getSettings(),
-    getPractice(await cookieHeader()),
+    getPractice(await cookieHeader(), { for: scope.forGroup }),
   ]);
   const raw = Array.isArray(session) ? session[0] : session;
   const highlightId = raw && /^\d+$/.test(raw) ? Number(raw) : null;
@@ -37,12 +39,14 @@ export default async function PracticePage({
             ? "Выберите пару и отметьте лабы, которые принесёте. Очередь видна всем, правила — ниже."
             : "Пары, на которых принимают лабораторные, и очередь на каждую. Войдите, чтобы записаться."
         }
+        actions={<ScopeSwitch group={scope.group} all={scope.all} />}
       />
       <QueueRules />
       <PracticeList
         initial={data}
         tz={site.settings.timezone}
         highlightId={highlightId}
+        forGroup={scope.forGroup}
       />
     </div>
   );

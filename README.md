@@ -170,6 +170,7 @@ erDiagram
         text url
         timestamptz created_at
         timestamptz updated_at
+        text_array audience
     }
     faq_items {
         int8 id PK
@@ -239,6 +240,7 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
         tsvector search_vector "может быть пустым"
+        text_array audience
     }
     notes {
         int8 id PK
@@ -253,6 +255,7 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
         tsvector search_vector "может быть пустым"
+        text_array audience
     }
     pages {
         int8 id PK
@@ -304,6 +307,7 @@ erDiagram
         timestamptz updated_at
         bool queue_manual
         timestamptz queue_frozen_at "может быть пустым"
+        text_array audience
     }
     practice_signups {
         int8 id PK
@@ -363,6 +367,7 @@ erDiagram
         text group_name
         timestamptz created_at
         timestamptz updated_at
+        int4 stream
     }
     subjects {
         int8 id PK
@@ -379,6 +384,7 @@ erDiagram
         text icon
         text practice_teacher
         tsvector search_vector "может быть пустым"
+        text_array audience
     }
     users {
         int8 id PK

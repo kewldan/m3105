@@ -115,6 +115,7 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 	// на каждую), а складываются по порядку, чтобы дубли решались одинаково.
 	type tabResult struct {
 		rows []models.GradeRow
+		max  map[string]float64
 		err  error
 	}
 	results := make([]tabResult, len(tabs))
@@ -133,6 +134,7 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 			records, err := s.fetcher.CSV(ctx, src.SpreadsheetID, tab.GID)
 			if err == nil {
 				results[i].rows, err = ParseTab(records, src, tab.Name)
+				results[i].max = ParseMax(records, src)
 			}
 			results[i].err = err
 		}()
@@ -141,6 +143,9 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 
 	var rows []models.GradeRow
 	seen := map[string]bool{}
+	// Максимум столбца — с первой вкладки, где он есть: на вкладках разных
+	// потоков набор лаб бывает разным.
+	maxes := map[string]float64{}
 	for i, tab := range tabs {
 		r := results[i]
 		if errors.Is(r.err, ErrNoHeader) {
@@ -151,6 +156,11 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 			return res, fmt.Errorf("вкладка %q: %w", tab.Name, r.err)
 		}
 		res.Tabs = append(res.Tabs, tab.Name)
+		for k, v := range r.max {
+			if _, ok := maxes[k]; !ok {
+				maxes[k] = v
+			}
+		}
 		for _, row := range r.rows {
 			// Студент, попавший в две вкладки, считается один раз — по первой.
 			if seen[row.RowKey] {
@@ -167,12 +177,29 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 		return res, err
 	}
 	res.Rows = len(rows)
+	if changed := changedMax(src.Columns, maxes); len(changed) > 0 {
+		if err := s.store.SetGradeColumnMax(ctx, src.ID, changed); err != nil {
+			return res, err
+		}
+		s.log.Info("column max from sheet", "source", src.ID, "changed", changed)
+	}
 	linked, err := s.LinkByName(ctx)
 	if err != nil {
 		s.log.Warn("link by name", "err", err)
 	}
 	res.Linked = linked
 	return res, nil
+}
+
+// changedMax keeps the sheet maxima that differ from the configured ones.
+func changedMax(cols []models.GradeColumn, sheet map[string]float64) map[string]float64 {
+	out := map[string]float64{}
+	for _, c := range cols {
+		if v, ok := sheet[c.Key]; ok && v != c.Max {
+			out[c.Key] = v
+		}
+	}
+	return out
 }
 
 // LinkByName gives confirmed accounts without an ISU the number of the sheet

@@ -51,6 +51,7 @@ const gradesHeader = ",ФИО, github,-,+,D,12,1,-,+,D,12,2,Live,Лабы,Экз
 
 func TestGrades(t *testing.T) {
 	setFakeTab("11", gradesHeader+
+		",max число баллов,,,,,,10,,,,,12,,,40,100,\n"+
 		`1,Грейдов Георгий Ильич,ivan,2,,0,12,"11,04",,,,,0,,"11,04",,"11,04",100001`+"\n"+
 		`2,Баллов Борис Борисович,petr,,2,0,12,"12,96",,,0,12,12,,"24,96",,"24,96",100002`+"\n"+
 		`3,Рейтингова Анна Сергеевна,anna,,,,,0,,,,,0,,0,,0,100003`+"\n")
@@ -84,8 +85,17 @@ func TestGrades(t *testing.T) {
 	}
 
 	// Рейтинг открыт всем: и гостю без входа, и неподтверждённому аккаунту.
-	if guest := newClient(t).do("GET", "/api/v1/grades", nil, 200); len(guest["rows"].([]any)) != 4 {
+	guest := newClient(t).do("GET", "/api/v1/grades", nil, 200)
+	if len(guest["rows"].([]any)) != 4 {
 		t.Fatalf("guest rating: %v", guest)
+	}
+	// Максимумы берутся из строки «max» таблицы, подписи и порядок остаются.
+	gotCols := guest["source"].(map[string]any)["columns"].([]any)
+	if c := gotCols[0].(map[string]any); c["key"] != "lab1" || c["max"] != float64(10) || c["label"] != "Лаба 1" {
+		t.Fatalf("max not taken from the sheet: %v", gotCols)
+	}
+	if c := gotCols[2].(map[string]any); c["key"] != "exam" || c["max"] != float64(40) {
+		t.Fatalf("columns reordered or changed: %v", gotCols)
 	}
 	u := newClient(t)
 	u.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": "Боря Тестов"}, 200)

@@ -79,22 +79,62 @@ func findHeader(records [][]string, head int, want string) int {
 	return -1
 }
 
+// headerRow returns the index of the row with the name column (and the total
+// column at or above it), or -1.
+func headerRow(records [][]string, src models.GradeSource) int {
+	if columnNumberRe.MatchString(src.NameColumn) {
+		return -1
+	}
+	for i := 0; i < len(records) && i < headerScan; i++ {
+		if findColumn(records[i], src.NameColumn) >= 0 &&
+			(src.TotalColumn == "" || findHeader(records, i, src.TotalColumn) >= 0) {
+			return i
+		}
+	}
+	return -1
+}
+
+// maxRowRe matches the name cell of the row with the most each column gives:
+// «max число баллов», «Максимум».
+var maxRowRe = regexp.MustCompile(`^(?i)(max|макс)`)
+
+// ParseMax reads the maximum of each breakdown column from the row under the
+// header whose name cell starts with «max»: teachers renumber labs and move
+// points between them during the term, and the sheet is the one place that
+// stays right. Columns missing on the tab or empty in that row are left out;
+// nil means the tab has no such row.
+func ParseMax(records [][]string, src models.GradeSource) map[string]float64 {
+	head := headerRow(records, src)
+	if head < 0 {
+		return nil
+	}
+	nameCol := findHeader(records, head, src.NameColumn)
+	for _, rec := range records[head+1:] {
+		if nameCol >= len(rec) || !maxRowRe.MatchString(strings.TrimSpace(rec[nameCol])) {
+			continue
+		}
+		out := map[string]float64{}
+		for _, c := range src.Columns {
+			j := findHeader(records, head, c.Header)
+			if j < 0 || j >= len(rec) {
+				continue
+			}
+			if v := ParseNumber(rec[j]); v != nil && *v >= 0 {
+				out[c.Key] = *v
+			}
+		}
+		return out
+	}
+	return nil
+}
+
 // ParseTab turns a tab into rows. The header row is the one with the name
 // column; other titles may sit above it. The group of a row comes from the
 // group column, else from the latest section row ("M3105" alone in a row),
 // else from the tab name. Without a total column the total is the sum of the
 // breakdown.
 func ParseTab(records [][]string, src models.GradeSource, tabName string) ([]models.GradeRow, error) {
-	head := -1
-	if !columnNumberRe.MatchString(src.NameColumn) {
-		for i := 0; i < len(records) && i < headerScan; i++ {
-			if findColumn(records[i], src.NameColumn) >= 0 &&
-				(src.TotalColumn == "" || findHeader(records, i, src.TotalColumn) >= 0) {
-				head = i
-				break
-			}
-		}
-	}
+	head := headerRow(records, src)
 	if head < 0 {
 		return nil, ErrNoHeader
 	}

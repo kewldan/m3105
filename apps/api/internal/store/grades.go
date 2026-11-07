@@ -110,6 +110,16 @@ func (s *Store) ReplaceGradeRows(ctx context.Context, sourceID int64, rows []mod
 	})
 }
 
+// SetGradeColumnMax overwrites the max of the columns with these keys, leaving
+// the rest of the settings alone (an admin may be editing them right now).
+func (s *Store) SetGradeColumnMax(ctx context.Context, id int64, maxes map[string]float64) error {
+	return s.exec(ctx, `UPDATE grade_sources SET columns = (
+			SELECT coalesce(jsonb_agg(CASE WHEN $2::jsonb ? (c->>'key')
+				THEN jsonb_set(c, '{max}', $2::jsonb -> (c->>'key')) ELSE c END ORDER BY n), '[]'::jsonb)
+			FROM jsonb_array_elements(columns) WITH ORDINALITY AS t(c, n))
+		WHERE id = $1`, id, maxes)
+}
+
 // ListGradeSourceIDsByISU returns the sources that have a row with this ISU.
 func (s *Store) ListGradeSourceIDsByISU(ctx context.Context, isu string) (map[int64]bool, error) {
 	out := map[int64]bool{}

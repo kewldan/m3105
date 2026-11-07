@@ -164,3 +164,23 @@ func TestMatchByName(t *testing.T) {
 		t.Fatalf("matches: %v", got)
 	}
 }
+
+func TestParseMax(t *testing.T) {
+	src := models.GradeSource{NameColumn: "ФИО", IDColumn: "#1", TotalColumn: "Итого", Columns: []models.GradeColumn{
+		{Key: "lab1", Header: "ЛР1"}, {Key: "lab5", Header: "ЛР5"}, {Key: "lab7", Header: "ЛР7"}, {Key: "t1", Header: "Т1"},
+	}}
+	got := ParseMax(records(t, ",ФИО,ЛР1 (sort),ЛР5 (куча),\"Т1\nИнтро\",Итого\n"+
+		",max число баллов,6.00,0.00,,100.00\n"+
+		"561070,Трапш Тариэл Георгиевич,6.00,,5,31.53\n"), src)
+	want := map[string]float64{"lab1": 6, "lab5": 0}
+	if len(got) != len(want) || got["lab1"] != 6 || got["lab5"] != 0 {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if m := ParseMax(records(t, ",ФИО,ЛР1,Итого\n1,Иванов Иван,6,6\n"), src); m != nil {
+		t.Fatalf("no max row: %v", m)
+	}
+	cols := []models.GradeColumn{{Key: "lab1", Max: 6}, {Key: "lab5", Max: 7}, {Key: "lab7"}}
+	if ch := changedMax(cols, got); len(ch) != 1 || ch["lab5"] != 0 {
+		t.Fatalf("changed: %v", ch)
+	}
+}

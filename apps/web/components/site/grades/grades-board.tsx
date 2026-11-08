@@ -2,6 +2,7 @@
 
 import {
   CrosshairIcon,
+  GitCompareArrowsIcon,
   LogInIcon,
   SearchIcon,
   TrophyIcon,
@@ -13,6 +14,11 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/site/empty-state";
+import {
+  buildOpponents,
+  CompareDialog,
+  quickPicks,
+} from "@/components/site/grades/compare-dialog";
 import { LetterChip } from "@/components/site/grades/letter-chip";
 import { PartBars } from "@/components/site/grades/part-bars";
 import { ScoreRing } from "@/components/site/grades/score-ring";
@@ -164,9 +170,12 @@ function Distribution({
 function RatingList({
   rows,
   source,
+  onCompare,
 }: {
   rows: Row[];
   source: GradeSourceSummary;
+  /** Opens the comparison with this row; absent without my own row. */
+  onCompare?: (row: Row) => void;
 }) {
   const [open, setOpen] = useState<number | null>(null);
   return (
@@ -239,10 +248,22 @@ function RatingList({
                   parts={r.parts}
                   color={source.subjectColor}
                 />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Баллы менялись {fmtRelative(r.changedAt)}
-                  {r.user ? " · есть аккаунт на сайте" : ""}
-                </p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Баллы менялись {fmtRelative(r.changedAt)}
+                    {r.user ? " · есть аккаунт на сайте" : ""}
+                  </p>
+                  {onCompare && !r.me ? (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => onCompare(r)}
+                    >
+                      <GitCompareArrowsIcon data-icon="inline-start" />
+                      Сравнить со мной
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
           </li>
@@ -313,6 +334,7 @@ function MyResult({
   siteSize,
   source,
   grouped,
+  onCompare,
 }: {
   me: RankedEntry;
   ranked: RankedEntry[];
@@ -323,6 +345,7 @@ function MyResult({
   source: GradeSourceSummary;
   /** False for one group's sheet: no study-group place, the course is the sheet. */
   grouped: boolean;
+  onCompare: () => void;
 }) {
   const places = grouped
     ? [
@@ -381,6 +404,12 @@ function MyResult({
               ? `Вы первый ${grouped ? "на курсе" : "в таблице"}.`
               : ""}
         </p>
+        {ranked.length > 1 ? (
+          <Button variant="outline" size="sm" onClick={onCompare}>
+            <GitCompareArrowsIcon data-icon="inline-start" />
+            Сравнить с другими
+          </Button>
+        ) : null}
       </div>
     </section>
   );
@@ -432,6 +461,31 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
     : scoped;
   const totals = scoped.map((r) => r.total);
   const mine = (grouped ? group : course).find((r) => r.me);
+  // Сравнение идёт по местам на курсе: в группе своя нумерация.
+  const courseMe = course.find((r) => r.me);
+
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareId, setCompareId] = useState<string | null>(null);
+  const opponents = useMemo(
+    () =>
+      source && courseMe
+        ? buildOpponents({
+            course,
+            group: hasGroup ? group : [],
+            myGroup,
+            grouped,
+            source,
+          })
+        : [],
+    [source, courseMe, course, group, hasGroup, myGroup, grouped],
+  );
+  const picks = courseMe
+    ? quickPicks({ me: courseMe, course, group, grouped })
+    : [];
+  const openCompare = (id: string | null) => {
+    setCompareId(id ?? picks[0]?.id ?? null);
+    setCompareOpen(true);
+  };
 
   const switchSource = async (id: number) => {
     if (id === source?.id) return;
@@ -439,6 +493,8 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
     try {
       const next = await userApi.grades(id);
       setData(next);
+      setCompareOpen(false);
+      setCompareId(null);
       setScope(
         !next.source?.membersOnly &&
           next.rows.some((r) => r.group === next.myGroup)
@@ -496,6 +552,7 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
           siteSize={site.length}
           source={source}
           grouped={grouped}
+          onCompare={() => openCompare(null)}
         />
       ) : ctxMe ? (
         <section className="space-y-3 rounded-2xl border border-dashed p-5">
@@ -626,8 +683,27 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
           className="py-8"
         />
       ) : (
-        <RatingList key={source.id} rows={visible} source={source} />
+        <RatingList
+          key={source.id}
+          rows={visible}
+          source={source}
+          onCompare={courseMe ? (r) => openCompare(`row:${r.key}`) : undefined}
+        />
       )}
+
+      {courseMe ? (
+        <CompareDialog
+          open={compareOpen}
+          onOpenChange={setCompareOpen}
+          me={courseMe}
+          opponentId={compareId}
+          onOpponentChange={setCompareId}
+          opponents={opponents}
+          picks={picks}
+          source={source}
+          courseSize={course.length}
+        />
+      ) : null}
 
       <p className="text-xs text-muted-foreground">
         Данные из таблицы преподавателя

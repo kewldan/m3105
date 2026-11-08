@@ -1,4 +1,4 @@
-import type { GradeEntry } from "@/lib/api/types";
+import type { GradeColumn, GradeEntry, GradeParts } from "@/lib/api/types";
 
 /** ITMO letter grades: the lowest score (out of 100) for each letter. */
 export const LETTERS = [
@@ -130,4 +130,59 @@ export function groupStats(rows: GradeEntry[], max: number): GroupStat[] {
         totals.filter((t) => letterFor(t, max) !== "F").length / totals.length,
     }))
     .sort((a, b) => b.mean - a.mean || a.group.localeCompare(b.group, "ru"));
+}
+
+/**
+ * Per-column mean over the rows that have the column at all (another stream's
+ * tab may lack it); an empty cell counts as zero, as it does in the total.
+ */
+export function averageParts(
+  rows: GradeEntry[],
+  columns: GradeColumn[],
+): GradeParts {
+  const out: GradeParts = {};
+  for (const col of columns) {
+    const values = rows
+      .filter((r) => col.key in r.parts)
+      .map((r) => r.parts[col.key] ?? 0);
+    if (values.length) out[col.key] = mean(values);
+  }
+  return out;
+}
+
+export type PartDiff = {
+  column: GradeColumn;
+  /** undefined — no such column on the tab, null — empty cell. */
+  mine: number | null | undefined;
+  theirs: number | null | undefined;
+  /** mine − theirs; null when one side has no such column. */
+  delta: number | null;
+};
+
+/** Column-by-column comparison; columns absent on both sides are skipped. */
+export function diffParts(
+  columns: GradeColumn[],
+  mine: GradeParts,
+  theirs: GradeParts,
+): PartDiff[] {
+  return columns
+    .filter((col) => col.key in mine || col.key in theirs)
+    .map((column) => {
+      const a = column.key in mine ? mine[column.key] : undefined;
+      const b = column.key in theirs ? theirs[column.key] : undefined;
+      return {
+        column,
+        mine: a,
+        theirs: b,
+        delta: a === undefined || b === undefined ? null : (a ?? 0) - (b ?? 0),
+      };
+    });
+}
+
+/** Signed score: «+1,5», «−2», «0». */
+export function fmtDelta(v: number): string {
+  // Округляем модуль, как fmtScore: иначе −5,625 станет «−5,62», а 5,625 — «5,63».
+  const r = Math.round(Math.abs(v) * 100) / 100;
+  if (r === 0) return "0";
+  return `${v > 0 ? "+" : "−"}${fmtScore(r)}`;
 }

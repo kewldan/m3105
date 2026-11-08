@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BanIcon,
   CheckCircle2Icon,
   ClockIcon,
   LogInIcon,
@@ -10,6 +11,7 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import {
   isPending,
@@ -22,11 +24,15 @@ import {
   SwapRequests,
 } from "@/components/site/practice/queue-actions";
 import { QueueList } from "@/components/site/practice/queue-list";
-import { SignupDialog } from "@/components/site/practice/signup-dialog";
+import {
+  SignupDialog,
+  signupErrorMessage,
+} from "@/components/site/practice/signup-dialog";
 import { SubjectBadge } from "@/components/site/subject-badge";
 import { useUser } from "@/components/site/user-provider";
 import { Button } from "@/components/ui/button";
 import type { PracticeSessionView } from "@/lib/api/types";
+import { userApi } from "@/lib/api/user";
 import { formatAudience } from "@/lib/audience";
 import { fmtDateTime, fmtTime, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -46,9 +52,22 @@ export function SessionCard({
   const reduce = useReducedMotion();
   const { me } = useUser();
   const [open, setOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const mine = session.myLabIds.length > 0;
+  const canceled = session.canceled;
   // Пропуск и обмены — только по сохранённому порядку и пока сдача не прошла.
-  const canTrade = mine && session.frozen && !session.past && !!me;
+  const canTrade = mine && session.frozen && !session.past && !canceled && !!me;
+
+  async function leave() {
+    setLeaving(true);
+    try {
+      onChange(await userApi.practiceCancel(session.id));
+    } catch (err) {
+      toast.error(signupErrorMessage(err));
+    } finally {
+      setLeaving(false);
+    }
+  }
   const seatsLeft =
     session.capacity != null
       ? Math.max(0, session.capacity - session.queue.length)
@@ -62,7 +81,7 @@ export function SessionCard({
         "scroll-mt-24 rounded-2xl border bg-card p-4 transition-shadow sm:p-5",
         mine && "border-emerald-500/40",
         highlighted && "ring-2 ring-primary/40",
-        session.past && "opacity-70",
+        (session.past || canceled) && "opacity-70",
       )}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -79,7 +98,14 @@ export function SessionCard({
                 Вы записаны
               </span>
             ) : null}
-            {session.full && !session.past ? (
+            {canceled ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                <BanIcon className="size-3" aria-hidden />
+                Отменена
+                {session.cancelReason ? `: ${session.cancelReason}` : ""}
+              </span>
+            ) : null}
+            {session.full && !session.past && !canceled ? (
               <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
                 Дальше — резерв
               </span>
@@ -91,7 +117,12 @@ export function SessionCard({
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            <span className="inline-flex items-center gap-1.5 font-medium">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 font-medium",
+                canceled && "line-through",
+              )}
+            >
               <ClockIcon className="size-4 text-muted-foreground" aria-hidden />
               {fmtTime(session.startsAt, tz)}
               {session.endsAt ? `–${fmtTime(session.endsAt, tz)}` : ""}
@@ -107,7 +138,7 @@ export function SessionCard({
               {session.capacity != null
                 ? `${session.queue.length} из ${session.capacity} ${plural(session.capacity, "защиты", "защит", "защит")}`
                 : `${session.signupsCount} ${plural(session.signupsCount, "человек", "человека", "человек")}`}
-              {seatsLeft != null && seatsLeft > 0 && !session.past
+              {seatsLeft != null && seatsLeft > 0 && !session.past && !canceled
                 ? ` · свободно ${seatsLeft}`
                 : ""}
             </span>
@@ -127,7 +158,19 @@ export function SessionCard({
             </p>
           ) : null}
         </div>
-        {!session.past ? (
+        {canceled && mine && me && !session.past ? (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={leaving}
+              onClick={() => void leave()}
+            >
+              Убрать запись
+            </Button>
+          </div>
+        ) : null}
+        {!session.past && !canceled ? (
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {isPending(me) ? (
               <PendingNotice />
@@ -194,7 +237,7 @@ export function SessionCard({
                 : undefined
             }
           />
-          {!session.past ? (
+          {!session.past && !canceled ? (
             <p className="text-xs text-muted-foreground">
               {session.frozen
                 ? canTrade
@@ -206,7 +249,9 @@ export function SessionCard({
         </div>
       ) : (
         <p className="mt-4 text-xs text-muted-foreground">
-          Пока никто не записался.
+          {canceled
+            ? "Занятия не будет — запишитесь на другую сдачу."
+            : "Пока никто не записался."}
         </p>
       )}
 

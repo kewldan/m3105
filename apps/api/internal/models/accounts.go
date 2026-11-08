@@ -157,6 +157,14 @@ type PracticeSession struct {
 	QueueManual bool `db:"queue_manual" json:"-"`
 	// QueueFrozen: the order has been frozen and stored in queue_pos.
 	QueueFrozen bool `db:"queue_frozen" json:"-"`
+	// RuleID is the regular rule the session comes from; nil for a one-off.
+	RuleID *int64 `db:"rule_id" json:"ruleId"`
+	// OccursOn is the rule's date the session stands for.
+	OccursOn *time.Time `db:"occurs_on" json:"-"`
+	// Overridden: changed by hand, edits of the rule leave it alone.
+	Overridden   bool   `db:"overridden" json:"overridden"`
+	Canceled     bool   `db:"canceled" json:"canceled"`
+	CancelReason string `db:"cancel_reason" json:"cancelReason"`
 }
 
 // PracticeSessionInput is the admin create/update payload.
@@ -169,6 +177,10 @@ type PracticeSessionInput struct {
 	Location  string     `json:"location"`
 	Capacity  *int       `json:"capacity"`
 	Note      string     `json:"note"`
+	// Canceled cancels or restores the session; nil keeps it as it is. The
+	// form leaves it out, a journal snapshot carries it back on a revert.
+	Canceled     *bool  `json:"canceled"`
+	CancelReason string `json:"cancelReason"`
 }
 
 // Validate normalises and checks the payload.
@@ -177,6 +189,7 @@ func (in *PracticeSessionInput) Validate() error {
 	checkAudience(ve, &in.Audience)
 	in.Location = strings.TrimSpace(in.Location)
 	in.Note = strings.TrimSpace(in.Note)
+	in.CancelReason = strings.TrimSpace(in.CancelReason)
 	if in.SubjectID <= 0 {
 		ve.Add("subjectId", "Выберите предмет")
 	}

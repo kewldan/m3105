@@ -369,6 +369,9 @@ func (h *Handler) mountAdmin(r chi.Router) {
 		r.With(h.practiceInZone).Get("/{id}/signups", h.adminPracticeSignups)
 		r.With(h.practiceInZone).Put("/{id}/signups/order", h.adminReorderSignups)
 		r.With(h.practiceInZone).Post("/{id}/signups/auto", h.adminAutoQueue)
+		r.With(h.practiceInZone).Post("/{id}/cancel", h.cancelPractice)
+		r.With(h.practiceInZone).Post("/{id}/restore", h.restorePractice)
+		r.With(h.practiceInZone).Post("/{id}/reset", h.resetPractice)
 		mount[models.PracticeSession, models.PracticeSessionInput](h, r, crud[models.PracticeSession, models.PracticeSessionInput]{
 			entity: "practice",
 			list: func(ctx context.Context, r *http.Request) (any, error) {
@@ -379,14 +382,15 @@ func (h *Handler) mountAdmin(r chi.Router) {
 			},
 			get:         st.GetPracticeSession,
 			create:      st.CreatePracticeSession,
-			update:      st.UpdatePracticeSession,
+			update:      h.updatePractice,
 			del:         st.DeletePracticeSession,
 			inAudience:  func(_ context.Context, in *models.PracticeSessionInput) ([]string, error) { return in.Audience, nil },
 			rowAudience: func(_ context.Context, s models.PracticeSession) ([]string, error) { return s.Audience, nil },
 			idOf:        func(s models.PracticeSession) int64 { return s.ID },
-			titleOf:     func(s models.PracticeSession) string { return s.SubjectName + ", " + s.StartsAt.Format("02.01 15:04") },
+			titleOf:     practiceTitle,
 		})
 	})
+	r.Route("/practice-rules", h.mountPracticeRules)
 
 	r.Route("/subjects", func(r chi.Router) {
 		// Editors read subjects to pick one; only the admin changes them.

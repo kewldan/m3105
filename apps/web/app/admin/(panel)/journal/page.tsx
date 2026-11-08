@@ -32,6 +32,7 @@ const ENTITY: Record<Edit["entity"], string> = {
   quizzes: "Квиз",
   events: "Событие",
   practice: "Сдача",
+  "practice-rules": "Регулярная сдача",
 };
 const ACTION: Record<Edit["action"], { label: string; cls: string }> = {
   create: { label: "создание", cls: "text-emerald-700 dark:text-emerald-300" },
@@ -72,6 +73,7 @@ function entityHref(e: Edit): string | null {
   if (e.action === "delete") return null;
   if (e.entity === "labs" || e.entity === "notes" || e.entity === "quizzes")
     return `/admin/${e.entity}/${e.entityId}`;
+  if (e.entity === "practice-rules") return "/admin/practice?tab=rules";
   return `/admin/${e.entity}`;
 }
 

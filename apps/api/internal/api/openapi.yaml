@@ -844,6 +844,7 @@ components:
         subject: { oneOf: [{ $ref: "#/components/schemas/SubjectRef" }, { type: "null" }] }
         labNumber: { type: integer, description: "Только для `source: lab`" }
         labId: { type: integer, description: "Только для `source: lab`" }
+        canceled: { type: boolean, description: "Только для `source: practice`: занятие отменено (в ICS — `STATUS:CANCELLED`)" }
       required: [id, source, kind, title, startsAt, endsAt, allDay, location, description, path, url, subject]
 
     SearchResult:
@@ -979,7 +980,11 @@ components:
             updatedAt: { $ref: "#/components/schemas/DateTime" }
             signupsCount: { type: integer, description: "Число записавшихся студентов" }
             audience: { $ref: "#/components/schemas/Audience" }
-          required: [id, subjectId, startsAt, endsAt, location, capacity, note, createdAt, updatedAt, signupsCount, audience]
+            ruleId: { oneOf: [{ type: integer }, { type: "null" }], description: "Регулярное правило, по которому создано занятие; `null` — разовая сдача" }
+            overridden: { type: boolean, description: "Занятие правила поменяли вручную (перенос, другая аудитория): правка правила его не трогает" }
+            canceled: { type: boolean, description: "Занятие отменено: записаться нельзя, выйти из записи можно" }
+            cancelReason: { type: string, description: "Причина отмены; пусто, если не указана" }
+          required: [id, subjectId, startsAt, endsAt, location, capacity, note, createdAt, updatedAt, signupsCount, audience, ruleId, overridden, canceled, cancelReason]
 
     PracticeSessionView:
       allOf:

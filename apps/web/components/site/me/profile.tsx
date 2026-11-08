@@ -287,6 +287,14 @@ export function Profile({
                           {s.session.location}
                         </span>
                       ) : null}
+                      {s.session.canceled ? (
+                        <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                          Отменена
+                          {s.session.cancelReason
+                            ? `: ${s.session.cancelReason}`
+                            : ""}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {s.labs.map((l) => (

@@ -586,7 +586,10 @@ func (h *Handler) practiceView(r *http.Request, id int64) (models.PracticeSessio
 	return views[0], sc, nil
 }
 
-var errPracticeOver = &httpx.ValidationError{Fields: map[string]string{"_": "Эта сдача уже прошла"}}
+var (
+	errPracticeOver     = &httpx.ValidationError{Fields: map[string]string{"_": "Эта сдача уже прошла"}}
+	errPracticeCanceled = &httpx.ValidationError{Fields: map[string]string{"_": "Эта сдача отменена"}}
+)
 
 // practiceNotForYou answers a signup to a session for other groups.
 func practiceNotForYou(w http.ResponseWriter) {
@@ -604,13 +607,17 @@ func practiceOver(sess models.PracticeSession) bool {
 
 // openPractice loads a session that has not ended yet and freezes due queues,
 // so that a change made after 20:00 the day before works on the stored order.
-func (h *Handler) openPractice(ctx context.Context, id int64) (models.PracticeSession, error) {
+// A canceled session is open only to leave it (canceledOK).
+func (h *Handler) openPractice(ctx context.Context, id int64, canceledOK bool) (models.PracticeSession, error) {
 	sess, err := h.store.GetPracticeSession(ctx, id)
 	if err != nil {
 		return sess, err
 	}
 	if practiceOver(sess) {
 		return sess, errPracticeOver
+	}
+	if sess.Canceled && !canceledOK {
+		return sess, errPracticeCanceled
 	}
 	if sc, err := h.site(ctx); err == nil {
 		h.freezeQueues(ctx, sc.Loc)
@@ -636,7 +643,7 @@ func (h *Handler) setPracticeSignup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Заморозить до записи: запись после 20:00 накануне должна встать в конец.
-	sess, err := h.openPractice(ctx, id)
+	sess, err := h.openPractice(ctx, id, len(in.LabIDs) == 0)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -670,7 +677,7 @@ func (h *Handler) skipPractice(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	if _, err := h.openPractice(ctx, id); err != nil {
+	if _, err := h.openPractice(ctx, id, false); err != nil {
 		httpx.Fail(w, err)
 		return
 	}
@@ -691,7 +698,7 @@ func (h *Handler) notReachedPractice(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	if _, err := h.openPractice(ctx, id); err != nil {
+	if _, err := h.openPractice(ctx, id, false); err != nil {
 		httpx.Fail(w, err)
 		return
 	}
@@ -744,7 +751,7 @@ func (h *Handler) requestSwap(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	if _, err := h.openPractice(ctx, id); err != nil {
+	if _, err := h.openPractice(ctx, id, false); err != nil {
 		httpx.Fail(w, err)
 		return
 	}

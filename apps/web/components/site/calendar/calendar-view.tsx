@@ -282,6 +282,7 @@ export function CalendarView({
                                   className={cn(
                                     "inline-flex items-center gap-1 truncate rounded px-1 py-0.5 text-[11px] leading-tight",
                                     c ? c.badge : "bg-primary/10 text-primary",
+                                    it.canceled && "line-through opacity-60",
                                   )}
                                 >
                                   <Icon

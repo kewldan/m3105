@@ -293,7 +293,13 @@ export type Edit = {
   id: number;
   actorId: number | null;
   actorName: string;
-  entity: "labs" | "notes" | "quizzes" | "events" | "practice";
+  entity:
+    | "labs"
+    | "notes"
+    | "quizzes"
+    | "events"
+    | "practice"
+    | "practice-rules";
   entityId: number;
   action: "create" | "update" | "delete";
   title: string;
@@ -329,6 +335,82 @@ export type PracticeSessionInput = {
   location: string;
   capacity: number | null;
   note: string;
+  /** Отменить (true) или вернуть (false); не передано — как есть. */
+  canceled?: boolean | null;
+  cancelReason?: string;
+};
+
+/** Какие недели: все, нечётные или чётные (по началу семестра в настройках). */
+export type RuleWeeks = "all" | "odd" | "even";
+
+/** Регулярная сдача: по ней занятия создаются сразу на весь период. */
+export type PracticeRule = {
+  id: number;
+  subjectId: number;
+  /** 1 — понедельник … 7 — воскресенье. */
+  weekday: number;
+  /** "ЧЧ:ММ" по времени сайта; `endTime` может быть пустым. */
+  startTime: string;
+  endTime: string;
+  weeks: RuleWeeks;
+  /** "YYYY-MM-DD". */
+  startsOn: string;
+  endsOn: string;
+  location: string;
+  capacity: number | null;
+  note: string;
+  audience: string[];
+  createdAt: string;
+  updatedAt: string;
+  subjectSlug: string;
+  subjectName: string;
+  subjectShortName: string;
+  subjectColor: SubjectColor;
+  subjectIcon: string;
+  sessionsCount: number;
+  upcomingCount: number;
+  canceledCount: number;
+  /** Начала ближайших неотменённых занятий. */
+  next: string[];
+};
+
+export type PracticeRuleInput = Pick<
+  PracticeRule,
+  | "subjectId"
+  | "weekday"
+  | "startTime"
+  | "endTime"
+  | "weeks"
+  | "startsOn"
+  | "endsOn"
+  | "location"
+  | "capacity"
+  | "note"
+  | "audience"
+>;
+
+/** Что сохранение правила сделает с датой. */
+export type PracticeRulePlanAction =
+  | "create"
+  | "adopt"
+  | "update"
+  | "keep"
+  | "manual"
+  | "canceled"
+  | "past"
+  | "delete"
+  | "cancel"
+  | "detach";
+
+export type PracticeRulePlanItem = {
+  day: string;
+  startsAt: string;
+  endsAt: string | null;
+  action: PracticeRulePlanAction;
+  sessionId: number | null;
+  signups: number;
+  /** Привязанная сдача отличается от правила и останется изменённой вручную. */
+  differs: boolean;
 };
 
 export type MySignup = { session: PracticeSession; labs: LabRef[] };

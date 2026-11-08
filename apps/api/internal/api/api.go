@@ -311,11 +311,17 @@ func practiceToItem(p models.PracticeSession) models.CalendarItem {
 	if p.Capacity != nil {
 		desc = strings.TrimSpace(desc + "\n" + fmt.Sprintf("Мест: %d, записалось: %d", *p.Capacity, p.SignupsCount))
 	}
+	title := "Сдача лаб · " + name
+	if p.Canceled {
+		title = "Отменена: " + title
+		desc = strings.TrimSpace(p.CancelReason + "\n" + desc)
+	}
 	return models.CalendarItem{
 		ID:          "practice-" + strconv.FormatInt(p.ID, 10),
 		Source:      "practice",
 		Kind:        "practice",
-		Title:       "Сдача лаб · " + name,
+		Canceled:    p.Canceled,
+		Title:       title,
 		StartsAt:    p.StartsAt,
 		EndsAt:      p.EndsAt,
 		Location:    p.Location,

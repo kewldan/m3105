@@ -32,7 +32,7 @@ func tagsForPath(path string) []string {
 		return []string{"settings", "home"}
 	case "events":
 		return []string{"calendar", "home"}
-	case "practice":
+	case "practice", "practice-rules":
 		return []string{"practice", "calendar", "home"}
 	case "grade-sources":
 		return []string{"grades"}

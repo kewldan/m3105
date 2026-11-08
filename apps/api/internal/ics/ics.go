@@ -18,6 +18,7 @@ type Item struct {
 	End         time.Time // zero for point-in-time items
 	AllDay      bool
 	Alarm       bool // add a reminder one day before
+	Canceled    bool // STATUS:CANCELLED: calendar apps strike it out or drop it
 }
 
 func escape(s string) string {
@@ -88,6 +89,9 @@ func Render(name string, items []Item, now time.Time) string {
 			w("DTEND:" + end.UTC().Format("20060102T150405Z"))
 		}
 		w("SUMMARY:" + escape(it.Title))
+		if it.Canceled {
+			w("STATUS:CANCELLED")
+		}
 		if it.Description != "" {
 			w("DESCRIPTION:" + escape(it.Description))
 		}

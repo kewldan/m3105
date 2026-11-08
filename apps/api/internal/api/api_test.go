@@ -196,6 +196,28 @@ func (c *client) do(method, path string, body any, want int) map[string]any {
 	return out
 }
 
+// listPost sends a JSON body and expects a list back.
+func (c *client) listPost(path string, body any) []map[string]any {
+	c.t.Helper()
+	b, _ := json.Marshal(body)
+	req, _ := http.NewRequest("POST", srvURL+path, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	if c.authz != "" {
+		req.Header.Set("Authorization", c.authz)
+	}
+	res, err := c.hc.Do(req)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(res.Body)
+	var out []map[string]any
+	if res.StatusCode != 200 || json.Unmarshal(raw, &out) != nil {
+		c.t.Fatalf("POST %s: status %d: %s", path, res.StatusCode, raw)
+	}
+	return out
+}
+
 func (c *client) list(path string, want int) []map[string]any {
 	c.t.Helper()
 	req, _ := http.NewRequest("GET", srvURL+path, nil)
@@ -947,4 +969,229 @@ func TestBearerToken(t *testing.T) {
 	if got := get(""); got != 401 {
 		t.Fatalf("no header: status %d, want 401", got)
 	}
+}
+
+// Регулярные сдачи: правило создаёт занятия и забирает разовые на свои даты,
+// исключения переживают правку правила, ответственный правит только свою зону.
+func TestPracticeRules(t *testing.T) {
+	admin := newClient(t).bearer(testAPIToken)
+	settings := admin.do("GET", "/api/v1/admin/settings", nil, 200)
+	saved := map[string]any{}
+	for k, v := range settings {
+		saved[k] = v
+	}
+	t.Cleanup(func() { admin.do("PUT", "/api/v1/admin/settings", saved, 200) })
+	loc, err := time.LoadLocation(settings["timezone"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// base — понедельник следующей недели; семестр начинается в его неделю, она нечётная.
+	now := time.Now().In(loc)
+	wd := int(now.Weekday())
+	if wd == 0 {
+		wd = 7
+	}
+	base := time.Date(now.Year(), now.Month(), now.Day()+8-wd, 0, 0, 0, 0, loc)
+	day := func(weeks int) string { return base.AddDate(0, 0, 7*weeks).Format(time.DateOnly) }
+	at := func(weeks, h, m int) time.Time {
+		d := base.AddDate(0, 0, 7*weeks)
+		return time.Date(d.Year(), d.Month(), d.Day(), h, m, 0, 0, loc)
+	}
+	settings["semesterStart"] = day(0)
+	settings["firstWeekParity"] = "odd"
+	admin.do("PUT", "/api/v1/admin/settings", settings, 200)
+
+	admin.do("POST", "/api/v1/admin/students/import", map[string]string{"text": "ИСУ\tФИО\tПоток\tГруппа\n" +
+		"980001\tПравилов Пётр Петрович\t8\tM3181\n980002\tСтудентова Света Сергеевна\t8\tM3182\n"}, 200)
+	editor := claimAs(t, "Пётр Правилов", "Правилов Пётр Петрович")
+	student := claimAs(t, "Света Студентова", "Студентова Света Сергеевна")
+	admin.do("POST", "/api/v1/admin/editors", map[string]any{"userId": userIDByName(t, admin, "Пётр Правилов"), "scope": "stream:8"}, 201)
+
+	subj := admin.do("POST", "/api/v1/admin/subjects", map[string]any{"name": "Регулярный предмет", "color": "teal"}, 201)
+	subjectID := int64(subj["id"].(float64))
+	t.Cleanup(func() { admin.do("DELETE", fmt.Sprintf("/api/v1/admin/subjects/%d", subjectID), nil, 200) })
+	lab := admin.do("POST", "/api/v1/admin/labs", map[string]any{"subjectId": subjectID, "number": 1, "title": "Регулярная лаба", "status": "published"}, 201)
+	labID := int64(lab["id"].(float64))
+
+	// Разовая сдача, заведённая руками до правила, с записью.
+	legacy := admin.do("POST", "/api/v1/admin/practice", map[string]any{"subjectId": subjectID, "startsAt": at(0, 20, 30),
+		"endsAt": at(0, 22, 0), "location": "412", "capacity": 2}, 201)
+	legacyID := int64(legacy["id"].(float64))
+	student.do("PUT", fmt.Sprintf("/api/v1/practice/%d/signups", legacyID), map[string]any{"labIds": []int64{labID}}, 200)
+
+	rule := map[string]any{"subjectId": subjectID, "weekday": 1, "startTime": "20:30", "endTime": "22:00", "weeks": "all",
+		"startsOn": day(0), "endsOn": day(5), "location": "412", "capacity": 2}
+	actions := func(c *client, id any, r map[string]any) string {
+		t.Helper()
+		var out []string
+		for _, it := range c.listPost("/api/v1/admin/practice-rules/preview", map[string]any{"id": id, "rule": r}) {
+			out = append(out, it["day"].(string)[5:]+":"+it["action"].(string))
+		}
+		return strings.Join(out, " ")
+	}
+	want := fmt.Sprintf("%s:adopt %s:create %s:create %s:create %s:create %s:create",
+		day(0)[5:], day(1)[5:], day(2)[5:], day(3)[5:], day(4)[5:], day(5)[5:])
+	if got := actions(admin, nil, rule); got != want {
+		t.Fatalf("preview of a new rule:\n got %s\nwant %s", got, want)
+	}
+	created := admin.do("POST", "/api/v1/admin/practice-rules", rule, 201)
+	ruleID := created["id"].(float64)
+	if created["sessionsCount"] != float64(6) || created["upcomingCount"] != float64(6) || len(created["next"].([]any)) != 3 {
+		t.Fatalf("rule: %v", created)
+	}
+	admin.do("POST", "/api/v1/admin/practice-rules", map[string]any{"subjectId": subjectID, "weekday": 8, "startTime": "25:00",
+		"startsOn": day(1), "endsOn": day(0)}, 422)
+
+	sessionsOf := func() map[string]map[string]any {
+		t.Helper()
+		out := map[string]map[string]any{}
+		for _, s := range admin.list("/api/v1/admin/practice", 200) {
+			if s["subjectId"] != float64(subjectID) {
+				continue
+			}
+			starts, _ := time.Parse(time.RFC3339, s["startsAt"].(string))
+			out[starts.In(loc).Format(time.DateOnly)] = s
+		}
+		return out
+	}
+	byDay := sessionsOf()
+	if len(byDay) != 6 {
+		t.Fatalf("sessions: %v", byDay)
+	}
+	if s := byDay[day(0)]; s["id"] != float64(legacyID) || s["ruleId"] != ruleID || s["overridden"] != false || s["signupsCount"] != float64(1) {
+		t.Fatalf("legacy session must join the rule with its signups: %v", s)
+	}
+	idOf := func(d string) int64 { return int64(byDay[d]["id"].(float64)) }
+
+	// Перенос одного занятия: правка правила его не трогает, пока не вернуть к правилу.
+	week1 := fmt.Sprintf("/api/v1/admin/practice/%d", idOf(day(1)))
+	moved := admin.do("PUT", week1, map[string]any{"subjectId": subjectID, "startsAt": at(1, 18, 0), "endsAt": at(1, 19, 30),
+		"location": "101", "capacity": 3}, 200)
+	if moved["overridden"] != true || moved["ruleId"] != ruleID {
+		t.Fatalf("moved session: %v", moved)
+	}
+	rule["location"] = "500"
+	if got := actions(admin, ruleID, rule); !strings.Contains(got, day(1)[5:]+":manual") || !strings.Contains(got, day(2)[5:]+":update") {
+		t.Fatalf("preview of an edit: %s", got)
+	}
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice-rules/%v", ruleID), rule, 200)
+	byDay = sessionsOf()
+	if byDay[day(1)]["location"] != "101" || byDay[day(2)]["location"] != "500" || byDay[day(0)]["location"] != "500" {
+		t.Fatalf("rule edit: %v / %v", byDay[day(1)], byDay[day(2)])
+	}
+	reset := admin.do("POST", week1+"/reset", nil, 200)
+	if reset["overridden"] != false || reset["location"] != "500" || reset["capacity"] != float64(2) {
+		t.Fatalf("reset: %v", reset)
+	}
+	if starts, _ := time.Parse(time.RFC3339, reset["startsAt"].(string)); !starts.Equal(at(1, 20, 30)) {
+		t.Fatalf("reset time: %v", reset["startsAt"])
+	}
+	admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/reset", legacyID+1_000_000), nil, 404)
+
+	// Отмена с переносом записей на следующее занятие.
+	legacyURL := fmt.Sprintf("/api/v1/practice/%d", legacyID)
+	canceled := admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/cancel", legacyID), map[string]any{"reason": "Праздник", "moveSignups": true}, 200)
+	if canceled["canceled"] != true || canceled["cancelReason"] != "Праздник" || canceled["signupsCount"] != float64(0) {
+		t.Fatalf("cancel: %v", canceled)
+	}
+	admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/cancel", legacyID), map[string]any{}, 422)
+	if v := student.do("GET", fmt.Sprintf("/api/v1/practice/%d", idOf(day(1))), nil, 200); len(v["myLabIds"].([]any)) != 1 {
+		t.Fatalf("signups must move to the next session: %v", v["myLabIds"])
+	}
+	student.do("PUT", legacyURL+"/signups", map[string]any{"labIds": []int64{labID}}, 422)
+	student.do("DELETE", legacyURL+"/signups", nil, 200)
+	cal := newClient(t).do("GET", "/api/v1/calendar", nil, 200)
+	found := false
+	for _, it := range cal["items"].([]any) {
+		if m := it.(map[string]any); m["id"] == fmt.Sprintf("practice-%d", legacyID) {
+			found = m["canceled"] == true && strings.HasPrefix(m["title"].(string), "Отменена")
+		}
+	}
+	if !found {
+		t.Fatal("a canceled session must stay in the calendar, marked")
+	}
+	// Отменённое занятие правило заново не создаёт и не трогает.
+	if got := actions(admin, ruleID, rule); !strings.HasPrefix(got, day(0)[5:]+":canceled") {
+		t.Fatalf("preview with a canceled date: %s", got)
+	}
+	admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/restore", legacyID), nil, 200)
+	admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/restore", legacyID), nil, 422)
+
+	// Только нечётные недели: лишние даты без записей уходят, а с записями отменяются.
+	rule["weeks"] = "odd"
+	if got := actions(admin, ruleID, rule); !strings.Contains(got, day(1)[5:]+":cancel") || !strings.Contains(got, day(3)[5:]+":delete") {
+		t.Fatalf("preview of odd weeks: %s", got)
+	}
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice-rules/%v", ruleID), rule, 200)
+	byDay = sessionsOf()
+	if len(byDay) != 4 || byDay[day(1)]["canceled"] != true || byDay[day(1)]["cancelReason"] != store.RemovedFromRule || byDay[day(3)] != nil {
+		t.Fatalf("odd weeks: %v", byDay)
+	}
+
+	// Удаление правила: будущие пустые занятия уходят, с записями остаются разовыми.
+	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/practice-rules/%v", ruleID), nil, 200)
+	byDay = sessionsOf()
+	if len(byDay) != 1 || byDay[day(1)]["ruleId"] != nil {
+		t.Fatalf("after the rule is gone: %v", byDay)
+	}
+	var del map[string]any
+	for _, e := range admin.list("/api/v1/admin/journal?entity=practice-rules", 200) {
+		if e["entityId"] == ruleID && e["action"] == "delete" {
+			del = e
+		}
+	}
+	if del == nil {
+		t.Fatal("rule delete is not in the journal")
+	}
+	back := admin.do("POST", fmt.Sprintf("/api/v1/admin/journal/%v/revert", del["id"]), nil, 200)
+	restored := admin.do("GET", fmt.Sprintf("/api/v1/admin/practice-rules/%v", back["entityId"]), nil, 200)
+	if restored["weeks"] != "odd" || restored["location"] != "500" {
+		t.Fatalf("reverted rule: %v", restored)
+	}
+	// Занятие с записями осталось разовым: его чётной недели в правиле нет.
+	if byDay = sessionsOf(); len(byDay) != 4 || byDay[day(0)]["ruleId"] != back["entityId"] || byDay[day(1)]["ruleId"] != nil {
+		t.Fatalf("the reverted rule: %v", byDay)
+	}
+
+	// Ответственный за поток: правила только своей зоны.
+	own := map[string]any{"subjectId": subjectID, "weekday": 5, "startTime": "09:50", "endTime": "11:20",
+		"startsOn": day(0), "endsOn": day(3), "audience": []string{"group:m3181"}}
+	mine := editor.do("POST", "/api/v1/admin/practice-rules", own, 201)
+	if mine["sessionsCount"] != float64(3) { // пятницы трёх недель
+		t.Fatalf("editor rule: %v", mine)
+	}
+	own["audience"] = nil
+	if e := editor.do("POST", "/api/v1/admin/practice-rules", own, 403); e["code"] != "outside_zone" {
+		t.Fatalf("editor rule for everyone: %v", e)
+	}
+	editor.do("POST", "/api/v1/admin/practice-rules/preview", map[string]any{"rule": own}, 403)
+	if got := editor.list("/api/v1/admin/practice-rules", 200); len(got) != 1 || got[0]["id"] != mine["id"] {
+		t.Fatalf("editor sees rules: %v", got)
+	}
+	editor.do("PUT", fmt.Sprintf("/api/v1/admin/practice-rules/%v", back["entityId"]), rule, 403)
+	editor.do("DELETE", fmt.Sprintf("/api/v1/admin/practice-rules/%v", back["entityId"]), nil, 403)
+	var mineSession, adminSession int64
+	for _, s := range admin.list("/api/v1/admin/practice", 200) {
+		switch s["ruleId"] {
+		case mine["id"]:
+			mineSession = int64(s["id"].(float64))
+		case back["entityId"]:
+			adminSession = int64(s["id"].(float64))
+		}
+	}
+	editor.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/cancel", adminSession), map[string]any{}, 403)
+	editor.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/cancel", mineSession), map[string]any{"reason": "Перенос"}, 200)
+	editor.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/restore", mineSession), nil, 200)
+	own["audience"] = []string{"stream:8"}
+	editor.do("PUT", fmt.Sprintf("/api/v1/admin/practice-rules/%v", mine["id"]), own, 200)
+	var edit map[string]any
+	for _, e := range admin.list("/api/v1/admin/journal?entity=practice-rules", 200) {
+		if e["entityId"] == mine["id"] && e["action"] == "update" {
+			edit = e
+		}
+	}
+	if edit == nil || edit["actorName"] != "Пётр Правилов" {
+		t.Fatalf("editor's rule edit in the journal: %v", edit)
+	}
+	editor.do("DELETE", fmt.Sprintf("/api/v1/admin/practice-rules/%v", mine["id"]), nil, 200)
 }

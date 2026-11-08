@@ -22,6 +22,9 @@ import type {
   OverviewResponse,
   Page,
   PageInput,
+  PracticeRule,
+  PracticeRuleInput,
+  PracticeRulePlanItem,
   PracticeSession,
   PracticeSessionInput,
   QueueEntry,
@@ -164,6 +167,30 @@ export const adminApi = {
     autoQueue: (id: number) =>
       apiClient<PracticeQueue>(`/admin/practice/${id}/signups/auto`, {
         method: "POST",
+      }),
+    /** Отменить занятие; `moveSignups` — перенести записи на следующее. */
+    cancel: (id: number, input: { reason: string; moveSignups: boolean }) =>
+      apiClient<PracticeSession>(`/admin/practice/${id}/cancel`, {
+        method: "POST",
+        body: input,
+      }),
+    restore: (id: number) =>
+      apiClient<PracticeSession>(`/admin/practice/${id}/restore`, {
+        method: "POST",
+      }),
+    /** Вернуть изменённое вручную занятие к его правилу. */
+    reset: (id: number) =>
+      apiClient<PracticeSession>(`/admin/practice/${id}/reset`, {
+        method: "POST",
+      }),
+  },
+  practiceRules: {
+    ...resource<PracticeRule, PracticeRuleInput>("/admin/practice-rules"),
+    /** Что сохранение правила сделает с каждой датой; `id` — для правки. */
+    preview: (rule: PracticeRuleInput, id: number | null) =>
+      apiClient<PracticeRulePlanItem[]>("/admin/practice-rules/preview", {
+        method: "POST",
+        body: { id, rule },
       }),
   },
   settings: {

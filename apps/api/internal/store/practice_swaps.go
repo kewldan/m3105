@@ -97,7 +97,7 @@ func (s *Store) ClaimNotReached(ctx context.Context, sessionID, userID int64, lo
 		return err
 	}
 	rows, err := tx.Query(ctx, `SELECT g.lab_id FROM practice_signups g WHERE g.user_id = $3 AND g.session_id = (
-		SELECT id FROM practice_sessions WHERE subject_id = $1 AND starts_at < $2 ORDER BY starts_at DESC, id DESC LIMIT 1)`,
+		SELECT id FROM practice_sessions WHERE subject_id = $1 AND starts_at < $2 AND canceled_at IS NULL ORDER BY starts_at DESC, id DESC LIMIT 1)`,
 		sess.SubjectID, sess.StartsAt, userID)
 	if err != nil {
 		return wrap(err)

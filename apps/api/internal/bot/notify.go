@@ -66,3 +66,36 @@ func (n *Notifier) SwapAccepted(to *int64, sess models.PracticeSession, loc *tim
 	}
 	n.send(to, swapAcceptedMessage(n.site, sess, loc, with, place), nil)
 }
+
+// PracticeCanceled tells the signed-up students their session is canceled.
+func (n *Notifier) PracticeCanceled(chats []int64, sess models.PracticeSession, loc *time.Location, moved, next *models.PracticeSession) {
+	if n == nil {
+		return
+	}
+	text := practiceCanceledMessage(n.site, sess, loc, moved, next)
+	for _, c := range chats {
+		n.send(&c, text, nil)
+	}
+}
+
+// PracticeMoved tells the signed-up students the session changed time or room.
+func (n *Notifier) PracticeMoved(chats []int64, before, after models.PracticeSession, loc *time.Location) {
+	if n == nil {
+		return
+	}
+	text := practiceMovedMessage(n.site, before, after, loc)
+	for _, c := range chats {
+		n.send(&c, text, nil)
+	}
+}
+
+// PracticeRestored tells the signed-up students a canceled session is back.
+func (n *Notifier) PracticeRestored(chats []int64, sess models.PracticeSession, loc *time.Location) {
+	if n == nil {
+		return
+	}
+	text := practiceRestoredMessage(n.site, sess, loc)
+	for _, c := range chats {
+		n.send(&c, text, nil)
+	}
+}

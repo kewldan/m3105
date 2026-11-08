@@ -57,7 +57,7 @@ func carriedFrom(ctx context.Context, q querier, sess models.PracticeSession) (m
 		stored   bool
 	}
 	rows, err := q.Query(ctx, `SELECT id, capacity, queue_manual OR queue_frozen_at IS NOT NULL FROM practice_sessions
-		WHERE subject_id = $1 AND starts_at < $2 ORDER BY starts_at DESC, id DESC LIMIT $3`, sess.SubjectID, sess.StartsAt, maxCarryChain)
+		WHERE subject_id = $1 AND starts_at < $2 AND canceled_at IS NULL ORDER BY starts_at DESC, id DESC LIMIT $3`, sess.SubjectID, sess.StartsAt, maxCarryChain)
 	if err != nil {
 		return nil, wrap(err)
 	}
@@ -175,7 +175,7 @@ func writeQueue(ctx context.Context, tx pgx.Tx, sessionID int64, keys []queue.Ke
 // Called on every read of the queue: cheap when there is nothing to freeze.
 func (s *Store) FreezeQueues(ctx context.Context, loc *time.Location) error {
 	due, err := many[models.PracticeSession](ctx, s.db, `SELECT `+practiceCols+practiceFrom+`
-		WHERE NOT ps.queue_manual AND ps.queue_frozen_at IS NULL AND ps.starts_at <= now() + interval '2 days'
+		WHERE NOT ps.queue_manual AND ps.queue_frozen_at IS NULL AND ps.canceled_at IS NULL AND ps.starts_at <= now() + interval '2 days'
 		ORDER BY ps.starts_at, ps.id`)
 	if err != nil {
 		return err

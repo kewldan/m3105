@@ -340,3 +340,44 @@ func swapRefusedMessage(site string, sess models.PracticeSession, loc *time.Loca
 	return fmt.Sprintf("Вы отказались меняться местами с <b>%s</b> в очереди на сдачу %s.\n%s",
 		esc(with), practiceTitle(sess, loc), practiceURL(site, sess.ID))
 }
+
+func practicePlace(sess models.PracticeSession, loc *time.Location) string {
+	s := fmtWhen(sess.StartsAt, loc)
+	if sess.Location != "" {
+		s += ", " + esc(sess.Location)
+	}
+	return s
+}
+
+// practiceCanceledMessage tells a signed-up student their session will not
+// take place. moved is where their signups went; otherwise next, if any, is
+// where they can sign up instead.
+func practiceCanceledMessage(site string, sess models.PracticeSession, loc *time.Location, moved, next *models.PracticeSession) string {
+	var sb strings.Builder
+	sb.WriteString("❌ Сдача " + practiceTitle(sess, loc) + " отменена")
+	if sess.CancelReason != "" {
+		sb.WriteString(": " + esc(sess.CancelReason))
+	}
+	sb.WriteString(".\n\n")
+	switch {
+	case moved != nil:
+		sb.WriteString("Ваша запись перенесена на " + practicePlace(*moved, loc) + ".\n" + practiceURL(site, moved.ID))
+	case next != nil:
+		sb.WriteString("Ближайшая сдача — " + practicePlace(*next, loc) + ", запишитесь заново.\n" + practiceURL(site, next.ID))
+	default:
+		sb.WriteString("Запишитесь на другую сдачу: " + site + "/practice")
+	}
+	return sb.String()
+}
+
+// practiceMovedMessage tells a signed-up student the session changed time or room.
+func practiceMovedMessage(site string, before, after models.PracticeSession, loc *time.Location) string {
+	return fmt.Sprintf("📅 Сдача %s перенесена: теперь %s. Ваша запись в силе.\n%s",
+		practiceTitle(before, loc), practicePlace(after, loc), practiceURL(site, after.ID))
+}
+
+// practiceRestoredMessage: a canceled session is back.
+func practiceRestoredMessage(site string, sess models.PracticeSession, loc *time.Location) string {
+	return fmt.Sprintf("✅ Сдача %s снова в расписании, ваша запись в силе.\n%s",
+		practiceTitle(sess, loc), practiceURL(site, sess.ID))
+}

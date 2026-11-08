@@ -14,7 +14,8 @@ import (
 const practiceCols = `ps.id, ps.subject_id, ps.starts_at, ps.ends_at, ps.location, ps.capacity, ps.note, ps.created_at, ps.updated_at, ps.audience,
 	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
 	(SELECT count(DISTINCT g.user_id) FROM practice_signups g WHERE g.session_id = ps.id)::int AS signups_count,
-	ps.queue_manual, (ps.queue_frozen_at IS NOT NULL) AS queue_frozen`
+	ps.queue_manual, (ps.queue_frozen_at IS NOT NULL) AS queue_frozen,
+	ps.rule_id, ps.occurs_on, ps.overridden, (ps.canceled_at IS NOT NULL) AS canceled, ps.cancel_reason`
 
 const practiceFrom = ` FROM practice_sessions ps JOIN subjects s ON s.id = ps.subject_id`
 
@@ -58,25 +59,33 @@ func (s *Store) GetPracticeSession(ctx context.Context, id int64) (models.Practi
 
 // CreatePracticeSession inserts a session.
 func (s *Store) CreatePracticeSession(ctx context.Context, in *models.PracticeSessionInput) (models.PracticeSession, error) {
+	canceled := in.Canceled != nil && *in.Canceled
+	reason := ""
+	if canceled {
+		reason = in.CancelReason
+	}
 	var id int64
-	err := s.db.QueryRow(ctx, `INSERT INTO practice_sessions (subject_id, starts_at, ends_at, location, capacity, note)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, in.SubjectID, in.StartsAt, in.EndsAt, in.Location, in.Capacity, in.Note).Scan(&id)
+	err := s.db.QueryRow(ctx, `INSERT INTO practice_sessions (subject_id, starts_at, ends_at, location, capacity, note, audience, canceled_at, cancel_reason)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,CASE WHEN $8 THEN now() END,$9) RETURNING id`,
+		in.SubjectID, in.StartsAt, in.EndsAt, in.Location, in.Capacity, in.Note, nonNil(in.Audience), canceled, reason).Scan(&id)
 	if err != nil {
 		return models.PracticeSession{}, wrap(err)
-	}
-	if err := s.setAudience(ctx, "practice_sessions", id, in.Audience); err != nil {
-		return models.PracticeSession{}, err
 	}
 	return s.GetPracticeSession(ctx, id)
 }
 
-// UpdatePracticeSession replaces a session's fields.
+// UpdatePracticeSession replaces a session's fields. A session of a rule that
+// changes becomes overridden: later edits of the rule leave it alone.
+// in.Canceled cancels or restores it; nil keeps it as it is.
 func (s *Store) UpdatePracticeSession(ctx context.Context, id int64, in *models.PracticeSessionInput) (models.PracticeSession, error) {
-	if err := s.exec(ctx, `UPDATE practice_sessions SET subject_id=$1, starts_at=$2, ends_at=$3, location=$4, capacity=$5, note=$6,
-		updated_at=now() WHERE id = $7`, in.SubjectID, in.StartsAt, in.EndsAt, in.Location, in.Capacity, in.Note, id); err != nil {
-		return models.PracticeSession{}, err
-	}
-	if err := s.setAudience(ctx, "practice_sessions", id, in.Audience); err != nil {
+	if err := s.exec(ctx, `UPDATE practice_sessions SET
+		overridden = overridden OR (rule_id IS NOT NULL AND
+			(subject_id, starts_at, ends_at, location, capacity, note) IS DISTINCT FROM ($1::bigint, $2::timestamptz, $3::timestamptz, $4::text, $5::int, $6::text)),
+		subject_id=$1, starts_at=$2, ends_at=$3, location=$4, capacity=$5, note=$6, audience=$7,
+		canceled_at = CASE WHEN $8::boolean IS NULL THEN canceled_at WHEN $8 THEN COALESCE(canceled_at, now()) END,
+		cancel_reason = CASE WHEN $8::boolean IS NULL THEN cancel_reason WHEN $8 THEN $9 ELSE '' END,
+		updated_at=now() WHERE id = $10`,
+		in.SubjectID, in.StartsAt, in.EndsAt, in.Location, in.Capacity, in.Note, nonNil(in.Audience), in.Canceled, in.CancelReason, id); err != nil {
 		return models.PracticeSession{}, err
 	}
 	return s.GetPracticeSession(ctx, id)
@@ -85,6 +94,13 @@ func (s *Store) UpdatePracticeSession(ctx context.Context, id int64, in *models.
 // DeletePracticeSession removes a session and its signups.
 func (s *Store) DeletePracticeSession(ctx context.Context, id int64) error {
 	return s.exec(ctx, `DELETE FROM practice_sessions WHERE id = $1`, id)
+}
+
+func nonNil(a []string) []string {
+	if a == nil {
+		return []string{}
+	}
+	return a
 }
 
 const signupCols = `g.session_id, g.user_id, ` + userNameExpr + ` AS user_name, ` + userPhotoExpr + ` AS photo_url, u.group_name AS user_group, g.lab_id, l.number AS lab_number, l.title AS lab_title,

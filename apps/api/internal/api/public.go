@@ -233,7 +233,8 @@ func (h *Handler) getCalendarICS(w http.ResponseWriter, r *http.Request) {
 			Start:       it.StartsAt,
 			End:         end,
 			AllDay:      it.AllDay,
-			Alarm:       it.Source == "lab" || it.Kind == "exam" || it.Kind == "test",
+			Alarm:       !it.Canceled && (it.Source == "lab" || it.Kind == "exam" || it.Kind == "test"),
+			Canceled:    it.Canceled,
 		})
 	}
 	body := ics.Render(sc.Settings.SiteTitle+" — дедлайны", out, sc.Now)

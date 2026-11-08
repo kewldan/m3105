@@ -18,4 +18,6 @@ type CalendarItem struct {
 	Subject     *SubjectRef `json:"subject"`
 	LabNumber   int         `json:"labNumber,omitempty"`
 	LabID       int64       `json:"labId,omitempty"`
+	// Canceled: a practice session that will not take place.
+	Canceled bool `json:"canceled,omitempty"`
 }

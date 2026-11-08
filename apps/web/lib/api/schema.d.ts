@@ -261,6 +261,8 @@ export type CalendarItem = {
   labNumber?: number;
   /** Только для `source: lab` */
   labId?: number;
+  /** Только для `source: practice`: занятие отменено (в ICS — `STATUS:CANCELLED`) */
+  canceled?: boolean;
 };
 
 export type SearchResult = {
@@ -360,6 +362,14 @@ export type PracticeSession = SubjectJoin & {
   /** Число записавшихся студентов */
   signupsCount: number;
   audience: Audience;
+  /** Регулярное правило, по которому создано занятие; `null` — разовая сдача */
+  ruleId: number | null;
+  /** Занятие правила поменяли вручную (перенос, другая аудитория): правка правила его не трогает */
+  overridden: boolean;
+  /** Занятие отменено: записаться нельзя, выйти из записи можно */
+  canceled: boolean;
+  /** Причина отмены; пусто, если не указана */
+  cancelReason: string;
 };
 
 export type PracticeSessionView = PracticeSession & {

@@ -1,7 +1,16 @@
 "use client";
 
-import { PlusIcon, UsersIcon } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import {
+  BanIcon,
+  EllipsisIcon,
+  PlusIcon,
+  RepeatIcon,
+  RotateCcwIcon,
+  UndoIcon,
+  UsersIcon,
+  XIcon,
+} from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -9,18 +18,37 @@ import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { type Column, DataTable } from "@/components/admin/data-table";
 import { PageTitle } from "@/components/admin/page-title";
 import { ParticipantsDialog } from "@/components/admin/participants-dialog";
+import { PracticeCancelDialog } from "@/components/admin/practice-cancel-dialog";
 import { PracticeDialog } from "@/components/admin/practice-dialog";
+import { PracticeRuleDialog } from "@/components/admin/practice-rule-dialog";
 import { RowActions } from "@/components/admin/row-actions";
+import { AudienceBadge } from "@/components/site/audience/audience-badge";
 import { SubjectBadge } from "@/components/site/subject-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { handleApiError } from "@/lib/admin/errors";
 import { useQuery } from "@/lib/admin/use-query";
 import { adminApi } from "@/lib/api/admin";
-import type { PracticeSession } from "@/lib/api/types";
-import { fmtDateTime, fmtRelative, fmtTime } from "@/lib/format";
+import type { PracticeRule, PracticeSession } from "@/lib/api/types";
+import {
+  fmtDateOnly,
+  fmtDateTime,
+  fmtRelative,
+  fmtTime,
+  WEEKDAYS_SHORT,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+type Tab = "sessions" | "rules";
 
 function shiftWeek(iso: string | null): string | null {
   if (!iso) return null;
@@ -31,16 +59,51 @@ function endOf(s: PracticeSession): number {
   return new Date(s.endsAt ?? s.startsAt).getTime();
 }
 
+function sameAudience(a: string[], b: string[]): boolean {
+  return [...a].sort().join() === [...b].sort().join();
+}
+
+/** «Пн 20:30–22:00, нечётные недели». */
+export function ruleSchedule(r: PracticeRule): string {
+  let s = `${WEEKDAYS_SHORT[r.weekday - 1]} ${r.startTime}`;
+  if (r.endTime) s += `–${r.endTime}`;
+  if (r.weeks === "odd") s += ", нечётные недели";
+  if (r.weeks === "even") s += ", чётные недели";
+  return s;
+}
+
 function PracticePageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const tab: Tab = searchParams.get("tab") === "rules" ? "rules" : "sessions";
+  const ruleFilter = Number(searchParams.get("rule")) || null;
+  const setView = (next: Tab, rule: number | null = null) => {
+    const qs = new URLSearchParams();
+    if (next === "rules") qs.set("tab", "rules");
+    if (rule) qs.set("rule", String(rule));
+    const q = qs.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
+
   const subjects = useQuery(() => adminApi.subjects.list());
   const sessions = useQuery(() => adminApi.practice.list());
+  const rules = useQuery(() => adminApi.practiceRules.list());
+  const reloadAll = () => {
+    sessions.reload();
+    rules.reload();
+  };
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PracticeSession | null>(null);
   const [deleting, setDeleting] = useState<PracticeSession | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [participantsFor, setParticipantsFor] =
     useState<PracticeSession | null>(null);
+  const [cancelling, setCancelling] = useState<PracticeSession | null>(null);
+  const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<PracticeRule | null>(null);
+  const [deletingRule, setDeletingRule] = useState<PracticeRule | null>(null);
 
   useEffect(() => {
     if (searchParams.get("new") === "1") {
@@ -49,9 +112,17 @@ function PracticePageInner() {
     }
   }, [searchParams]);
 
+  const rulesById = useMemo(
+    () => new Map((rules.data ?? []).map((r) => [r.id, r])),
+    [rules.data],
+  );
+  const filterRule = ruleFilter ? (rulesById.get(ruleFilter) ?? null) : null;
+
   const { upcoming, past } = useMemo(() => {
     const now = Date.now();
-    const all = sessions.data ?? [];
+    const all = (sessions.data ?? []).filter(
+      (s) => !ruleFilter || s.ruleId === ruleFilter,
+    );
     return {
       upcoming: all
         .filter((s) => endOf(s) >= now)
@@ -60,7 +131,24 @@ function PracticePageInner() {
         .filter((s) => endOf(s) < now)
         .sort((a, b) => b.startsAt.localeCompare(a.startsAt)),
     };
-  }, [sessions.data]);
+  }, [sessions.data, ruleFilter]);
+
+  // Куда переедут записи отменённого занятия: следующая сдача предмета для той же аудитории.
+  const nextAfter = (s: PracticeSession | null): PracticeSession | null => {
+    if (!s) return null;
+    return (
+      (sessions.data ?? [])
+        .filter(
+          (x) =>
+            x.id !== s.id &&
+            x.subjectId === s.subjectId &&
+            !x.canceled &&
+            x.startsAt > s.startsAt &&
+            sameAudience(x.audience, s.audience),
+        )
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] ?? null
+    );
+  };
 
   async function confirmDelete() {
     if (!deleting) return;
@@ -69,11 +157,37 @@ function PracticePageInner() {
       await adminApi.practice.remove(deleting.id);
       toast.success("Сдача удалена");
       setDeleting(null);
-      sessions.reload();
+      reloadAll();
     } catch (err) {
       handleApiError(err);
     } finally {
       setDeleteLoading(false);
+    }
+  }
+
+  async function confirmDeleteRule() {
+    if (!deletingRule) return;
+    setDeleteLoading(true);
+    try {
+      await adminApi.practiceRules.remove(deletingRule.id);
+      toast.success("Правило удалено");
+      setDeletingRule(null);
+      if (ruleFilter === deletingRule.id) setView("sessions");
+      reloadAll();
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
+  async function act(fn: () => Promise<unknown>, done: string): Promise<void> {
+    try {
+      await fn();
+      toast.success(done);
+      reloadAll();
+    } catch (err) {
+      handleApiError(err);
     }
   }
 
@@ -102,8 +216,8 @@ function PracticePageInner() {
       sort: (r) => r.startsAt,
       className: "tabular-nums",
       cell: (r) => (
-        <div className={cn(isPast && "text-muted-foreground")}>
-          <div>
+        <div className={cn((isPast || r.canceled) && "text-muted-foreground")}>
+          <div className={cn(r.canceled && "line-through")}>
             {fmtDateTime(r.startsAt)}
             {r.endsAt ? (
               <span className="text-muted-foreground">
@@ -112,8 +226,26 @@ function PracticePageInner() {
               </span>
             ) : null}
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-1 pt-0.5 text-xs text-muted-foreground">
             {fmtRelative(r.startsAt)}
+            {r.canceled ? (
+              <Badge variant="destructive" title={r.cancelReason || undefined}>
+                Отменено{r.cancelReason ? `: ${r.cancelReason}` : ""}
+              </Badge>
+            ) : null}
+            {r.ruleId ? (
+              <Badge
+                variant="outline"
+                title={
+                  rulesById.get(r.ruleId)
+                    ? ruleSchedule(rulesById.get(r.ruleId) as PracticeRule)
+                    : undefined
+                }
+              >
+                <RepeatIcon />
+                {r.overridden ? "изменено вручную" : "по правилу"}
+              </Badge>
+            ) : null}
           </div>
         </div>
       ),
@@ -123,10 +255,13 @@ function PracticePageInner() {
       header: "Предмет",
       sort: (r) => r.subjectName,
       cell: (r) => (
-        <SubjectBadge
-          name={r.subjectShortName || r.subjectName}
-          color={r.subjectColor}
-        />
+        <div className="space-y-1">
+          <SubjectBadge
+            name={r.subjectShortName || r.subjectName}
+            color={r.subjectColor}
+          />
+          <AudienceBadge audience={r.audience} className="text-[10px]" />
+        </div>
       ),
     },
     {
@@ -197,77 +332,279 @@ function PracticePageInner() {
               setEditing(r);
               setDialogOpen(true);
             }}
-            onDuplicate={() => void duplicate(r)}
+            onDuplicate={r.ruleId ? undefined : () => void duplicate(r)}
             onDelete={() => setDeleting(r)}
           />
+          {isPast ? null : (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Ещё действия"
+                  />
+                }
+              >
+                <EllipsisIcon />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {r.canceled ? (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      void act(
+                        () => adminApi.practice.restore(r.id),
+                        "Занятие снова в расписании",
+                      )
+                    }
+                  >
+                    <UndoIcon />
+                    Вернуть занятие
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setCancelling(r)}
+                  >
+                    <BanIcon />
+                    Отменить занятие…
+                  </DropdownMenuItem>
+                )}
+                {r.ruleId && r.overridden ? (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      void act(
+                        () => adminApi.practice.reset(r.id),
+                        "Занятие снова по правилу",
+                      )
+                    }
+                  >
+                    <RotateCcwIcon />
+                    Вернуть к правилу
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       ),
     },
   ];
 
+  const ruleColumns: Column<PracticeRule>[] = [
+    {
+      id: "subject",
+      header: "Предмет",
+      sort: (r) => r.subjectName,
+      cell: (r) => (
+        <div className="space-y-1">
+          <SubjectBadge
+            name={r.subjectShortName || r.subjectName}
+            color={r.subjectColor}
+          />
+          <AudienceBadge audience={r.audience} className="text-[10px]" />
+        </div>
+      ),
+    },
+    {
+      id: "schedule",
+      header: "Расписание",
+      sort: (r) => r.weekday * 10000 + Number(r.startTime.replace(":", "")),
+      cell: (r) => (
+        <div>
+          <div className="font-medium">{ruleSchedule(r)}</div>
+          <div className="text-xs text-muted-foreground">
+            {fmtDateOnly(r.startsOn)} — {fmtDateOnly(r.endsOn)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "place",
+      header: "Место",
+      cell: (r) => (
+        <div className="text-sm">
+          {r.location || <span className="text-muted-foreground">—</span>}
+          <div className="text-xs text-muted-foreground">
+            {r.capacity != null ? `${r.capacity} защит за пару` : "без лимита"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "next",
+      header: "Ближайшие",
+      className: "tabular-nums",
+      cell: (r) =>
+        r.next.length ? (
+          <div className="text-sm">
+            {r.next.map((n) => (
+              <div key={n}>{fmtDateTime(n)}</div>
+            ))}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      id: "count",
+      header: "Занятия",
+      sort: (r) => r.upcomingCount,
+      className: "whitespace-nowrap",
+      cell: (r) => (
+        <Button
+          variant="link"
+          size="sm"
+          className="px-0"
+          onClick={() => setView("sessions", r.id)}
+        >
+          {r.upcomingCount} впереди
+          {r.canceledCount > 0 ? `, ${r.canceledCount} отмен.` : ""}
+        </Button>
+      ),
+    },
+    {
+      id: "actions",
+      header: <span className="sr-only">Действия</span>,
+      className: "w-px",
+      cell: (r) => (
+        <RowActions
+          onEdit={() => {
+            setEditingRule(r);
+            setRuleDialogOpen(true);
+          }}
+          onDelete={() => setDeletingRule(r)}
+        />
+      ),
+    },
+  ];
+
+  const addButtons = (size: "default" | "sm" = "default") => (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        size={size}
+        onClick={() => {
+          setEditingRule(null);
+          setRuleDialogOpen(true);
+        }}
+      >
+        <RepeatIcon data-icon="inline-start" />
+        Регулярная сдача
+      </Button>
+      <Button
+        size={size}
+        variant="outline"
+        onClick={() => {
+          setEditing(null);
+          setDialogOpen(true);
+        }}
+      >
+        <PlusIcon data-icon="inline-start" />
+        Разовая
+      </Button>
+    </div>
+  );
+
   return (
     <>
       <PageTitle
         title="Сдачи"
-        description="Занятия, на которые студенты записываются со сделанными лабами. Список записавшихся виден здесь и всем вошедшим на сайте."
-        actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
-            <PlusIcon data-icon="inline-start" />
-            Добавить сдачу
-          </Button>
-        }
+        description="Занятия, на которые студенты записываются со сделанными лабами. Регулярные создаются по правилу сразу на весь период; отменить или перенести одно занятие — в его меню."
+        actions={addButtons()}
       />
 
-      <section className="space-y-3">
-        <h2 className="font-heading text-lg font-semibold">Ближайшие</h2>
-        <DataTable
-          rows={sessions.loading && !sessions.data ? null : upcoming}
-          loading={sessions.loading}
-          columns={columns(false)}
-          rowKey={(r) => r.id}
-          emptyTitle="Ближайших сдач нет"
-          emptyDescription="Добавьте занятие, и студенты смогут записаться на него со страницы лабы."
-          emptyAction={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEditing(null);
-                setDialogOpen(true);
-              }}
-            >
-              <PlusIcon data-icon="inline-start" />
-              Добавить сдачу
-            </Button>
-          }
-        />
-      </section>
+      <Tabs value={tab} onValueChange={(v) => setView(v as Tab)}>
+        <TabsList>
+          <TabsTrigger value="sessions">Занятия</TabsTrigger>
+          <TabsTrigger value="rules">
+            Правила
+            {rules.data?.length ? (
+              <span className="text-muted-foreground">{rules.data.length}</span>
+            ) : null}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
-      {past.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="font-heading text-lg font-semibold text-muted-foreground">
-            Прошедшие
-          </h2>
-          <DataTable
-            rows={past}
-            loading={false}
-            columns={columns(true)}
-            rowKey={(r) => r.id}
-          />
-        </section>
-      ) : null}
+      {tab === "rules" ? (
+        <DataTable
+          rows={rules.loading && !rules.data ? null : rules.data}
+          loading={rules.loading}
+          columns={ruleColumns}
+          rowKey={(r) => r.id}
+          emptyTitle="Регулярных сдач нет"
+          emptyDescription="Правило вроде «каждый понедельник в 20:30» само создаст занятия на весь семестр, а разовые сдачи на его даты к нему привяжутся вместе с записями."
+          emptyAction={addButtons("sm")}
+        />
+      ) : (
+        <>
+          {ruleFilter ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Только по правилу:</span>
+              <Badge variant="secondary">
+                {filterRule
+                  ? `${filterRule.subjectShortName || filterRule.subjectName}, ${ruleSchedule(filterRule)}`
+                  : `№${ruleFilter}`}
+                <button
+                  type="button"
+                  aria-label="Показать все занятия"
+                  onClick={() => setView("sessions")}
+                  className="-mr-1 rounded-full hover:text-foreground"
+                >
+                  <XIcon />
+                </button>
+              </Badge>
+            </div>
+          ) : null}
+          <section className="space-y-3">
+            <h2 className="font-heading text-lg font-semibold">Ближайшие</h2>
+            <DataTable
+              rows={sessions.loading && !sessions.data ? null : upcoming}
+              loading={sessions.loading}
+              columns={columns(false)}
+              rowKey={(r) => r.id}
+              emptyTitle="Ближайших сдач нет"
+              emptyDescription="Добавьте регулярную сдачу или разовое занятие, и студенты смогут записаться на него со страницы лабы."
+              emptyAction={addButtons("sm")}
+            />
+          </section>
+
+          {past.length > 0 ? (
+            <section className="space-y-3">
+              <h2 className="font-heading text-lg font-semibold text-muted-foreground">
+                Прошедшие
+              </h2>
+              <DataTable
+                rows={past}
+                loading={false}
+                columns={columns(true)}
+                rowKey={(r) => r.id}
+              />
+            </section>
+          ) : null}
+        </>
+      )}
 
       <PracticeDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         session={editing}
         subjects={subjects.data ?? []}
-        onSaved={() => sessions.reload()}
+        onSaved={reloadAll}
+      />
+      <PracticeRuleDialog
+        open={ruleDialogOpen}
+        onOpenChange={setRuleDialogOpen}
+        rule={editingRule}
+        subjects={subjects.data ?? []}
+        onSaved={reloadAll}
+      />
+      <PracticeCancelDialog
+        session={cancelling}
+        next={nextAfter(cancelling)}
+        onOpenChange={(o) => {
+          if (!o) setCancelling(null);
+        }}
+        onDone={reloadAll}
       />
       <ParticipantsDialog
         session={participantsFor}
@@ -283,10 +620,24 @@ function PracticePageInner() {
         title="Удалить сдачу?"
         description={
           deleting
-            ? `${deleting.subjectShortName || deleting.subjectName}, ${fmtDateTime(deleting.startsAt)}. Записи студентов (${deleting.signupsCount}) тоже удалятся, она пропадёт из календаря.`
+            ? `${deleting.subjectShortName || deleting.subjectName}, ${fmtDateTime(deleting.startsAt)}. Записи студентов (${deleting.signupsCount}) тоже удалятся, она пропадёт из календаря.${deleting.ruleId ? " Это занятие правила: при следующей правке правила оно появится снова. Чтобы пропустить дату, отмените занятие." : ""}`
             : undefined
         }
         onConfirm={confirmDelete}
+        loading={deleteLoading}
+      />
+      <ConfirmDialog
+        open={deletingRule !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeletingRule(null);
+        }}
+        title="Удалить правило?"
+        description={
+          deletingRule
+            ? `${deletingRule.subjectShortName || deletingRule.subjectName}, ${ruleSchedule(deletingRule)}. Будущие занятия без записей удалятся; прошедшие и те, на которые уже записались, останутся разовыми.`
+            : undefined
+        }
+        onConfirm={confirmDeleteRule}
         loading={deleteLoading}
       />
     </>

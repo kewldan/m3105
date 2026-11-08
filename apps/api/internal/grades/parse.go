@@ -94,23 +94,39 @@ func headerRow(records [][]string, src models.GradeSource) int {
 	return -1
 }
 
-// maxRowRe matches the name cell of the row with the most each column gives:
-// «max число баллов», «Максимум».
-var maxRowRe = regexp.MustCompile(`^(?i)(max|макс)`)
+// maxMarkRe matches the cell that marks the row with the most each column
+// gives: «max число баллов», «Максимум», «:max». The word must end there, or
+// a student named «Максимов» would pass for the max row.
+var maxMarkRe = regexp.MustCompile(`^(?i):?\s*(max|макс|максимум)(\s|[.:]|$)`)
 
-// ParseMax reads the maximum of each breakdown column from the row under the
-// header whose name cell starts with «max»: teachers renumber labs and move
-// points between them during the term, and the sheet is the one place that
-// stays right. Columns missing on the tab or empty in that row are left out;
-// nil means the tab has no such row.
+// isMaxRow tells whether a row is the max row: some cell carries the marker
+// and the row has no student ID.
+func isMaxRow(rec []string, idCol int) bool {
+	if idCol >= 0 && idCol < len(rec) && normalizeID(strings.TrimSpace(rec[idCol])) != "" {
+		return false
+	}
+	for _, c := range rec {
+		if maxMarkRe.MatchString(strings.TrimSpace(c)) {
+			return true
+		}
+	}
+	return false
+}
+
+// ParseMax reads the maximum of each breakdown column from the max row: a
+// row marked «max» in any cell, under the header (in the name column, as in
+// «max число баллов») or above it (a «:max» label beside the numbers).
+// Teachers renumber labs and move points between them during the term, and
+// the sheet is the one place that stays right. Columns missing on the tab or
+// empty in that row are left out; nil means the tab has no such row.
 func ParseMax(records [][]string, src models.GradeSource) map[string]float64 {
 	head := headerRow(records, src)
 	if head < 0 {
 		return nil
 	}
-	nameCol := findHeader(records, head, src.NameColumn)
-	for _, rec := range records[head+1:] {
-		if nameCol >= len(rec) || !maxRowRe.MatchString(strings.TrimSpace(rec[nameCol])) {
+	idCol := findHeader(records, head, src.IDColumn)
+	for i, rec := range records {
+		if i == head || !isMaxRow(rec, idCol) {
 			continue
 		}
 		out := map[string]float64{}

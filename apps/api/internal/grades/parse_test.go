@@ -179,6 +179,28 @@ func TestParseMax(t *testing.T) {
 	if m := ParseMax(records(t, ",ФИО,ЛР1,Итого\n1,Иванов Иван,6,6\n"), src); m != nil {
 		t.Fatalf("no max row: %v", m)
 	}
+	// Дискретка: строка максимумов над заголовком с меткой «:max» справа, а в
+	// списке есть «Максимов» — его баллы за максимумы приниматься не должны.
+	dm := models.GradeSource{NameColumn: "Name", IDColumn: "ID", TotalColumn: "Total", Columns: []models.GradeColumn{
+		{Key: "hw1", Header: "HW 1"}, {Key: "test1", Header: "Test 1"}, {Key: "lec", Header: "Lec"}, {Key: "exam", Header: "Exam"},
+	}}
+	dmSheet := "Discrete Math :: Fall 2026,,,,,,,,\n" +
+		"Лектор: Кто-то,,,10,10,10,20,100,:max\n" +
+		"Group,ID,Name,HW 1,Test 1,Lec,Exam,Total,\n" +
+		",,M3103,,,,,,\n" +
+		"M3103,557831,Максимов Кирилл Андреевич,0,8.8,3.5,,3.5,\n"
+	if m := ParseMax(records(t, dmSheet), dm); len(m) != 4 || m["hw1"] != 10 || m["test1"] != 10 || m["lec"] != 10 || m["exam"] != 20 {
+		t.Fatalf("max above the header: %v", m)
+	}
+	noMax := strings.Replace(dmSheet, ":max", "", 1)
+	if m := ParseMax(records(t, noMax), dm); m != nil {
+		t.Fatalf("student «Максимов» taken for the max row: %v", m)
+	}
+	dm.IDColumn = ""
+	if m := ParseMax(records(t, noMax), dm); m != nil {
+		t.Fatalf("«Максимов» without an ID column: %v", m)
+	}
+
 	cols := []models.GradeColumn{{Key: "lab1", Max: 6}, {Key: "lab5", Max: 7}, {Key: "lab7"}}
 	if ch := changedMax(cols, got); len(ch) != 1 || ch["lab5"] != 0 {
 		t.Fatalf("changed: %v", ch)

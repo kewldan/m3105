@@ -27,6 +27,7 @@ import { SubjectBadge } from "@/components/site/subject-badge";
 import { useUser } from "@/components/site/user-provider";
 import { Button } from "@/components/ui/button";
 import type { PracticeSessionView } from "@/lib/api/types";
+import { formatAudience } from "@/lib/audience";
 import { fmtDateTime, fmtTime, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -146,13 +147,19 @@ export function SessionCard({
                     />
                   </>
                 ) : null}
-                <Button
-                  type="button"
-                  variant={mine ? "outline" : "default"}
-                  onClick={() => setOpen(true)}
-                >
-                  {mine ? "Изменить запись" : "Записаться"}
-                </Button>
+                {session.forMe || mine ? (
+                  <Button
+                    type="button"
+                    variant={mine ? "outline" : "default"}
+                    onClick={() => setOpen(true)}
+                  >
+                    {mine ? "Изменить запись" : "Записаться"}
+                  </Button>
+                ) : (
+                  <p className="max-w-56 text-xs text-muted-foreground text-pretty">
+                    Запись только для: {formatAudience(session.audience)}
+                  </p>
+                )}
               </>
             ) : (
               <Button

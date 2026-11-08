@@ -535,6 +535,29 @@ func TestStudentAccounts(t *testing.T) {
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/students/%v", extraRow), nil, 200)
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/users/%d", impostorID), nil, 200)
 
+	// На сдачу другой группы не записаться, но её видно и можно отменить запись.
+	{
+		at := time.Now().Add(3 * 24 * time.Hour).UTC().Format(time.RFC3339)
+		other := int64(admin.do("POST", "/api/v1/admin/practice", map[string]any{"subjectId": subjectID, "startsAt": at, "audience": []string{"group:М3104"}}, 201)["id"].(float64))
+		url := fmt.Sprintf("/api/v1/practice/%d", other)
+		if v := tg.do("GET", url, nil, 200); v["forMe"] != false {
+			t.Fatalf("forMe for another group: %v", v["forMe"])
+		}
+		if v := newClient(t).do("GET", url, nil, 200); v["forMe"] != true {
+			t.Fatalf("forMe for a guest: %v", v["forMe"])
+		}
+		if e := tg.do("PUT", url+"/signups", map[string]any{"labIds": []int64{lab1ID}}, 403); e["code"] != "not_for_group" {
+			t.Fatalf("signup to another group: %v", e)
+		}
+		tg.do("DELETE", url+"/signups", nil, 200)
+		// Поток группы тоже подходит.
+		admin.do("PUT", fmt.Sprintf("/api/v1/admin/practice/%d", other), map[string]any{"subjectId": subjectID, "startsAt": at, "audience": []string{"group:М3104", "stream:1"}}, 200)
+		if v := tg.do("PUT", url+"/signups", map[string]any{"labIds": []int64{lab1ID}}, 200); v["forMe"] != true {
+			t.Fatalf("signup by stream: %v", v["forMe"])
+		}
+		admin.do("DELETE", fmt.Sprintf("/api/v1/admin/practice/%d", other), nil, 200)
+	}
+
 	// Practice session with capacity 1.
 	starts := time.Now().Add(3 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	sess := admin.do("POST", "/api/v1/admin/practice", map[string]any{"subjectId": subjectID, "startsAt": starts, "location": "412", "capacity": 1}, 201)

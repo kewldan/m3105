@@ -1001,6 +1001,7 @@ components:
               items: { type: integer }
             full: { type: boolean, description: "Основной список заполнен, новые защиты идут в резерв" }
             past: { type: boolean, description: "Занятие уже прошло" }
+            forMe: { type: boolean, description: "Вошедший студент может записаться: сдача общая, для его группы или потока. У гостей всегда true" }
             availableLabs:
               type: array
               items: { $ref: "#/components/schemas/LabRef" }
@@ -1009,7 +1010,7 @@ components:
               type: array
               items: { $ref: "#/components/schemas/PracticeSwap" }
               description: Ждущие ответа запросы на обмен местами, которые вошедший студент отправил или получил
-          required: [queue, freezesAt, frozen, participants, myLabIds, full, past, availableLabs, swaps]
+          required: [queue, freezesAt, frozen, participants, myLabIds, full, past, forMe, availableLabs, swaps]
 
     Health:
       type: object

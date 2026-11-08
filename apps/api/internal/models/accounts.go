@@ -274,8 +274,11 @@ type PracticeSessionView struct {
 	Participants []Participant `json:"participants"`
 	MyLabIDs     []int64       `json:"myLabIds"`
 	// Full: the main list is taken, new defenses go to the reserve.
-	Full          bool     `json:"full"`
-	Past          bool     `json:"past"`
+	Full bool `json:"full"`
+	Past bool `json:"past"`
+	// ForMe: the signed-in student may sign up — the session is for everyone,
+	// their group or their stream. Always true for guests.
+	ForMe         bool     `json:"forMe"`
 	AvailableLabs []LabRef `json:"availableLabs"`
 	// Swaps are the pending swap requests the signed-in student sent or got.
 	Swaps []PracticeSwap `json:"swaps"`

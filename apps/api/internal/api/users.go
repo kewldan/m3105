@@ -472,6 +472,12 @@ func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSessi
 			return nil, err
 		}
 	}
+	var scope []string
+	if signedIn {
+		if scope, err = h.store.UserAudienceScope(ctx, userID); err != nil {
+			return nil, err
+		}
+	}
 	labsBySubject := map[int64][]models.LabRef{}
 	views := make([]models.PracticeSessionView, 0, len(sessions))
 	for _, s := range sessions {
@@ -479,6 +485,7 @@ func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSessi
 		if list := swaps[s.ID]; list != nil {
 			v.Swaps = list
 		}
+		v.ForMe = !signedIn || models.AudienceOpen(s.Audience, scope)
 		v.Past = s.StartsAt.Before(sc.Now)
 		if s.EndsAt != nil {
 			v.Past = s.EndsAt.Before(sc.Now)
@@ -581,6 +588,11 @@ func (h *Handler) practiceView(r *http.Request, id int64) (models.PracticeSessio
 
 var errPracticeOver = &httpx.ValidationError{Fields: map[string]string{"_": "Эта сдача уже прошла"}}
 
+// practiceNotForYou answers a signup to a session for other groups.
+func practiceNotForYou(w http.ResponseWriter) {
+	httpx.Error(w, http.StatusForbidden, "not_for_group", "Эта сдача не для вашей группы")
+}
+
 // practiceOver: the session has ended, its queue no longer changes.
 func practiceOver(sess models.PracticeSession) bool {
 	end := sess.StartsAt
@@ -624,9 +636,23 @@ func (h *Handler) setPracticeSignup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Заморозить до записи: запись после 20:00 накануне должна встать в конец.
-	if _, err := h.openPractice(ctx, id); err != nil {
+	sess, err := h.openPractice(ctx, id)
+	if err != nil {
 		httpx.Fail(w, err)
 		return
+	}
+	// Отменить запись можно всегда, записаться — только на сдачу своей группы
+	// или потока.
+	if len(in.LabIDs) > 0 {
+		scope, err := h.store.UserAudienceScope(ctx, userID)
+		if err != nil {
+			httpx.Fail(w, err)
+			return
+		}
+		if !models.AudienceOpen(sess.Audience, scope) {
+			practiceNotForYou(w)
+			return
+		}
 	}
 	if err := h.store.ReplaceSignups(ctx, id, userID, in.LabIDs); err != nil {
 		httpx.Fail(w, err)

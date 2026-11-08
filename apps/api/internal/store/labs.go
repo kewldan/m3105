@@ -131,6 +131,17 @@ func (s *Store) ListLabDeadlines(ctx context.Context, from, to time.Time, subjec
 	return many[models.Lab](ctx, s.db, q, args...)
 }
 
+// UserAudienceScope returns the audience tokens a user belongs to: their group
+// and its stream (audience_scope in SQL); empty without a group.
+func (s *Store) UserAudienceScope(ctx context.Context, userID int64) ([]string, error) {
+	var out []string
+	err := s.db.QueryRow(ctx, `SELECT audience_scope(group_name) FROM users WHERE id = $1`, userID).Scan(&out)
+	if out == nil {
+		out = []string{}
+	}
+	return out, wrap(err)
+}
+
 // audienceIn narrows a query to rows for everyone or for the viewer's group and
 // its stream (audience_scope in SQL). An empty group means no narrowing.
 func audienceIn(alias, group string, args *[]any) string {

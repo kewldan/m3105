@@ -70,3 +70,18 @@ func checkAudience(ve interface{ Add(field, msg string) }, a *[]string) {
 		ve.Add("audience", "Аудитория — потоки (stream:1) и группы (group:М3105)")
 	}
 }
+
+// AudienceOpen reports whether content with this audience is for a viewer
+// whose own tokens (their group and its stream) are scope: content for
+// everyone is, otherwise one token must match.
+func AudienceOpen(audience, scope []string) bool {
+	if len(audience) == 0 {
+		return true
+	}
+	for _, t := range audience {
+		if slices.Contains(scope, t) {
+			return true
+		}
+	}
+	return false
+}

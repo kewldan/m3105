@@ -6,7 +6,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-webauthn/webauthn v0.18.2
-	github.com/jackc/pgx/v5 v5.11.0
+	github.com/jackc/pgx/v5 v5.12.0
 	github.com/minio/minio-go/v7 v7.4.1
 	github.com/pressly/goose/v3 v3.29.0
 	github.com/valkey-io/valkey-go v1.0.79

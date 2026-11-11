@@ -371,7 +371,7 @@ export function GradeSourceDialog({
           <FormField
             label="Теормин"
             htmlFor="gs-theory"
-            description="Баллы за лабу без модификаторов."
+            description="Столбец зачёта по теормину: после зачёта в нём баллы за лабу без модификаторов, до зачёта — пусто."
           >
             <Input id="gs-theory" {...form.register("labTheory")} />
           </FormField>

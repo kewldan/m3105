@@ -113,10 +113,11 @@ export function PendingTheory({
       <HourglassIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
       <span>
         {t.accepted} {plural(t.accepted, "лаба ждёт", "лабы ждут", "лаб ждут")}{" "}
-        теормина.
+        теормина. Это зачёт, пересдавать можно сколько угодно
         {t.pending > 0
-          ? ` Сдадите на максимум — плюс ${fmtScore(t.pending)}${then !== now ? `, и это уже ${then}` : ""}.`
+          ? `: сдадите — плюс ${fmtScore(t.pending)}${then !== now ? `, и это уже ${then}` : ""}`
           : ""}
+        .
       </span>
     </p>
   );

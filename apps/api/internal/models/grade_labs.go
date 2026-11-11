@@ -10,15 +10,17 @@ import (
 
 // GradeScheme describes labs graded with modifiers, as in the programming
 // course: next to each lab's total the sheet has a block of columns — the
-// theory score, pluses, minuses and the deadline stage — and the lab gives
+// theory min, pluses, minuses and the deadline stage — and the lab gives
 // theory × (1 + BonusPercent% × (pluses − minuses)) × LateFactors[stage].
+// The theory min is pass/fail and may be retaken any number of times: until
+// it is passed its cell is empty, then it holds the lab's base points.
 //
 // A breakdown column is a lab when the columns right to its left are titled
 // with these headers (in any order, empty titles skipped); the run ends at
 // the first other title, so the same "+" of every lab never gets mixed up.
 // The zero value means the source has no labs.
 type GradeScheme struct {
-	// Theory is the header of the theory score column ("12"); required.
+	// Theory is the header of the theory-min column ("12"); required.
 	Theory string `json:"theory"`
 	// Plus, Minus and Late are the other block headers; empty — no such column.
 	Plus  string `json:"plus"`
@@ -61,7 +63,7 @@ func (s *GradeScheme) validate(ve *httpx.ValidationError) {
 	}
 	if !s.Enabled() {
 		if s.Plus != "" || s.Minus != "" || s.Late != "" {
-			ve.Add("scheme", "Укажите заголовок столбца с баллами за теормин")
+			ve.Add("scheme", "Укажите заголовок столбца с теормином")
 		}
 		*s = GradeScheme{LateFactors: []float64{}}
 		return
@@ -104,14 +106,14 @@ const (
 	// LabAccepted: the lab is accepted (a deadline stage or modifiers are
 	// set), but the theory is not passed, so it gives no points yet.
 	LabAccepted LabStatus = "accepted"
-	// LabDone: the theory score is in.
+	// LabDone: the theory min is passed.
 	LabDone LabStatus = "done"
 )
 
 // GradeLab is a lab block worked out by the scheme.
 type GradeLab struct {
 	Status LabStatus `json:"status"`
-	// Theory is the theory score; nil until passed.
+	// Theory is the theory-min cell (the lab's base points); nil until passed.
 	Theory *float64 `json:"theory,omitempty"`
 	// Plus and Minus may be fractional: a teacher gives half a minus.
 	Plus  float64 `json:"plus,omitempty"`
@@ -122,7 +124,7 @@ type GradeLab struct {
 	Factor *float64 `json:"factor,omitempty"`
 	// Points is what the scheme gives for a done lab.
 	Points *float64 `json:"points,omitempty"`
-	// Potential is what an accepted lab gives once the theory is passed in full.
+	// Potential is what an accepted lab gives once the theory min is passed.
 	Potential *float64 `json:"potential,omitempty"`
 	// Bonus is what pluses and minuses changed (negative when minuses win).
 	Bonus float64 `json:"bonus,omitempty"`

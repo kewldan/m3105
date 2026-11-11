@@ -462,7 +462,7 @@ export type GradeEntry = {
 export type GradeLab = {
   /** `accepted` — лаба принята, но теормин не сдан и баллов она пока не даёт; `done` — теормин сдан */
   status: "none" | "accepted" | "done";
-  /** Баллы за теормин */
+  /** Ячейка теормина: после зачёта — баллы за лабу без модификаторов */
   theory?: number;
   /** Плюсики (бывают дробными) */
   plus?: number;
@@ -473,7 +473,7 @@ export type GradeLab = {
   factor?: number;
   /** Баллы по схеме (`done`) */
   points?: number;
-  /** Сколько лаба даст, если сдать теормин на максимум (`accepted`) */
+  /** Сколько лаба даст после зачёта по теормину (`accepted`) */
   potential?: number;
   /** Сколько добавили плюсы и отняли минусы (`done`) */
   bonus?: number;

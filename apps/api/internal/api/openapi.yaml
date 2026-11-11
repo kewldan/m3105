@@ -1103,13 +1103,13 @@ components:
           type: string
           enum: [none, accepted, done]
           description: "`accepted` — лаба принята, но теормин не сдан и баллов она пока не даёт; `done` — теормин сдан"
-        theory: { type: number, description: Баллы за теормин }
+        theory: { type: number, description: "Ячейка теормина: после зачёта — баллы за лабу без модификаторов" }
         plus: { type: number, description: Плюсики (бывают дробными) }
         minus: { type: number }
         stage: { type: integer, description: "Ступень просрочки; 0 — в срок" }
         factor: { type: number, description: Коэффициент ступени }
         points: { type: number, description: "Баллы по схеме (`done`)" }
-        potential: { type: number, description: "Сколько лаба даст, если сдать теормин на максимум (`accepted`)" }
+        potential: { type: number, description: "Сколько лаба даст после зачёта по теормину (`accepted`)" }
         bonus: { type: number, description: "Сколько добавили плюсы и отняли минусы (`done`)" }
         lateLoss: { type: number, description: "Сколько отняла просрочка (`done`)" }
       required: [status]

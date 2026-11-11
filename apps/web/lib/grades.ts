@@ -205,7 +205,7 @@ export type LabTotals = {
   done: number;
   /** Accepted labs waiting for the theory. */
   accepted: number;
-  /** What passing every pending theory in full would give. */
+  /** What the pending labs give once their theory mins are passed. */
   pending: number;
   plus: number;
   minus: number;

@@ -63,7 +63,7 @@ function LabCard({
       ) : lab.status === "accepted" ? (
         <div
           className="text-sm leading-tight text-amber-700 dark:text-amber-300"
-          title="Лаба принята, но без теормина баллов не даёт"
+          title="Лаба принята, но баллы даст только после зачёта по теормину (пересдавать можно сколько угодно)"
         >
           теормин
           {lab.potential != null ? (

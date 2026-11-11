@@ -3,6 +3,8 @@
 import { TrophyIcon } from "lucide-react";
 import Link from "next/link";
 
+import { PendingTheory } from "@/components/site/grades/lab-stats";
+import { LabStrip } from "@/components/site/grades/lab-strip";
 import { LetterChip } from "@/components/site/grades/letter-chip";
 import { PartBars } from "@/components/site/grades/part-bars";
 import { ScoreRing } from "@/components/site/grades/score-ring";
@@ -65,8 +67,16 @@ function GradeRow({ g }: { g: MyGrade }) {
           )}
           <PlaceChip place={g.site} label="на сайте" />
         </div>
-        <PartBars
+        <PendingTheory labs={g.labs} total={g.total} max={g.source.maxTotal} />
+        <LabStrip
           columns={g.source.columns}
+          parts={g.parts}
+          labs={g.labs}
+          color={g.source.subjectColor}
+          className="lg:grid-cols-3"
+        />
+        <PartBars
+          columns={g.source.columns.filter((c) => !(c.key in g.labs))}
           parts={g.parts}
           color={g.source.subjectColor}
         />

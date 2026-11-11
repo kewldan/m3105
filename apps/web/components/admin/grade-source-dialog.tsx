@@ -21,6 +21,7 @@ import { handleApiError } from "@/lib/admin/errors";
 import { adminApi } from "@/lib/api/admin";
 import type {
   AdminGradeColumn,
+  GradeScheme,
   GradeSource,
   GradeSourceInput,
   Subject,
@@ -49,6 +50,22 @@ function parseColumns(text: string): AdminGradeColumn[] | string {
   return out;
 }
 
+/** "1; 0,85; 0,65" ↔ [1, 0.85, 0.65]. */
+function factorsToText(factors: number[]): string {
+  return factors.map((f) => String(f).replace(".", ",")).join("; ");
+}
+
+function parseFactors(text: string): number[] | string {
+  const parts = text
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const out = parts.map((p) => Number(p.replace(",", ".")));
+  if (out.some((f) => !Number.isFinite(f) || f < 0 || f > 1))
+    return "Числа от 0 до 1 через «;»";
+  return out;
+}
+
 const schema = z.object({
   subjectId: z
     .number()
@@ -69,12 +86,22 @@ const schema = z.object({
     const res = parseColumns(v);
     if (typeof res === "string") ctx.addIssue({ code: "custom", message: res });
   }),
+  labTheory: z.string().trim(),
+  labPlus: z.string().trim(),
+  labMinus: z.string().trim(),
+  labLate: z.string().trim(),
+  labBonus: z.string().regex(/^(\d+([.,]\d+)?)?$/, "Число"),
+  labFactors: z.string().superRefine((v, ctx) => {
+    const res = parseFactors(v);
+    if (typeof res === "string") ctx.addIssue({ code: "custom", message: res });
+  }),
 });
 
 type FormValues = z.infer<typeof schema>;
 
 // Значения под таблицу баллов по программированию: вкладка на группу,
-// пять лаб по 12 баллов и экзамен на 40.
+// пять лаб по 12 баллов и экзамен на 40; у лабы блок «- + D 12»: плюсик
+// и минус — ±4%, ступени просрочки срезают лабу до 85, 65 и 50%.
 const EMPTY: FormValues = {
   subjectId: null,
   title: "",
@@ -97,7 +124,25 @@ const EMPTY: FormValues = {
     })),
     { key: "exam", header: "Экзамен", label: "Экзамен", max: 40 },
   ]),
+  labTheory: "12",
+  labPlus: "+",
+  labMinus: "-",
+  labLate: "D",
+  labBonus: "4",
+  labFactors: "1; 0,85; 0,65; 0,5",
 };
+
+function schemeFromValues(values: FormValues): GradeScheme {
+  const factors = parseFactors(values.labFactors);
+  return {
+    theory: values.labTheory,
+    plus: values.labPlus,
+    minus: values.labMinus,
+    late: values.labLate,
+    bonusPercent: Number(values.labBonus.replace(",", ".") || 0),
+    lateFactors: typeof factors === "string" ? [] : factors,
+  };
+}
 
 export function GradeSourceDialog({
   open,
@@ -136,6 +181,14 @@ export function GradeSourceDialog({
             enabled: source.enabled,
             membersOnly: source.membersOnly,
             columns: columnsToText(source.columns),
+            labTheory: source.scheme.theory,
+            labPlus: source.scheme.plus,
+            labMinus: source.scheme.minus,
+            labLate: source.scheme.late,
+            labBonus: source.scheme.theory
+              ? String(source.scheme.bonusPercent).replace(".", ",")
+              : "",
+            labFactors: factorsToText(source.scheme.lateFactors),
           }
         : EMPTY,
     );
@@ -158,6 +211,7 @@ export function GradeSourceDialog({
       enabled: values.enabled,
       membersOnly: values.membersOnly,
       columns,
+      scheme: schemeFromValues(values),
     };
     try {
       const saved = source
@@ -307,6 +361,54 @@ export function GradeSourceDialog({
             aria-invalid={!!errors.columns || undefined}
           />
         </FormField>
+      </FormSection>
+
+      <FormSection
+        title="Лабы с модификаторами"
+        description="Если у лабы слева от её итога есть блок столбцов — теормин, плюсы, минусы, ступень просрочки, — сайт покажет, какие лабы ждут теормина и сколько за них можно получить, и устроит рейтинг плюсиков. Блок ищется у каждого столбца разбивки отдельно, так что одинаковые заголовки у разных лаб не мешают. Пустой теормин — схемы нет."
+      >
+        <FormGrid>
+          <FormField
+            label="Теормин"
+            htmlFor="gs-theory"
+            description="Баллы за лабу без модификаторов."
+          >
+            <Input id="gs-theory" {...form.register("labTheory")} />
+          </FormField>
+          <FormField label="Ступень просрочки" htmlFor="gs-late">
+            <Input id="gs-late" {...form.register("labLate")} />
+          </FormField>
+          <FormField label="Плюсики" htmlFor="gs-plus">
+            <Input id="gs-plus" {...form.register("labPlus")} />
+          </FormField>
+          <FormField label="Минусы" htmlFor="gs-minus">
+            <Input id="gs-minus" {...form.register("labMinus")} />
+          </FormField>
+          <FormField
+            label="Плюсик, %"
+            htmlFor="gs-bonus"
+            description="Сколько добавляет плюсик и отнимает минус."
+            error={errors.labBonus?.message}
+          >
+            <Input
+              id="gs-bonus"
+              inputMode="decimal"
+              {...form.register("labBonus")}
+            />
+          </FormField>
+          <FormField
+            label="Коэффициенты просрочки"
+            htmlFor="gs-factors"
+            description="По ступеням, с нулевой (в срок); дальше — последний. При синке сверяются с итогами лаб в таблице."
+            error={errors.labFactors?.message}
+          >
+            <Input
+              id="gs-factors"
+              className="font-mono"
+              {...form.register("labFactors")}
+            />
+          </FormField>
+        </FormGrid>
       </FormSection>
 
       <FormGrid>

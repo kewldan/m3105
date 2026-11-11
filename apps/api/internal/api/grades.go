@@ -55,6 +55,7 @@ func (h *Handler) myGrades(ctx context.Context, isu string) ([]models.MyGrade, e
 			Group:     r.Group,
 			Total:     r.Total,
 			Parts:     r.Parts,
+			Labs:      src.Scheme.Labs(src.Columns, r.Details),
 			Course:    models.Place{Rank: r.CourseRank, Size: r.CourseSize},
 			InGroup:   models.Place{Rank: r.GroupRank, Size: r.GroupSize},
 			Site:      models.Place{Rank: r.SiteRank, Size: r.SiteSize},
@@ -138,6 +139,7 @@ func (h *Handler) getGrades(w http.ResponseWriter, r *http.Request) {
 			Group:     row.Group,
 			Total:     row.Total,
 			Parts:     row.Parts,
+			Labs:      sources[selected].Scheme.Labs(sources[selected].Columns, row.Details),
 			ChangedAt: row.ChangedAt,
 			Me:        user.ISU != "" && row.ISU == user.ISU,
 		}

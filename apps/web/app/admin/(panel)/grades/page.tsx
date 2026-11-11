@@ -50,6 +50,12 @@ export default function GradesPage() {
             .join(". "),
         },
       );
+      // Таблица считает лабы не так, как настроено: поменялись правила.
+      if (res.warnings.length)
+        toast.warning("Лабы в таблице не сходятся со схемой", {
+          description: res.warnings.join("; "),
+          duration: 15000,
+        });
     } catch (err) {
       handleApiError(err);
     } finally {

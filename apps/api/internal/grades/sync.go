@@ -98,7 +98,7 @@ func (s *Syncer) Sync(ctx context.Context, src models.GradeSource) (models.Grade
 }
 
 func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.GradeSyncResult, error) {
-	res := models.GradeSyncResult{Tabs: []string{}, Skipped: []string{}}
+	res := models.GradeSyncResult{Tabs: []string{}, Skipped: []string{}, Warnings: []string{}}
 	var pattern *regexp.Regexp
 	if src.TabPattern != "" {
 		p, err := regexp.Compile(src.TabPattern)
@@ -177,6 +177,9 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 		return res, err
 	}
 	res.Rows = len(rows)
+	if res.Warnings = CheckScheme(src, rows); len(res.Warnings) > 0 {
+		s.log.Warn("grade scheme disagrees with the sheet", "source", src.ID, "labs", res.Warnings)
+	}
 	if changed := changedMax(src.Columns, maxes); len(changed) > 0 {
 		if err := s.store.SetGradeColumnMax(ctx, src.ID, changed); err != nil {
 			return res, err

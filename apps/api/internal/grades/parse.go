@@ -161,8 +161,10 @@ func ParseTab(records [][]string, src models.GradeSource, tabName string) ([]mod
 		return nil, fmt.Errorf("нет столбца %q", src.GroupColumn)
 	}
 	partCols := make([]int, len(src.Columns))
+	blocks := make([]map[string]int, len(src.Columns))
 	for i, c := range src.Columns {
 		partCols[i] = col(c.Header)
+		blocks[i] = labBlock(records[head], partCols[i], src.Scheme)
 	}
 
 	cell := func(row []string, j int) string {
@@ -200,6 +202,7 @@ func ParseTab(records [][]string, src models.GradeSource, tabName string) ([]mod
 			FullName: name,
 			Group:    models.NormalizeGroup(g),
 			Parts:    map[string]*float64{},
+			Details:  map[string]models.LabCells{},
 		}
 		// Столбца нет на этой вкладке — части нет вовсе (ключ не пишется), а
 		// пустая ячейка — часть есть, но баллов пока нет (null).
@@ -212,6 +215,17 @@ func ParseTab(records [][]string, src models.GradeSource, tabName string) ([]mod
 			row.Parts[c.Key] = v
 			if v != nil {
 				sum += *v
+			}
+			if b := blocks[i]; b != nil {
+				num := func(role string) *float64 {
+					if j, ok := b[role]; ok {
+						return ParseNumber(cell(rec, j))
+					}
+					return nil
+				}
+				row.Details[c.Key] = models.LabCells{
+					Theory: num("theory"), Plus: num("plus"), Minus: num("minus"), Late: num("late"),
+				}
 			}
 		}
 		// Столбца итога нет или он ещё не посчитан — сумма разбивки.
@@ -227,6 +241,37 @@ func ParseTab(records [][]string, src models.GradeSource, tabName string) ([]mod
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+// labBlock finds the columns of a lab block: the run right to the left of the
+// lab's own column titled with the scheme's headers, nearest first, empty
+// titles skipped. The run ends at any other title or a header seen twice —
+// that is the previous lab — so every lab gets its own "+" though they are
+// all called the same. Nil when the column is not a lab.
+func labBlock(header []string, at int, scheme models.GradeScheme) map[string]int {
+	if !scheme.Enabled() || at < 0 {
+		return nil
+	}
+	roles := map[string]string{}
+	for h, role := range scheme.Headers() {
+		roles[headerKey(h)] = role
+	}
+	found := map[string]int{}
+	for j := min(at, len(header)) - 1; j >= 0; j-- {
+		k := headerKey(header[j])
+		if k == "" {
+			continue
+		}
+		role, ok := roles[k]
+		if _, seen := found[role]; !ok || seen {
+			break
+		}
+		found[role] = j
+	}
+	if _, ok := found["theory"]; !ok {
+		return nil
+	}
+	return found
 }
 
 var digitsRe = regexp.MustCompile(`^\d{5,7}$`)

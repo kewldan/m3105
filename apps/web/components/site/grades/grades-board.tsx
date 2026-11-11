@@ -5,6 +5,7 @@ import {
   GitCompareArrowsIcon,
   LogInIcon,
   SearchIcon,
+  SparklesIcon,
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
@@ -19,6 +20,12 @@ import {
   CompareDialog,
   quickPicks,
 } from "@/components/site/grades/compare-dialog";
+import {
+  LabProgress,
+  PendingTheory,
+  PlusBoard,
+} from "@/components/site/grades/lab-stats";
+import { LabStrip } from "@/components/site/grades/lab-strip";
 import { LetterChip } from "@/components/site/grades/letter-chip";
 import { PartBars } from "@/components/site/grades/part-bars";
 import { ScoreRing } from "@/components/site/grades/score-ring";
@@ -34,7 +41,11 @@ import {
 } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { GradeSourceSummary, GradesResponse } from "@/lib/api/types";
+import type {
+  GradeColumn,
+  GradeSourceSummary,
+  GradesResponse,
+} from "@/lib/api/types";
 import { userApi } from "@/lib/api/user";
 import { fmtRelative, plural } from "@/lib/format";
 import {
@@ -43,6 +54,7 @@ import {
   groupStats,
   histogram,
   LETTERS,
+  labColumns,
   mean,
   median,
   type RankedEntry,
@@ -52,7 +64,7 @@ import {
 import { subjectColor } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
 
-type Scope = "group" | "course" | "site" | "groups";
+type Scope = "group" | "course" | "site" | "groups" | "plus";
 
 /**
  * A row with its index in the response: names repeat (two «Иванов Иван» in
@@ -221,20 +233,30 @@ function RatingList({
                   source.columns.length <= MAX_INLINE_PARTS && "md:flex",
                 )}
               >
-                {source.columns.map((col) => (
-                  <span
-                    key={col.key}
-                    className={cn(
-                      "w-9 rounded text-center text-xs tabular-nums",
-                      r.parts[col.key]
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground/50",
-                    )}
-                    title={col.label}
-                  >
-                    {fmtScore(r.parts[col.key])}
-                  </span>
-                ))}
+                {source.columns.map((col) =>
+                  r.labs[col.key]?.status === "accepted" ? (
+                    <span
+                      key={col.key}
+                      className="w-9 rounded bg-amber-500/15 text-center text-xs text-amber-700 dark:text-amber-300"
+                      title={`${col.label}: принята, теормин не сдан`}
+                    >
+                      ⏳
+                    </span>
+                  ) : (
+                    <span
+                      key={col.key}
+                      className={cn(
+                        "w-9 rounded text-center text-xs tabular-nums",
+                        r.parts[col.key]
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground/50",
+                      )}
+                      title={col.label}
+                    >
+                      {fmtScore(r.parts[col.key])}
+                    </span>
+                  ),
+                )}
               </span>
               <span className="w-14 shrink-0 text-right text-sm font-semibold tabular-nums">
                 {fmtScore(r.total)}
@@ -242,13 +264,19 @@ function RatingList({
               <LetterChip total={r.total} max={source.maxTotal} />
             </button>
             {expanded ? (
-              <div className="px-4 pb-4 sm:pl-[4.75rem]">
-                <PartBars
+              <div className="space-y-3 px-4 pb-4 sm:pl-[4.75rem]">
+                <LabStrip
                   columns={source.columns}
+                  parts={r.parts}
+                  labs={r.labs}
+                  color={source.subjectColor}
+                />
+                <PartBars
+                  columns={source.columns.filter((c) => !(c.key in r.labs))}
                   parts={r.parts}
                   color={source.subjectColor}
                 />
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-muted-foreground">
                     Баллы менялись {fmtRelative(r.changedAt)}
                     {r.user ? " · есть аккаунт на сайте" : ""}
@@ -404,6 +432,7 @@ function MyResult({
               ? `Вы первый ${grouped ? "на курсе" : "в таблице"}.`
               : ""}
         </p>
+        <PendingTheory labs={me.labs} total={me.total} max={source.maxTotal} />
         {ranked.length > 1 ? (
           <Button variant="outline" size="sm" onClick={onCompare}>
             <GitCompareArrowsIcon data-icon="inline-start" />
@@ -431,10 +460,20 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
   const [pickedScope, setScope] = useState<Scope>(
     hasGroup ? "group" : "course",
   );
+  const labCols: GradeColumn[] = useMemo(
+    () => (source ? labColumns(source.columns, data.rows) : []),
+    [source, data.rows],
+  );
+  const hasPlus = data.rows.some((r) =>
+    Object.values(r.labs).some((l) => (l.plus ?? 0) > 0),
+  );
   const scope: Scope =
-    !grouped && (pickedScope === "group" || pickedScope === "groups")
+    (!grouped && (pickedScope === "group" || pickedScope === "groups")) ||
+    (pickedScope === "plus" && !hasPlus)
       ? "course"
       : pickedScope;
+  // Списки без своих строк (группы, плюсики) считают статистику по курсу.
+  const listScope = scope === "groups" || scope === "plus";
 
   const rows = useMemo(
     () => data.rows.map((r, key) => ({ ...r, key })),
@@ -452,6 +491,7 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
   );
 
   const scoped = scope === "group" ? group : scope === "site" ? site : course;
+  const searchable = !listScope;
   const q = query.trim().toLowerCase();
   const visible = q
     ? scoped.filter(
@@ -610,6 +650,10 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
         source={source}
       />
 
+      {labCols.length ? (
+        <LabProgress rows={scoped} columns={labCols} source={source} />
+      ) : null}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs value={scope} onValueChange={(v) => setScope(v as Scope)}>
           <TabsList>
@@ -626,11 +670,17 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
                 Группы
               </TabsTrigger>
             ) : null}
+            {hasPlus ? (
+              <TabsTrigger value="plus">
+                <SparklesIcon aria-hidden />
+                Плюсики
+              </TabsTrigger>
+            ) : null}
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">
           {loading ? <Spinner /> : null}
-          {mine && scope !== "groups" && scoped.some((r) => r.me) ? (
+          {mine && searchable && scoped.some((r) => r.me) ? (
             <Button
               variant="outline"
               size="sm"
@@ -647,7 +697,7 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
               Найти меня
             </Button>
           ) : null}
-          {scope !== "groups" ? (
+          {searchable ? (
             <InputGroup className="sm:w-56">
               <InputGroupAddon>
                 <SearchIcon />
@@ -665,6 +715,8 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
 
       {scope === "groups" ? (
         <GroupsTable stats={groups} myGroup={myGroup} max={source.maxTotal} />
+      ) : scope === "plus" ? (
+        <PlusBoard rows={rows} myGroup={myGroup} grouped={grouped} />
       ) : visible.length === 0 ? (
         <EmptyState
           icon={scope === "site" ? UsersIcon : SearchIcon}

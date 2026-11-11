@@ -162,6 +162,34 @@ func TestGradeChangeMessage(t *testing.T) {
 	}
 }
 
+func TestGradeChangeMessageLabs(t *testing.T) {
+	f := func(v float64) *float64 { return &v }
+	scheme := models.GradeScheme{Theory: "12", Plus: "+", Minus: "-", Late: "D", BonusPercent: 4, LateFactors: []float64{1, 0.85}}
+	c := store.GradeChange{
+		SourceID: 3, SubjectName: "ОП", Scheme: scheme,
+		Columns:       []models.GradeColumn{{Key: "lab1", Label: "Лаба 1", Max: 12}, {Key: "lab2", Label: "Лаба 2", Max: 12}},
+		NotifiedTotal: 12, Total: 12,
+		NotifiedParts:   map[string]*float64{"lab1": f(12), "lab2": f(0)},
+		Parts:           map[string]*float64{"lab1": f(12), "lab2": f(0)},
+		NotifiedDetails: map[string]models.LabCells{"lab1": {Theory: f(12)}, "lab2": {}},
+		Details:         map[string]models.LabCells{"lab1": {Theory: f(12)}, "lab2": {Plus: f(2), Late: f(1)}},
+	}
+	msg := gradeChangeMessage("https://m3105.ru", c)
+	for _, want := range []string{"📝 <b>ОП</b>: <b>12</b>", "• Лаба 2 принята, осталось сдать теормин — на кону 11,02",
+		"• Лаба 2: плюсиков 0 → 2", "• Лаба 2: просрочка, 1-я ступень — лаба даст ×0,85"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("no %q in:\n%s", want, msg)
+		}
+	}
+	if strings.Contains(msg, "Лаба 1") {
+		t.Errorf("unchanged lab listed:\n%s", msg)
+	}
+	c.Details = c.NotifiedDetails
+	if msg := gradeChangeMessage("https://m3105.ru", c); msg != "" {
+		t.Errorf("nothing changed, got:\n%s", msg)
+	}
+}
+
 func TestSwapMessages(t *testing.T) {
 	sess := models.PracticeSession{ID: 24, SubjectName: "Программирование", SubjectShortName: "Прога",
 		StartsAt: time.Date(2026, 10, 26, 20, 30, 0, 0, msk)}

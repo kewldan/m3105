@@ -15,6 +15,7 @@ export type CppDiagnostic = Schema.CppDiagnostic;
 export type CppEdit = Schema.CppEdit;
 export type GradeColumn = Schema.GradeColumn;
 export type GradeEntry = Schema.GradeEntry;
+export type GradeLab = Schema.GradeLab;
 export type GradeSourceSummary = Schema.GradeSourceSummary;
 export type GradesResponse = Schema.GradesResponse;
 export type HomeResponse = Schema.HomeResponse;
@@ -428,6 +429,7 @@ export type MeResponse = {
 // ---- scores from external sheets ----
 
 export type GradeParts = GradeEntry["parts"];
+export type GradeLabs = GradeEntry["labs"];
 
 export type Place = { rank: number; size: number };
 
@@ -436,6 +438,7 @@ export type MyGrade = {
   group: string;
   total: number;
   parts: GradeParts;
+  labs: GradeLabs;
   course: Place;
   inGroup: Place;
   /** Among students registered on the site. */
@@ -444,6 +447,20 @@ export type MyGrade = {
 };
 
 export type AdminGradeColumn = GradeColumn & { header: string };
+
+/**
+ * Labs graded with modifiers: block headers next to each lab's total and
+ * the rules. Empty `theory` — the source has no labs.
+ */
+export type GradeScheme = {
+  theory: string;
+  plus: string;
+  minus: string;
+  late: string;
+  bonusPercent: number;
+  /** Multiplier at each deadline stage, from 0 (on time). */
+  lateFactors: number[];
+};
 
 export type GradeSource = {
   id: number;
@@ -457,6 +474,7 @@ export type GradeSource = {
   totalColumn: string;
   maxTotal: number;
   columns: AdminGradeColumn[];
+  scheme: GradeScheme;
   syncHours: number;
   enabled: boolean;
   membersOnly: boolean;
@@ -485,6 +503,7 @@ export type GradeSourceInput = {
   totalColumn: string;
   maxTotal: number;
   columns: AdminGradeColumn[];
+  scheme: GradeScheme;
   syncHours: number;
   enabled: boolean;
   membersOnly: boolean;
@@ -496,6 +515,8 @@ export type GradeSyncResult = {
   rows: number;
   /** Accounts linked by name during this sync. */
   linked: number;
+  /** Labs whose total in the sheet disagrees with the scheme. */
+  warnings: string[];
 };
 
 export type TelegramAuthData = {

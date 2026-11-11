@@ -33,6 +33,7 @@ type GradeSource struct {
 	TotalColumn   string        `db:"total_column" json:"totalColumn"`
 	MaxTotal      float64       `db:"max_total" json:"maxTotal"`
 	Columns       []GradeColumn `db:"columns" json:"columns"`
+	Scheme        GradeScheme   `db:"scheme" json:"scheme"`
 	SyncHours     int           `db:"sync_hours" json:"syncHours"`
 	Enabled       bool          `db:"enabled" json:"enabled"`
 	// MembersOnly: only students whose ISU is in the sheet see the source.
@@ -72,6 +73,7 @@ type GradeSourceInput struct {
 	TotalColumn string        `json:"totalColumn"`
 	MaxTotal    float64       `json:"maxTotal"`
 	Columns     []GradeColumn `json:"columns"`
+	Scheme      GradeScheme   `json:"scheme"`
 	SyncHours   int           `json:"syncHours"`
 	Enabled     bool          `json:"enabled"`
 	MembersOnly bool          `json:"membersOnly"`
@@ -153,6 +155,7 @@ func (in *GradeSourceInput) Validate() error {
 	if len(in.Columns) > 20 {
 		ve.Add("columns", "Не больше 20 столбцов")
 	}
+	in.Scheme.validate(ve)
 	if !ve.Empty() {
 		return ve
 	}
@@ -161,13 +164,15 @@ func (in *GradeSourceInput) Validate() error {
 
 // GradeRow is one student's line of a source.
 type GradeRow struct {
-	SourceID  int64               `db:"source_id" json:"-"`
-	RowKey    string              `db:"row_key" json:"-"`
-	ISU       string              `db:"isu" json:"-"`
-	FullName  string              `db:"full_name" json:"-"`
-	Group     string              `db:"group_name" json:"group"`
-	Total     float64             `db:"total" json:"total"`
-	Parts     map[string]*float64 `db:"parts" json:"parts"`
+	SourceID int64               `db:"source_id" json:"-"`
+	RowKey   string              `db:"row_key" json:"-"`
+	ISU      string              `db:"isu" json:"-"`
+	FullName string              `db:"full_name" json:"-"`
+	Group    string              `db:"group_name" json:"group"`
+	Total    float64             `db:"total" json:"total"`
+	Parts    map[string]*float64 `db:"parts" json:"parts"`
+	// Details are the lab blocks' cells by part key (see GradeScheme).
+	Details   map[string]LabCells `db:"details" json:"-"`
 	ChangedAt time.Time           `db:"changed_at" json:"changedAt"`
 }
 
@@ -179,6 +184,8 @@ type GradeEntry struct {
 	Total     float64             `json:"total"`
 	Parts     map[string]*float64 `json:"parts"`
 	ChangedAt time.Time           `json:"changedAt"`
+	// Labs is the state of each lab block by part key; empty without a scheme.
+	Labs map[string]GradeLab `json:"labs"`
 	// User is the site account the row belongs to.
 	User *PublicUser `json:"user"`
 	Me   bool        `json:"me"`
@@ -236,6 +243,7 @@ type MyGrade struct {
 	Group   string              `json:"group"`
 	Total   float64             `json:"total"`
 	Parts   map[string]*float64 `json:"parts"`
+	Labs    map[string]GradeLab `json:"labs"`
 	Course  Place               `json:"course"`
 	InGroup Place               `json:"inGroup"`
 	// Site is the place among students registered on the site.
@@ -250,6 +258,9 @@ type GradeSyncResult struct {
 	Rows    int      `json:"rows"`
 	// Linked is how many accounts got their ISU from name matching.
 	Linked int `json:"linked"`
+	// Warnings are labs whose total in the sheet disagrees with the scheme:
+	// the teacher changed the rules, and the settings need the same change.
+	Warnings []string `json:"warnings"`
 }
 
 var isuRe = regexp.MustCompile(`^\d{5,7}$`)

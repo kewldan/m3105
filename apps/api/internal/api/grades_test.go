@@ -70,7 +70,8 @@ func TestGrades(t *testing.T) {
 		{"key": "exam", "label": "Экзамен", "header": "Экзамен", "max": 40},
 	}
 	src := map[string]any{"subjectId": subjectID, "spreadsheet": "не ссылка", "syncHours": 3, "enabled": true,
-		"nameColumn": "ФИО", "idColumn": "ИСУ", "totalColumn": "Итог", "columns": cols}
+		"nameColumn": "ФИО", "idColumn": "ИСУ", "totalColumn": "Итог", "columns": cols,
+		"scheme": map[string]any{"theory": "12", "plus": "+", "minus": "-", "late": "D", "bonusPercent": 4, "lateFactors": []float64{1, 0.85}}}
 	admin.do("POST", "/api/v1/admin/grade-sources", src, 422)
 	src["spreadsheet"] = "https://docs.google.com/spreadsheets/d/1RPnkkIYz1yWKvegiurVcmc-UIvRXBZZ7OqjRtw_gI9E/edit?gid=616990927#gid=616990927"
 	created := admin.do("POST", "/api/v1/admin/grade-sources", src, 201)
@@ -80,7 +81,7 @@ func TestGrades(t *testing.T) {
 	sourceID := int64(created["id"].(float64))
 
 	res := admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", sourceID), nil, 200)
-	if res["rows"] != float64(4) || len(res["tabs"].([]any)) != 2 || len(res["skipped"].([]any)) != 1 {
+	if res["rows"] != float64(4) || len(res["tabs"].([]any)) != 2 || len(res["skipped"].([]any)) != 1 || len(res["warnings"].([]any)) != 0 {
 		t.Fatalf("unexpected sync result: %v", res)
 	}
 
@@ -112,6 +113,14 @@ func TestGrades(t *testing.T) {
 	first := rows[0].(map[string]any)
 	if first["name"] != "Баллов Борис" || first["total"] != 24.96 || first["group"] != "М3105" {
 		t.Fatalf("rows not sorted or not shortened: %v", first)
+	}
+	// Лабы по схеме: у каждой свой блок «- + D 12», у экзамена блока нет.
+	labs := first["labs"].(map[string]any)
+	if l := labs["lab1"].(map[string]any); l["status"] != "done" || l["plus"] != float64(2) || l["bonus"] != 0.96 {
+		t.Fatalf("lab1 of the leader: %v", labs)
+	}
+	if _, ok := labs["exam"]; ok || len(labs) != 2 {
+		t.Fatalf("exam is not a lab: %v", labs)
 	}
 	for _, r := range rows {
 		if _, leaked := r.(map[string]any)["isu"]; leaked {

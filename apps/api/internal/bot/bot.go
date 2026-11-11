@@ -389,10 +389,13 @@ func (b *Bot) notifyGrades(ctx context.Context) {
 	}
 	for _, c := range changes {
 		// Mark first, like lab announcements: a crash must not repeat the message.
-		if err := b.store.MarkGradeNotified(ctx, c.SourceID, c.RowKey, c.Total, c.Parts); err != nil {
+		if err := b.store.MarkGradeNotified(ctx, c); err != nil {
 			b.log.Warn("mark grade notified", "source", c.SourceID, "err", err)
 			continue
 		}
-		b.send(ctx, c.ChatID, gradeChangeMessage(b.opts.SiteURL, c))
+		// Поменялась только незаметная ячейка блока лабы — писать не о чем.
+		if msg := gradeChangeMessage(b.opts.SiteURL, c); msg != "" {
+			b.send(ctx, c.ChatID, msg)
+		}
 	}
 }

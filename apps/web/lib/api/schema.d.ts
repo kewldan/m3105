@@ -440,11 +440,36 @@ export type GradeEntry = {
   total: number;
   /** Баллы по столбцам `columns`; столбца нет на вкладке — ключа нет, пустая ячейка — `null` */
   parts: Record<string, number | null>;
+  /** Лабы с модификаторами по ключам `columns` (теормин, плюсы, минусы, ступень просрочки из блока столбцов слева от итога лабы); пусто, если у источника нет схемы лаб. Баллы за лабу — в `parts` */
+  labs: Record<string, GradeLab>;
   changedAt: DateTime;
   /** Аккаунт на сайте, к которому привязана строка */
   user: PublicUser | null;
   /** Строка текущего студента */
   me: boolean;
+};
+
+/** Нулевые и пустые поля не передаются */
+export type GradeLab = {
+  /** `accepted` — лаба принята, но теормин не сдан и баллов она пока не даёт; `done` — теормин сдан */
+  status: "none" | "accepted" | "done";
+  /** Баллы за теормин */
+  theory?: number;
+  /** Плюсики (бывают дробными) */
+  plus?: number;
+  minus?: number;
+  /** Ступень просрочки; 0 — в срок */
+  stage?: number;
+  /** Коэффициент ступени */
+  factor?: number;
+  /** Баллы по схеме (`done`) */
+  points?: number;
+  /** Сколько лаба даст, если сдать теормин на максимум (`accepted`) */
+  potential?: number;
+  /** Сколько добавили плюсы и отняли минусы (`done`) */
+  bonus?: number;
+  /** Сколько отняла просрочка (`done`) */
+  lateLoss?: number;
 };
 
 export type GradesResponse = {

@@ -1,4 +1,10 @@
-import type { GradeColumn, GradeEntry, GradeParts } from "@/lib/api/types";
+import type {
+  GradeColumn,
+  GradeEntry,
+  GradeLabs,
+  GradeParts,
+} from "@/lib/api/types";
+import { plural } from "@/lib/format";
 
 /** ITMO letter grades: the lowest score (out of 100) for each letter. */
 export const LETTERS = [
@@ -185,4 +191,94 @@ export function fmtDelta(v: number): string {
   const r = Math.round(Math.abs(v) * 100) / 100;
   if (r === 0) return "0";
   return `${v > 0 ? "+" : "−"}${fmtScore(r)}`;
+}
+
+/** Lab columns of the source: those that have a lab block in some row. */
+export function labColumns(
+  columns: GradeColumn[],
+  rows: { labs: GradeLabs }[],
+): GradeColumn[] {
+  return columns.filter((c) => rows.some((r) => c.key in r.labs));
+}
+
+export type LabTotals = {
+  done: number;
+  /** Accepted labs waiting for the theory. */
+  accepted: number;
+  /** What passing every pending theory in full would give. */
+  pending: number;
+  plus: number;
+  minus: number;
+  /** Points pluses and minuses added, signed. */
+  bonus: number;
+  lateLoss: number;
+};
+
+/** Sums one student's labs. */
+export function labTotals(labs: GradeLabs): LabTotals {
+  const out: LabTotals = {
+    done: 0,
+    accepted: 0,
+    pending: 0,
+    plus: 0,
+    minus: 0,
+    bonus: 0,
+    lateLoss: 0,
+  };
+  for (const l of Object.values(labs)) {
+    if (l.status === "done") out.done++;
+    if (l.status === "accepted") {
+      out.accepted++;
+      out.pending += l.potential ?? 0;
+    }
+    out.plus += l.plus ?? 0;
+    out.minus += l.minus ?? 0;
+    out.bonus += l.bonus ?? 0;
+    out.lateLoss += l.lateLoss ?? 0;
+  }
+  return out;
+}
+
+export type LabStat = {
+  column: GradeColumn;
+  /** Rows that have this lab at all. */
+  count: number;
+  done: number;
+  accepted: number;
+  /** Labs accepted or done after the deadline. */
+  late: number;
+  /** Mean points over done labs. */
+  meanPoints: number;
+};
+
+/** How the rows did on each lab. */
+export function labStats(
+  rows: { labs: GradeLabs; parts: GradeParts }[],
+  columns: GradeColumn[],
+): LabStat[] {
+  return columns.map((column) => {
+    const labs = rows.flatMap((r) => {
+      const l = r.labs[column.key];
+      return l ? [{ lab: l, points: r.parts[column.key] ?? 0 }] : [];
+    });
+    const done = labs.filter((x) => x.lab.status === "done");
+    return {
+      column,
+      count: labs.length,
+      done: done.length,
+      accepted: labs.filter((x) => x.lab.status === "accepted").length,
+      late: labs.filter((x) => (x.lab.stage ?? 0) > 0).length,
+      meanPoints: mean(done.map((x) => x.points)),
+    };
+  });
+}
+
+/** «1 плюсик», «1,5 плюсика»: a fraction takes the genitive singular. */
+export function fmtCount(
+  n: number,
+  one: string,
+  few: string,
+  many: string,
+): string {
+  return `${fmtScore(n)} ${Number.isInteger(n) ? plural(n, one, few, many) : few}`;
 }

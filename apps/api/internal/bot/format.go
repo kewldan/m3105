@@ -244,28 +244,66 @@ func gradeTitle(title, subject string) string {
 	return subject
 }
 
-// gradeChangeMessage tells a student their score moved, part by part.
+// gradeChangeMessage tells a student their score moved, part by part, and
+// what happened to their labs: accepted without the theory, a new plus, a
+// later deadline stage. Empty when there is nothing to tell.
 func gradeChangeMessage(site string, c store.GradeChange) string {
-	var sb strings.Builder
-	diff := c.Total - c.NotifiedTotal
-	icon, sign := "📈", "+"
-	if diff < 0 {
-		icon, sign = "📉", "−"
-	}
-	fmt.Fprintf(&sb, "%s <b>%s</b>: %s → <b>%s</b>", icon, esc(gradeTitle(c.Title, c.SubjectName)), fmtScore(c.NotifiedTotal), fmtScore(c.Total))
-	if math.Abs(diff) >= 0.005 {
-		fmt.Fprintf(&sb, " (%s%s)", sign, fmtScore(math.Abs(diff)))
-	}
-	sb.WriteString("\n")
+	var lines []string
 	for _, col := range c.Columns {
 		before, after := c.NotifiedParts[col.Key], c.Parts[col.Key]
-		if fmtPart(before) == fmtPart(after) {
+		if fmtPart(before) != fmtPart(after) {
+			lines = append(lines, fmt.Sprintf("• %s: %s → %s", esc(col.Label), fmtPart(before), fmtPart(after)))
+		}
+		cells, ok := c.Details[col.Key]
+		if !ok || !c.Scheme.Enabled() {
 			continue
 		}
-		fmt.Fprintf(&sb, "• %s: %s → %s\n", esc(col.Label), fmtPart(before), fmtPart(after))
+		lines = append(lines, labChanges(col, c.Scheme.Lab(c.NotifiedDetails[col.Key], col.Max), c.Scheme.Lab(cells, col.Max))...)
+	}
+	diff := c.Total - c.NotifiedTotal
+	if len(lines) == 0 && math.Abs(diff) < 0.005 {
+		return ""
+	}
+	var sb strings.Builder
+	title := esc(gradeTitle(c.Title, c.SubjectName))
+	switch {
+	case math.Abs(diff) < 0.005:
+		fmt.Fprintf(&sb, "📝 <b>%s</b>: <b>%s</b>", title, fmtScore(c.Total))
+	case diff > 0:
+		fmt.Fprintf(&sb, "📈 <b>%s</b>: %s → <b>%s</b> (+%s)", title, fmtScore(c.NotifiedTotal), fmtScore(c.Total), fmtScore(diff))
+	default:
+		fmt.Fprintf(&sb, "📉 <b>%s</b>: %s → <b>%s</b> (−%s)", title, fmtScore(c.NotifiedTotal), fmtScore(c.Total), fmtScore(-diff))
+	}
+	sb.WriteString("\n")
+	for _, l := range lines {
+		sb.WriteString(l + "\n")
 	}
 	fmt.Fprintf(&sb, "\n<a href=\"%s\">Рейтинг и разбивка на сайте</a>", gradesURL(site, c.SourceID))
 	return sb.String()
+}
+
+// labChanges describes what changed in a lab block that the score alone
+// does not show; the score line covers a passed theory.
+func labChanges(col models.GradeColumn, before, after models.GradeLab) []string {
+	var out []string
+	label := esc(col.Label)
+	if after.Status == models.LabAccepted && before.Status != models.LabAccepted {
+		line := "• " + label + " принята, осталось сдать теормин"
+		if after.Potential != nil {
+			line += " — на кону " + fmtScore(*after.Potential)
+		}
+		out = append(out, line)
+	}
+	if after.Plus != before.Plus {
+		out = append(out, fmt.Sprintf("• %s: плюсиков %s → %s", label, fmtScore(before.Plus), fmtScore(after.Plus)))
+	}
+	if after.Minus != before.Minus {
+		out = append(out, fmt.Sprintf("• %s: минусов %s → %s", label, fmtScore(before.Minus), fmtScore(after.Minus)))
+	}
+	if after.Stage != nil && *after.Stage > 0 && (before.Stage == nil || *before.Stage < *after.Stage) {
+		out = append(out, fmt.Sprintf("• %s: просрочка, %d-я ступень — лаба даст ×%s", label, *after.Stage, fmtScore(*after.Factor)))
+	}
+	return out
 }
 
 // gradeLine is one subject in the /grades answer.
@@ -296,9 +334,40 @@ func gradesMessage(site string, lines []gradeLine, linked bool) string {
 		if len(parts) > 0 {
 			sb.WriteString(strings.Join(parts, " · ") + "\n")
 		}
+		if l.Source.Scheme.Enabled() {
+			sb.WriteString(pendingTheory(l.Source, l.Row.Details))
+		}
 	}
 	sb.WriteString("\n<a href=\"" + root + "/grades\">Рейтинг на сайте</a>")
 	return sb.String()
+}
+
+// pendingTheory lists accepted labs that wait for the theory, with what
+// passing it would give.
+func pendingTheory(src models.GradeSource, details map[string]models.LabCells) string {
+	labs := src.Scheme.Labs(src.Columns, details)
+	var items []string
+	sum := 0.0
+	for _, col := range src.Columns {
+		lab, ok := labs[col.Key]
+		if !ok || lab.Status != models.LabAccepted {
+			continue
+		}
+		item := esc(col.Label)
+		if lab.Potential != nil {
+			item += " (" + fmtScore(*lab.Potential) + ")"
+			sum += *lab.Potential
+		}
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		return ""
+	}
+	out := "⏳ Ждут теормина: " + strings.Join(items, ", ")
+	if sum > 0 {
+		out += " — на кону " + fmtScore(sum)
+	}
+	return out + "\n"
 }
 
 func practiceURL(site string, sessionID int64) string {

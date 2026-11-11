@@ -1,6 +1,8 @@
 package grades
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/kewldan/edu3105/apps/api/internal/models"
@@ -89,6 +91,9 @@ func TestLabScheme(t *testing.T) {
 	}
 	if l := opScheme.Lab(models.LabCells{Plus: f(1)}, 0); l.Status != models.LabAccepted || l.Potential != nil {
 		t.Errorf("unknown max: %+v", l)
+	}
+	if b, _ := json.Marshal(models.GradeScheme{}); !strings.Contains(string(b), `"lateFactors":[]`) {
+		t.Errorf("empty scheme must keep an array: %s", b)
 	}
 	if got := (models.GradeScheme{}).Labs(nil, map[string]models.LabCells{"a": {}}); len(got) != 0 {
 		t.Errorf("no scheme: %+v", got)

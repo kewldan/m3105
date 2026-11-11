@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 
@@ -28,6 +29,16 @@ type GradeScheme struct {
 	// LateFactors[n] multiplies the lab at deadline stage n (0 — on time);
 	// later stages take the last factor.
 	LateFactors []float64 `json:"lateFactors"`
+}
+
+// MarshalJSON keeps LateFactors an array: sources saved before labs have
+// '{}' in the database, and the admin form maps over the list.
+func (s GradeScheme) MarshalJSON() ([]byte, error) {
+	type plain GradeScheme
+	if s.LateFactors == nil {
+		s.LateFactors = []float64{}
+	}
+	return json.Marshal(plain(s))
 }
 
 // Enabled tells whether the source's breakdown has labs.

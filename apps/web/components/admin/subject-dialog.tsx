@@ -14,6 +14,8 @@ import { LinksEditor } from "@/components/admin/links-editor";
 import { MdxEditor } from "@/components/admin/mdx-editor";
 import { SelectField } from "@/components/admin/select-field";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { handleApiError } from "@/lib/admin/errors";
 import { adminApi } from "@/lib/api/admin";
 import {
@@ -34,6 +36,7 @@ const schema = z.object({
   icon: z.string(),
   lecturer: z.string().trim(),
   practiceTeacher: z.string().trim(),
+  theoryMin: z.boolean(),
   position: z.string().regex(/^-?\d*$/, "Введите целое число"),
   description: z.string(),
   links: z.array(z.object({ title: z.string(), url: z.string() })),
@@ -50,6 +53,7 @@ const EMPTY: FormValues = {
   icon: "book",
   lecturer: "",
   practiceTeacher: "",
+  theoryMin: false,
   position: "0",
   description: "",
   links: [],
@@ -89,6 +93,7 @@ export function SubjectDialog({
             icon: subject.icon || "book",
             lecturer: subject.lecturer,
             practiceTeacher: subject.practiceTeacher,
+            theoryMin: subject.theoryMin,
             position: String(subject.position),
             description: subject.description,
             links: subject.links ?? [],
@@ -108,6 +113,7 @@ export function SubjectDialog({
       icon: values.icon,
       lecturer: values.lecturer,
       practiceTeacher: values.practiceTeacher,
+      theoryMin: values.theoryMin,
       position: Number(values.position || 0),
       description: values.description,
       links: values.links.filter((l) => l.title || l.url),
@@ -234,6 +240,31 @@ export function SubjectDialog({
             {...form.register("practiceTeacher")}
           />
         </FormField>
+        <Controller
+          control={form.control}
+          name="theoryMin"
+          render={({ field }) => (
+            <FormField
+              label="Теормин"
+              htmlFor="s-theory-min"
+              description="На сдаче студенты отмечают, по каким лабам придут на теормин, — видно, сколько нужно менторов и сколько практиков."
+              className="sm:col-span-2"
+            >
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="s-theory-min"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+                <Label htmlFor="s-theory-min" className="font-normal">
+                  {field.value
+                    ? "Можно записаться на теормин по лабе"
+                    : "Без теормина"}
+                </Label>
+              </div>
+            </FormField>
+          )}
+        />
         <FormField
           label="Порядок"
           htmlFor="s-position"

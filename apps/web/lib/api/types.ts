@@ -79,6 +79,8 @@ export type SubjectInput = {
   icon: string;
   lecturer: string;
   practiceTeacher: string;
+  /** На сдачах можно отметиться на теормин по лабе. */
+  theoryMin: boolean;
   description: string;
   links: Link[];
   position: number;
@@ -414,7 +416,12 @@ export type PracticeRulePlanItem = {
   differs: boolean;
 };
 
-export type MySignup = { session: PracticeSession; labs: LabRef[] };
+export type MySignup = {
+  session: PracticeSession;
+  labs: LabRef[];
+  /** Лабы, по которым студент придёт на теормин. */
+  theoryLabs: LabRef[];
+};
 
 export type MeResponse = {
   user: User;

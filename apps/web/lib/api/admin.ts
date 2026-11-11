@@ -22,6 +22,7 @@ import type {
   OverviewResponse,
   Page,
   PageInput,
+  Participant,
   PracticeRule,
   PracticeRuleInput,
   PracticeRulePlanItem,
@@ -50,6 +51,8 @@ import type {
 export type PracticeQueue = {
   session: PracticeSession;
   queue: QueueEntry[];
+  /** Кто придёт на теормин и по каким лабам. */
+  theory: Participant[];
   queueManual: boolean;
   freezesAt: string;
   frozen: boolean;

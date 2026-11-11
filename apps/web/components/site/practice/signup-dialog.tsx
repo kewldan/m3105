@@ -25,12 +25,28 @@ import { cn } from "@/lib/utils";
 export function signupErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 401) return "Войдите, чтобы записаться";
-    return err.fields.labIds ?? err.fields._ ?? err.message;
+    return (
+      err.fields.labIds ??
+      err.fields.theoryLabIds ??
+      err.fields._ ??
+      err.message
+    );
   }
   return "Не удалось сохранить запись";
 }
 
-/** Pick which labs to hand in at a session; empty selection cancels the signup. */
+/** Toggles one id in a set, as a new set. */
+function toggled(prev: Set<number>, id: number, on: boolean): Set<number> {
+  const next = new Set(prev);
+  if (on) next.add(id);
+  else next.delete(id);
+  return next;
+}
+
+/**
+ * Pick which labs to hand in at a session and, for subjects with a theory
+ * min, which theory mins to come to; empty selection cancels the signup.
+ */
 export function SignupDialog({
   session,
   open,
@@ -48,11 +64,17 @@ export function SignupDialog({
   const [selected, setSelected] = useState<Set<number>>(
     new Set(session.myLabIds),
   );
+  const [theory, setTheory] = useState<Set<number>>(
+    new Set(session.myTheoryLabIds),
+  );
   const [saving, setSaving] = useState(false);
+  const withTheory = session.theoryMin;
 
   useEffect(() => {
-    if (open) setSelected(new Set(session.myLabIds));
-  }, [open, session.myLabIds]);
+    if (!open) return;
+    setSelected(new Set(session.myLabIds));
+    setTheory(new Set(session.myTheoryLabIds));
+  }, [open, session.myLabIds, session.myTheoryLabIds]);
 
   const completed = useMemo(
     () => new Set(me?.completedLabIds ?? []),
@@ -68,13 +90,18 @@ export function SignupDialog({
     return list;
   }, [session.availableLabs, completed]);
 
-  const hadSignup = session.myLabIds.length > 0;
-  const nothingSelected = selected.size === 0;
+  const hadSignup =
+    session.myLabIds.length > 0 || session.myTheoryLabIds.length > 0;
+  const nothingSelected = selected.size === 0 && theory.size === 0;
 
   const save = async () => {
     setSaving(true);
     try {
-      const next = await userApi.practiceSignup(session.id, [...selected]);
+      const next = await userApi.practiceSignup(
+        session.id,
+        [...selected],
+        withTheory ? [...theory] : undefined,
+      );
       onSaved(next);
       await refresh();
       toast.success(
@@ -102,8 +129,10 @@ export function SignupDialog({
             <span className="first-letter:uppercase">
               {fmtDateTime(session.startsAt, tz)}
             </span>
-            {session.location ? ` · ${session.location}` : ""}. Отметьте лабы,
-            которые принесёте.
+            {session.location ? ` · ${session.location}` : ""}.{" "}
+            {withTheory
+              ? "Отметьте, какие лабы защищаете и на какой теормин придёте. Теормин не занимает место в очереди: по отметкам видно, сколько нужно менторов."
+              : "Отметьте лабы, которые принесёте."}
           </DialogDescription>
         </DialogHeader>
         {labs.length === 0 ? (
@@ -115,37 +144,81 @@ export function SignupDialog({
             {labs.map((lab) => {
               const checked = selected.has(lab.id);
               const done = completed.has(lab.id);
+              const doneBadge = done ? (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  <CheckCircle2Icon className="size-3" aria-hidden />
+                  сдана
+                </span>
+              ) : null;
+              if (!withTheory) {
+                return (
+                  <li key={lab.id}>
+                    <label
+                      htmlFor={`signup-lab-${lab.id}`}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition-colors select-none hover:bg-accent/40",
+                        checked && "border-primary/50 bg-primary/5",
+                      )}
+                    >
+                      <Checkbox
+                        id={`signup-lab-${lab.id}`}
+                        checked={checked}
+                        onCheckedChange={(v) =>
+                          setSelected((prev) => toggled(prev, lab.id, v))
+                        }
+                      />
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        Лаба {lab.number} · {lab.title}
+                      </span>
+                      {doneBadge}
+                    </label>
+                  </li>
+                );
+              }
+              const theoryChecked = theory.has(lab.id);
               return (
-                <li key={lab.id}>
-                  <label
-                    htmlFor={`signup-lab-${lab.id}`}
-                    className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition-colors select-none hover:bg-accent/40",
-                      checked && "border-primary/50 bg-primary/5",
-                    )}
-                  >
-                    <Checkbox
-                      id={`signup-lab-${lab.id}`}
-                      checked={checked}
-                      onCheckedChange={(v) => {
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          if (v) next.add(lab.id);
-                          else next.delete(lab.id);
-                          return next;
-                        });
-                      }}
-                    />
-                    <span className="min-w-0 flex-1 truncate font-medium">
+                <li
+                  key={lab.id}
+                  className={cn(
+                    "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 text-sm transition-colors",
+                    (checked || theoryChecked) &&
+                      "border-primary/50 bg-primary/5",
+                  )}
+                >
+                  <span className="flex min-w-0 flex-1 basis-40 items-center gap-2">
+                    <span className="truncate font-medium">
                       Лаба {lab.number} · {lab.title}
                     </span>
-                    {done ? (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                        <CheckCircle2Icon className="size-3" aria-hidden />
-                        сдана
-                      </span>
-                    ) : null}
-                  </label>
+                    {doneBadge}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <label
+                      htmlFor={`signup-lab-${lab.id}`}
+                      className="flex cursor-pointer items-center gap-1.5 text-xs select-none"
+                    >
+                      <Checkbox
+                        id={`signup-lab-${lab.id}`}
+                        checked={checked}
+                        onCheckedChange={(v) =>
+                          setSelected((prev) => toggled(prev, lab.id, v))
+                        }
+                      />
+                      Защита
+                    </label>
+                    <label
+                      htmlFor={`signup-theory-${lab.id}`}
+                      className="flex cursor-pointer items-center gap-1.5 text-xs select-none"
+                    >
+                      <Checkbox
+                        id={`signup-theory-${lab.id}`}
+                        checked={theoryChecked}
+                        onCheckedChange={(v) =>
+                          setTheory((prev) => toggled(prev, lab.id, v))
+                        }
+                      />
+                      Теормин
+                    </label>
+                  </span>
                 </li>
               );
             })}

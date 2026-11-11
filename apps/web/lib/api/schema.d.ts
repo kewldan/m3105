@@ -96,6 +96,8 @@ export type Subject = SubjectRef & {
   lecturer: string;
   /** Преподаватель практики */
   practiceTeacher: string;
+  /** На сдачах можно отметиться на теормин по лабе */
+  theoryMin: boolean;
   /** MDX */
   description: string;
   links: Link[];
@@ -359,8 +361,12 @@ export type PracticeSession = SubjectJoin & {
   note: string;
   createdAt: DateTime;
   updatedAt: DateTime;
-  /** Число записавшихся студентов */
+  /** Число студентов, записавшихся на защиту лаб (теормин — в `theoryCount`) */
   signupsCount: number;
+  /** У предмета есть теормин: можно отметиться на теормин по лабе */
+  theoryMin: boolean;
+  /** Сколько отметок на теормин (студент × лаба) */
+  theoryCount: number;
   audience: Audience;
   /** Регулярное правило, по которому создано занятие; `null` — разовая сдача */
   ruleId: number | null;
@@ -381,6 +387,9 @@ export type PracticeSessionView = PracticeSession & {
   /** Студенты в порядке их первой защиты */
   participants: Participant[];
   myLabIds: number[];
+  /** Кто придёт на теормин и по каким лабам, в порядке записи. Это не очередь, а подсчёт — сколько нужно менторов */
+  theory: Participant[];
+  myTheoryLabIds: number[];
   /** Основной список заполнен, новые защиты идут в резерв */
   full: boolean;
   /** Занятие уже прошло */

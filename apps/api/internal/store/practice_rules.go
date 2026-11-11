@@ -102,7 +102,8 @@ func (p planSession) matches(in *models.PracticeRuleInput, sl schedule.Slot, wit
 
 const planCols = `ps.id, ps.rule_id, ps.occurs_on, (ps.starts_at AT TIME ZONE $1)::date AS local_day, ps.subject_id, ps.starts_at,
 	ps.ends_at, ps.location, ps.capacity, ps.note, ps.audience, ps.overridden, ps.canceled_at IS NOT NULL AS canceled,
-	(SELECT count(*) FROM practice_signups g WHERE g.session_id = ps.id)::int AS signups`
+	((SELECT count(*) FROM practice_signups g WHERE g.session_id = ps.id)
+		+ (SELECT count(*) FROM practice_theory_signups t WHERE t.session_id = ps.id))::int AS signups`
 
 func scanPlan(rows pgx.Rows) ([]planSession, error) {
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (planSession, error) {
@@ -330,7 +331,8 @@ func (s *Store) SavePracticeRule(ctx context.Context, id *int64, rs RuleSave) (m
 func (s *Store) DeletePracticeRule(ctx context.Context, id int64) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM practice_sessions ps WHERE ps.rule_id = $1 AND ps.starts_at > now()
-			AND NOT EXISTS (SELECT 1 FROM practice_signups g WHERE g.session_id = ps.id)`, id); err != nil {
+			AND NOT EXISTS (SELECT 1 FROM practice_signups g WHERE g.session_id = ps.id)
+			AND NOT EXISTS (SELECT 1 FROM practice_theory_signups t WHERE t.session_id = ps.id)`, id); err != nil {
 			return wrap(err)
 		}
 		if _, err := tx.Exec(ctx, `UPDATE practice_sessions SET occurs_on = NULL, overridden = false WHERE rule_id = $1`, id); err != nil {
@@ -377,7 +379,7 @@ func (s *Store) CancelPracticeSession(ctx context.Context, id int64, reason stri
 		if err := cancelIn(ctx, tx, id, reason); err != nil {
 			return err
 		}
-		if !move || sess.SignupsCount == 0 {
+		if !move || sess.SignupsCount == 0 && sess.TheoryCount == 0 {
 			return nil
 		}
 		if target, err = nextSession(ctx, tx, sess); err != nil {
@@ -390,7 +392,14 @@ func (s *Store) CancelPracticeSession(ctx context.Context, id int64, reason stri
 			SELECT $2, user_id, lab_id, created_at FROM practice_signups WHERE session_id = $1 ON CONFLICT DO NOTHING`, id, target.ID); err != nil {
 			return wrap(err)
 		}
-		_, err = tx.Exec(ctx, `DELETE FROM practice_signups WHERE session_id = $1`, id)
+		if _, err := tx.Exec(ctx, `DELETE FROM practice_signups WHERE session_id = $1`, id); err != nil {
+			return wrap(err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO practice_theory_signups (session_id, user_id, lab_id, created_at)
+			SELECT $2, user_id, lab_id, created_at FROM practice_theory_signups WHERE session_id = $1 ON CONFLICT DO NOTHING`, id, target.ID); err != nil {
+			return wrap(err)
+		}
+		_, err = tx.Exec(ctx, `DELETE FROM practice_theory_signups WHERE session_id = $1`, id)
 		return wrap(err)
 	})
 	return target, err
@@ -420,8 +429,9 @@ func (s *Store) ResetPracticeSession(ctx context.Context, id int64, loc *time.Lo
 
 // PracticeChats are the Telegram chats of the students signed up for a session.
 func (s *Store) PracticeChats(ctx context.Context, sessionID int64) ([]int64, error) {
-	rows, err := s.db.Query(ctx, `SELECT DISTINCT u.telegram_id FROM practice_signups g JOIN users u ON u.id = g.user_id
-		WHERE g.session_id = $1 AND u.telegram_id IS NOT NULL`, sessionID)
+	rows, err := s.db.Query(ctx, `SELECT DISTINCT u.telegram_id FROM users u
+		WHERE u.telegram_id IS NOT NULL AND u.id IN (SELECT user_id FROM practice_signups WHERE session_id = $1
+			UNION SELECT user_id FROM practice_theory_signups WHERE session_id = $1)`, sessionID)
 	if err != nil {
 		return nil, wrap(err)
 	}

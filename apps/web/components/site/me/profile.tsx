@@ -306,6 +306,15 @@ export function Profile({
                           Лаба {l.number} · {l.title}
                         </Link>
                       ))}
+                      {s.theoryLabs.map((l) => (
+                        <Link
+                          key={`t${l.id}`}
+                          href={`/labs/${l.subjectSlug}/${l.slug}`}
+                          className="rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-500/20 dark:text-violet-300"
+                        >
+                          Теормин {l.number}
+                        </Link>
+                      ))}
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-2">

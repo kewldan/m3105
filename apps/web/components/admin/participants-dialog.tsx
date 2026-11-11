@@ -28,6 +28,10 @@ import { toast } from "sonner";
 
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { GroupBadge } from "@/components/site/group-badge";
+import {
+  TheoryList,
+  theoryTotal,
+} from "@/components/site/practice/theory-list";
 import { SubjectBadge } from "@/components/site/subject-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -207,10 +211,13 @@ export function ParticipantsDialog({
       setSaving(false);
     }
   }
+  const theory = data?.theory ?? [];
+  const theoryCount = theoryTotal(theory);
   const seats = session
-    ? session.capacity != null
-      ? `${entries.length} из ${session.capacity} защит`
-      : `${entries.length} · без резерва`
+    ? (session.capacity != null
+        ? `${entries.length} из ${session.capacity} защит`
+        : `${entries.length} · без резерва`) +
+      (session.theoryMin ? ` · теормин ${theoryCount}` : "")
     : "";
 
   async function copyList() {
@@ -218,6 +225,14 @@ export function ParticipantsDialog({
       (e, i) =>
         `${i + 1}. ${e.user.name}${e.user.group ? ` (${e.user.group})` : ""} — лаба ${e.lab.number}${e.reserve ? " (резерв)" : ""}`,
     );
+    if (theory.length > 0) {
+      lines.push("", `Теормин (${theoryCount}):`);
+      for (const p of theory) {
+        lines.push(
+          `— ${p.user.name}${p.user.group ? ` (${p.user.group})` : ""} — ${p.labs.map((l) => `лаба ${l.number}`).join(", ")}`,
+        );
+      }
+    }
     const header = session ? `${sessionLabel(session)}\n` : "";
     try {
       await navigator.clipboard.writeText(header + lines.join("\n"));
@@ -261,7 +276,7 @@ export function ParticipantsDialog({
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-2/3" />
           </div>
-        ) : entries.length === 0 ? (
+        ) : entries.length === 0 && theory.length === 0 ? (
           <Empty className="border border-dashed py-8">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -276,27 +291,29 @@ export function ParticipantsDialog({
           </Empty>
         ) : (
           <>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={onDragEnd}
-            >
-              <SortableContext
-                items={entries.map(entryId)}
-                strategy={verticalListSortingStrategy}
+            {entries.length > 0 ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={onDragEnd}
               >
-                <ol className="max-h-[60dvh] divide-y overflow-y-auto rounded-xl border">
-                  {entries.map((e, i) => (
-                    <QueueRow
-                      key={entryId(e)}
-                      entry={e}
-                      index={i}
-                      disabled={saving}
-                    />
-                  ))}
-                </ol>
-              </SortableContext>
-            </DndContext>
+                <SortableContext
+                  items={entries.map(entryId)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <ol className="max-h-[60dvh] divide-y overflow-y-auto rounded-xl border">
+                    {entries.map((e, i) => (
+                      <QueueRow
+                        key={entryId(e)}
+                        entry={e}
+                        index={i}
+                        disabled={saving}
+                      />
+                    ))}
+                  </ol>
+                </SortableContext>
+              </DndContext>
+            ) : null}
             {entries.length > 1 ? (
               manual ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -323,6 +340,7 @@ export function ParticipantsDialog({
                 </p>
               )
             ) : null}
+            {theory.length > 0 ? <TheoryList theory={theory} /> : null}
           </>
         )}
 
@@ -331,7 +349,7 @@ export function ParticipantsDialog({
             type="button"
             variant="outline"
             onClick={copyList}
-            disabled={entries.length === 0}
+            disabled={entries.length === 0 && theory.length === 0}
           >
             <CopyIcon data-icon="inline-start" />
             Скопировать список

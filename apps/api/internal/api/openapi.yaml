@@ -645,6 +645,7 @@ components:
           properties:
             lecturer: { type: string, description: "Лектор" }
             practiceTeacher: { type: string, description: "Преподаватель практики" }
+            theoryMin: { type: boolean, description: "На сдачах можно отметиться на теормин по лабе" }
             description: { type: string, description: "MDX" }
             links:
               type: array
@@ -653,7 +654,7 @@ components:
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
             audience: { $ref: "#/components/schemas/Audience" }
-          required: [lecturer, practiceTeacher, description, links, position, createdAt, updatedAt, audience]
+          required: [lecturer, practiceTeacher, theoryMin, description, links, position, createdAt, updatedAt, audience]
 
     SubjectWithCounts:
       allOf:
@@ -978,13 +979,15 @@ components:
             note: { type: string }
             createdAt: { $ref: "#/components/schemas/DateTime" }
             updatedAt: { $ref: "#/components/schemas/DateTime" }
-            signupsCount: { type: integer, description: "Число записавшихся студентов" }
+            signupsCount: { type: integer, description: "Число студентов, записавшихся на защиту лаб (теормин — в `theoryCount`)" }
+            theoryMin: { type: boolean, description: "У предмета есть теормин: можно отметиться на теормин по лабе" }
+            theoryCount: { type: integer, description: "Сколько отметок на теормин (студент × лаба)" }
             audience: { $ref: "#/components/schemas/Audience" }
             ruleId: { oneOf: [{ type: integer }, { type: "null" }], description: "Регулярное правило, по которому создано занятие; `null` — разовая сдача" }
             overridden: { type: boolean, description: "Занятие правила поменяли вручную (перенос, другая аудитория): правка правила его не трогает" }
             canceled: { type: boolean, description: "Занятие отменено: записаться нельзя, выйти из записи можно" }
             cancelReason: { type: string, description: "Причина отмены; пусто, если не указана" }
-          required: [id, subjectId, startsAt, endsAt, location, capacity, note, createdAt, updatedAt, signupsCount, audience, ruleId, overridden, canceled, cancelReason]
+          required: [id, subjectId, startsAt, endsAt, location, capacity, note, createdAt, updatedAt, signupsCount, theoryMin, theoryCount, audience, ruleId, overridden, canceled, cancelReason]
 
     PracticeSessionView:
       allOf:
@@ -1004,6 +1007,13 @@ components:
             myLabIds:
               type: array
               items: { type: integer }
+            theory:
+              type: array
+              items: { $ref: "#/components/schemas/Participant" }
+              description: Кто придёт на теормин и по каким лабам, в порядке записи. Это не очередь, а подсчёт — сколько нужно менторов
+            myTheoryLabIds:
+              type: array
+              items: { type: integer }
             full: { type: boolean, description: "Основной список заполнен, новые защиты идут в резерв" }
             past: { type: boolean, description: "Занятие уже прошло" }
             forMe: { type: boolean, description: "Вошедший студент может записаться: сдача общая, для его группы или потока. У гостей всегда true" }
@@ -1015,7 +1025,7 @@ components:
               type: array
               items: { $ref: "#/components/schemas/PracticeSwap" }
               description: Ждущие ответа запросы на обмен местами, которые вошедший студент отправил или получил
-          required: [queue, freezesAt, frozen, participants, myLabIds, full, past, forMe, availableLabs, swaps]
+          required: [queue, freezesAt, frozen, participants, myLabIds, theory, myTheoryLabIds, full, past, forMe, availableLabs, swaps]
 
     Health:
       type: object

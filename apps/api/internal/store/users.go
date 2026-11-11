@@ -92,7 +92,8 @@ func (s *Store) ListUsers(ctx context.Context) ([]models.AdminUser, error) {
 	return many[models.AdminUser](ctx, s.db, `SELECT `+userCols+`,
 		(SELECT count(*) FROM passkeys p WHERE p.user_id = u.id)::int AS passkeys_count,
 		(SELECT count(*) FROM lab_completions c WHERE c.user_id = u.id)::int AS completions_count,
-		(SELECT count(DISTINCT session_id) FROM practice_signups g WHERE g.user_id = u.id)::int AS signups_count
+		(SELECT count(*) FROM (SELECT g.session_id FROM practice_signups g WHERE g.user_id = u.id
+			UNION SELECT t.session_id FROM practice_theory_signups t WHERE t.user_id = u.id) x)::int AS signups_count
 		FROM users u ORDER BY u.created_at DESC`)
 }
 

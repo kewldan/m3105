@@ -129,20 +129,22 @@ func (s *Settings) Validate() error {
 // Subject is a course/discipline.
 type Subject struct {
 	// Audience lists who it is for: "stream:1", "group:М3105"; empty is everyone.
-	Audience        []string  `db:"audience" json:"audience"`
-	ID              int64     `db:"id" json:"id"`
-	Slug            string    `db:"slug" json:"slug"`
-	Name            string    `db:"name" json:"name"`
-	ShortName       string    `db:"short_name" json:"shortName"`
-	Color           string    `db:"color" json:"color"`
-	Icon            string    `db:"icon" json:"icon"`
-	Lecturer        string    `db:"lecturer" json:"lecturer"`
-	PracticeTeacher string    `db:"practice_teacher" json:"practiceTeacher"`
-	Description     string    `db:"description" json:"description"`
-	Links           []Link    `db:"links" json:"links"`
-	Position        int       `db:"position" json:"position"`
-	CreatedAt       time.Time `db:"created_at" json:"createdAt"`
-	UpdatedAt       time.Time `db:"updated_at" json:"updatedAt"`
+	Audience        []string `db:"audience" json:"audience"`
+	ID              int64    `db:"id" json:"id"`
+	Slug            string   `db:"slug" json:"slug"`
+	Name            string   `db:"name" json:"name"`
+	ShortName       string   `db:"short_name" json:"shortName"`
+	Color           string   `db:"color" json:"color"`
+	Icon            string   `db:"icon" json:"icon"`
+	Lecturer        string   `db:"lecturer" json:"lecturer"`
+	PracticeTeacher string   `db:"practice_teacher" json:"practiceTeacher"`
+	// TheoryMin: на сдачах можно отметиться на теормин по лабе.
+	TheoryMin   bool      `db:"theory_min" json:"theoryMin"`
+	Description string    `db:"description" json:"description"`
+	Links       []Link    `db:"links" json:"links"`
+	Position    int       `db:"position" json:"position"`
+	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
 }
 
 // SubjectInput is the create/update payload for a subject.
@@ -156,6 +158,7 @@ type SubjectInput struct {
 	Icon            string   `json:"icon"`
 	Lecturer        string   `json:"lecturer"`
 	PracticeTeacher string   `json:"practiceTeacher"`
+	TheoryMin       bool     `json:"theoryMin"`
 	Description     string   `json:"description"`
 	Links           []Link   `json:"links"`
 	Position        int      `json:"position"`

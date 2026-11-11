@@ -299,6 +299,11 @@ function PracticePageInner() {
                 <span className="text-muted-foreground">· без лимита</span>
               </>
             )}
+            {r.theoryMin ? (
+              <span className="text-muted-foreground">
+                · теормин {r.theoryCount}
+              </span>
+            ) : null}
           </button>
         );
       },

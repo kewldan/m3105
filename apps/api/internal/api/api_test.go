@@ -797,6 +797,34 @@ func TestStudentAccounts(t *testing.T) {
 	tg.do("DELETE", fmt.Sprintf("/api/v1/practice/%d/signups", sessA), nil, 200)
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/practice/%d", sessB), nil, 200)
 	admin.do("DELETE", fmt.Sprintf("/api/v1/admin/practice/%d", sessA), nil, 200)
+	// Теормин: отметка вне очереди, только у предмета с флагом theoryMin.
+	sessURL := fmt.Sprintf("/api/v1/practice/%d", sessID)
+	u.do("PUT", sessURL+"/signups", map[string]any{"labIds": []int64{lab2ID}, "theoryLabIds": []int64{lab1ID}}, 422)
+	if upd := admin.do("PUT", fmt.Sprintf("/api/v1/admin/subjects/%d", subjectID), map[string]any{"name": "Сети", "color": "teal", "theoryMin": true}, 200); upd["theoryMin"] != true {
+		t.Fatalf("theoryMin not saved: %v", upd)
+	}
+	queueBefore := len(anon.do("GET", sessURL, nil, 200)["queue"].([]any))
+	tv := u.do("PUT", sessURL+"/signups", map[string]any{"labIds": []int64{lab2ID}, "theoryLabIds": []int64{lab1ID, lab2ID}}, 200)
+	if tv["theoryMin"] != true || tv["theoryCount"].(float64) != 2 || len(tv["myTheoryLabIds"].([]any)) != 2 ||
+		len(tv["theory"].([]any)) != 1 || len(tv["queue"].([]any)) != queueBefore {
+		t.Fatalf("theory signup wrong: %v", tv)
+	}
+	// Без поля theoryLabIds теормин не трогается.
+	if tv = u.do("PUT", sessURL+"/signups", map[string]any{"labIds": []int64{lab2ID}}, 200); len(tv["myTheoryLabIds"].([]any)) != 2 {
+		t.Fatalf("theory dropped without theoryLabIds: %v", tv["myTheoryLabIds"])
+	}
+	// Только теормин, без защит: студент всё равно записан.
+	tv = u.do("PUT", sessURL+"/signups", map[string]any{"labIds": []int64{}, "theoryLabIds": []int64{lab1ID}}, 200)
+	if len(tv["myLabIds"].([]any)) != 0 || len(tv["myTheoryLabIds"].([]any)) != 1 || len(tv["queue"].([]any)) != queueBefore-1 {
+		t.Fatalf("theory-only signup wrong: %v", tv)
+	}
+	mine := u.do("GET", "/api/v1/me/", nil, 200)["signups"].([]any)
+	if len(mine) != 1 || len(mine[0].(map[string]any)["theoryLabs"].([]any)) != 1 || len(mine[0].(map[string]any)["labs"].([]any)) != 0 {
+		t.Fatalf("theory missing from profile: %v", mine)
+	}
+	if adm := admin.do("GET", fmt.Sprintf("/api/v1/admin/practice/%d/signups", sessID), nil, 200); len(adm["theory"].([]any)) != 1 {
+		t.Fatalf("theory missing from admin view: %v", adm["theory"])
+	}
 	u.do("DELETE", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), nil, 200)
 	if got := u.do("GET", "/api/v1/me/", nil, 200); len(got["signups"].([]any)) != 0 {
 		t.Fatalf("cancel failed: %v", got["signups"])

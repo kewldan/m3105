@@ -79,11 +79,16 @@ func (h *Handler) meBundle(r *http.Request, userID int64) (models.MeResponse, er
 			if err != nil {
 				return models.MeResponse{}, err
 			}
-			signups = append(signups, models.MySignup{Session: sess, Labs: []models.LabRef{}})
+			signups = append(signups, models.MySignup{Session: sess, Labs: []models.LabRef{}, TheoryLabs: []models.LabRef{}})
 			idx = len(signups) - 1
 			bySession[row.SessionID] = idx
 		}
-		signups[idx].Labs = append(signups[idx].Labs, models.LabRef{ID: row.LabID, Number: row.LabNumber, Title: row.LabTitle, Slug: row.LabSlug, SubjectSlug: row.SubjectSlug})
+		lab := models.LabRef{ID: row.LabID, Number: row.LabNumber, Title: row.LabTitle, Slug: row.LabSlug, SubjectSlug: row.SubjectSlug}
+		if row.Theory {
+			signups[idx].TheoryLabs = append(signups[idx].TheoryLabs, lab)
+		} else {
+			signups[idx].Labs = append(signups[idx].Labs, lab)
+		}
 	}
 	sort.SliceStable(signups, func(i, j int) bool { return signups[i].Session.StartsAt.Before(signups[j].Session.StartsAt) })
 	passkeys, err := h.store.ListPasskeys(ctx, userID)
@@ -462,15 +467,23 @@ func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSessi
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]int64, len(sessions))
+	for i, s := range sessions {
+		ids[i] = s.ID
+	}
 	swaps := map[int64][]models.PracticeSwap{}
 	if signedIn {
-		ids := make([]int64, len(sessions))
-		for i, s := range sessions {
-			ids[i] = s.ID
-		}
 		if swaps, err = h.store.ListSwaps(ctx, ids, userID); err != nil {
 			return nil, err
 		}
+	}
+	theoryRows, err := h.store.ListTheorySignups(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	theory := map[int64][]models.SignupRow{}
+	for _, row := range theoryRows {
+		theory[row.SessionID] = append(theory[row.SessionID], row)
 	}
 	var scope []string
 	if signedIn {
@@ -481,7 +494,7 @@ func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSessi
 	labsBySubject := map[int64][]models.LabRef{}
 	views := make([]models.PracticeSessionView, 0, len(sessions))
 	for _, s := range sessions {
-		v := models.PracticeSessionView{PracticeSession: s, Queue: []models.QueueEntry{}, Participants: []models.Participant{}, MyLabIDs: []int64{}, AvailableLabs: []models.LabRef{}, Swaps: []models.PracticeSwap{}}
+		v := models.PracticeSessionView{PracticeSession: s, Queue: []models.QueueEntry{}, Participants: []models.Participant{}, MyLabIDs: []int64{}, Theory: []models.Participant{}, MyTheoryLabIDs: []int64{}, AvailableLabs: []models.LabRef{}, Swaps: []models.PracticeSwap{}}
 		if list := swaps[s.ID]; list != nil {
 			v.Swaps = list
 		}
@@ -508,6 +521,12 @@ func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSessi
 				v.MyLabIDs = append(v.MyLabIDs, row.LabID)
 			}
 		}
+		v.Theory = theoryParticipants(theory[s.ID])
+		for _, row := range theory[s.ID] {
+			if signedIn && row.UserID == userID {
+				v.MyTheoryLabIDs = append(v.MyTheoryLabIDs, row.LabID)
+			}
+		}
 		if signedIn {
 			labs, ok := labsBySubject[s.SubjectID]
 			if !ok {
@@ -523,6 +542,26 @@ func (h *Handler) practiceViews(r *http.Request, sessions []models.PracticeSessi
 		views = append(views, v)
 	}
 	return views, nil
+}
+
+// theoryParticipants groups theory-min signups of one session by student,
+// keeping the order of the rows.
+func theoryParticipants(rows []models.SignupRow) []models.Participant {
+	out := []models.Participant{}
+	byUser := map[int64]int{}
+	for _, row := range rows {
+		idx, ok := byUser[row.UserID]
+		if !ok {
+			out = append(out, models.Participant{
+				User: models.PublicUser{ID: row.UserID, Name: row.UserName, PhotoURL: row.PhotoURL, Group: row.UserGroup},
+				Labs: []models.LabRef{},
+			})
+			idx = len(out) - 1
+			byUser[row.UserID] = idx
+		}
+		out[idx].Labs = append(out[idx].Labs, models.LabRef{ID: row.LabID, Number: row.LabNumber, Title: row.LabTitle, Slug: row.LabSlug, SubjectSlug: row.SubjectSlug})
+	}
+	return out
 }
 
 func (h *Handler) listPractice(w http.ResponseWriter, r *http.Request) {
@@ -635,22 +674,25 @@ func (h *Handler) setPracticeSignup(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		LabIDs []int64 `json:"labIds"`
+		// TheoryLabIDs: теормин по этим лабам; без поля — не трогать.
+		TheoryLabIDs []int64 `json:"theoryLabIds"`
 	}
-	if r.Method != http.MethodDelete {
-		if err := httpx.Decode(r, &in); err != nil {
-			httpx.Fail(w, err)
-			return
-		}
+	if r.Method == http.MethodDelete {
+		in.TheoryLabIDs = []int64{}
+	} else if err := httpx.Decode(r, &in); err != nil {
+		httpx.Fail(w, err)
+		return
 	}
+	adds := len(in.LabIDs) > 0 || len(in.TheoryLabIDs) > 0
 	// Заморозить до записи: запись после 20:00 накануне должна встать в конец.
-	sess, err := h.openPractice(ctx, id, len(in.LabIDs) == 0)
+	sess, err := h.openPractice(ctx, id, !adds)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
 	// Отменить запись можно всегда, записаться — только на сдачу своей группы
 	// или потока.
-	if len(in.LabIDs) > 0 {
+	if adds {
 		scope, err := h.store.UserAudienceScope(ctx, userID)
 		if err != nil {
 			httpx.Fail(w, err)
@@ -661,7 +703,7 @@ func (h *Handler) setPracticeSignup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := h.store.ReplaceSignups(ctx, id, userID, in.LabIDs); err != nil {
+	if err := h.store.ReplaceSignups(ctx, id, userID, in.LabIDs, in.TheoryLabIDs); err != nil {
 		httpx.Fail(w, err)
 		return
 	}
@@ -943,10 +985,16 @@ func (h *Handler) writeAdminSignups(w http.ResponseWriter, r *http.Request, id i
 	for i, row := range queues[id] {
 		entries = append(entries, queueEntry(row, sess.Capacity, i))
 	}
+	theoryRows, err := h.store.ListTheorySignups(r.Context(), []int64{id})
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
 	freezesAt := queue.FreezeAt(sess.StartsAt, sc.Loc)
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"session":     sess,
 		"queue":       entries,
+		"theory":      theoryParticipants(theoryRows),
 		"queueManual": sess.QueueManual,
 		"freezesAt":   freezesAt,
 		"frozen":      !freezesAt.After(sc.Now),

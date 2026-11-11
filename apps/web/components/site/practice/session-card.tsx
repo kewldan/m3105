@@ -4,6 +4,7 @@ import {
   BanIcon,
   CheckCircle2Icon,
   ClockIcon,
+  GraduationCapIcon,
   LogInIcon,
   MapPinIcon,
   UsersRoundIcon,
@@ -28,6 +29,7 @@ import {
   SignupDialog,
   signupErrorMessage,
 } from "@/components/site/practice/signup-dialog";
+import { TheoryList } from "@/components/site/practice/theory-list";
 import { SubjectBadge } from "@/components/site/subject-badge";
 import { useUser } from "@/components/site/user-provider";
 import { Button } from "@/components/ui/button";
@@ -53,10 +55,17 @@ export function SessionCard({
   const { me } = useUser();
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const mine = session.myLabIds.length > 0;
+  const defends = session.myLabIds.length > 0;
+  const mine = defends || session.myTheoryLabIds.length > 0;
   const canceled = session.canceled;
   // Пропуск и обмены — только по сохранённому порядку и пока сдача не прошла.
-  const canTrade = mine && session.frozen && !session.past && !canceled && !!me;
+  const canTrade =
+    defends && session.frozen && !session.past && !canceled && !!me;
+  const labNumbers = (ids: number[]) =>
+    session.availableLabs
+      .filter((l) => ids.includes(l.id))
+      .map((l) => `№${l.number}`)
+      .join(", ") || "—";
 
   async function leave() {
     setLeaving(true);
@@ -142,6 +151,15 @@ export function SessionCard({
                 ? ` · свободно ${seatsLeft}`
                 : ""}
             </span>
+            {session.theoryMin ? (
+              <span
+                className="inline-flex items-center gap-1.5 text-muted-foreground"
+                title="Отметки на теормин: сколько нужно менторов"
+              >
+                <GraduationCapIcon className="size-4" aria-hidden />
+                теормин: {session.theoryCount}
+              </span>
+            ) : null}
           </div>
           {session.note ? (
             <p className="text-sm text-muted-foreground text-pretty">
@@ -150,11 +168,11 @@ export function SessionCard({
           ) : null}
           {mine ? (
             <p className="text-xs text-muted-foreground">
-              Ваши лабы:{" "}
-              {session.availableLabs
-                .filter((l) => session.myLabIds.includes(l.id))
-                .map((l) => `№${l.number}`)
-                .join(", ") || "—"}
+              {defends ? `Ваши лабы: ${labNumbers(session.myLabIds)}` : ""}
+              {defends && session.myTheoryLabIds.length > 0 ? " · " : ""}
+              {session.myTheoryLabIds.length > 0
+                ? `Теормин: ${labNumbers(session.myTheoryLabIds)}`
+                : ""}
             </p>
           ) : null}
         </div>
@@ -247,13 +265,20 @@ export function SessionCard({
             </p>
           ) : null}
         </div>
-      ) : (
+      ) : session.theory.length === 0 ? (
         <p className="mt-4 text-xs text-muted-foreground">
           {canceled
             ? "Занятия не будет — запишитесь на другую сдачу."
             : "Пока никто не записался."}
         </p>
-      )}
+      ) : null}
+      {session.theory.length > 0 ? (
+        <TheoryList
+          theory={session.theory}
+          meId={me?.user.id}
+          className="mt-4"
+        />
+      ) : null}
 
       {me ? (
         <SignupDialog

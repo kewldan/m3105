@@ -151,8 +151,13 @@ type PracticeSession struct {
 	SubjectShortName string `db:"subject_short_name" json:"subjectShortName"`
 	SubjectColor     string `db:"subject_color" json:"subjectColor"`
 	SubjectIcon      string `db:"subject_icon" json:"subjectIcon"`
-	// SignupsCount is the number of distinct students signed up.
+	// SignupsCount is the number of distinct students signed up for
+	// defenses; theory mins are counted in TheoryCount.
 	SignupsCount int `db:"signups_count" json:"signupsCount"`
+	// TheoryMin: the subject has theory mins, students can sign up for them.
+	TheoryMin bool `db:"subject_theory_min" json:"theoryMin"`
+	// TheoryCount is the number of theory-min signups (student × lab).
+	TheoryCount int `db:"theory_count" json:"theoryCount"`
 	// QueueManual: the admin has set the order by hand.
 	QueueManual bool `db:"queue_manual" json:"-"`
 	// QueueFrozen: the order has been frozen and stored in queue_pos.
@@ -250,6 +255,8 @@ type SignupRow struct {
 	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
 	// NotReached: the student said this lab was not reached at the previous session.
 	NotReached bool `db:"not_reached" json:"-"`
+	// Theory: a theory-min signup, not a defense in the queue.
+	Theory bool `db:"theory" json:"-"`
 }
 
 // Participant groups a student's labs for one session.
@@ -286,6 +293,10 @@ type PracticeSessionView struct {
 	// Participants are the students in the order of their first defense.
 	Participants []Participant `json:"participants"`
 	MyLabIDs     []int64       `json:"myLabIds"`
+	// Theory are the students coming to the theory min, with its labs, in
+	// the order they signed up. Not a queue: it only shows how many come.
+	Theory         []Participant `json:"theory"`
+	MyTheoryLabIDs []int64       `json:"myTheoryLabIds"`
 	// Full: the main list is taken, new defenses go to the reserve.
 	Full bool `json:"full"`
 	Past bool `json:"past"`
@@ -336,6 +347,8 @@ func (in *SwapInput) Validate() error {
 type MySignup struct {
 	Session PracticeSession `json:"session"`
 	Labs    []LabRef        `json:"labs"`
+	// TheoryLabs are the labs whose theory min the student comes to.
+	TheoryLabs []LabRef `json:"theoryLabs"`
 }
 
 // MeResponse is the signed-in student's profile bundle.

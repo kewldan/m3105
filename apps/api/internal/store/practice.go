@@ -14,6 +14,8 @@ import (
 const practiceCols = `ps.id, ps.subject_id, ps.starts_at, ps.ends_at, ps.location, ps.capacity, ps.note, ps.created_at, ps.updated_at, ps.audience,
 	s.slug AS subject_slug, s.name AS subject_name, s.short_name AS subject_short_name, s.color AS subject_color, s.icon AS subject_icon,
 	(SELECT count(DISTINCT g.user_id) FROM practice_signups g WHERE g.session_id = ps.id)::int AS signups_count,
+	s.theory_min AS subject_theory_min,
+	(SELECT count(*) FROM practice_theory_signups t WHERE t.session_id = ps.id)::int AS theory_count,
 	ps.queue_manual, (ps.queue_frozen_at IS NOT NULL) AS queue_frozen,
 	ps.rule_id, ps.occurs_on, ps.overridden, (ps.canceled_at IS NOT NULL) AS canceled, ps.cancel_reason`
 
@@ -104,9 +106,15 @@ func nonNil(a []string) []string {
 }
 
 const signupCols = `g.session_id, g.user_id, ` + userNameExpr + ` AS user_name, ` + userPhotoExpr + ` AS photo_url, u.group_name AS user_group, g.lab_id, l.number AS lab_number, l.title AS lab_title,
-	l.slug AS lab_slug, s.slug AS subject_slug, g.created_at, g.not_reached_at IS NOT NULL AS not_reached`
+	l.slug AS lab_slug, s.slug AS subject_slug, g.created_at, g.not_reached_at IS NOT NULL AS not_reached, false AS theory`
 
 const signupFrom = ` FROM practice_signups g JOIN users u ON u.id = g.user_id JOIN labs l ON l.id = g.lab_id JOIN subjects s ON s.id = l.subject_id`
+
+// theoryCols and theoryFrom read theory-min signups as SignupRow (Theory set).
+const theoryCols = `g.session_id, g.user_id, ` + userNameExpr + ` AS user_name, ` + userPhotoExpr + ` AS photo_url, u.group_name AS user_group, g.lab_id, l.number AS lab_number, l.title AS lab_title,
+	l.slug AS lab_slug, s.slug AS subject_slug, g.created_at, false AS not_reached, true AS theory`
+
+const theoryFrom = ` FROM practice_theory_signups g JOIN users u ON u.id = g.user_id JOIN labs l ON l.id = g.lab_id JOIN subjects s ON s.id = l.subject_id`
 
 // ListSignupsForSessions returns signup rows for the given sessions.
 func (s *Store) ListSignupsForSessions(ctx context.Context, sessionIDs []int64) ([]models.SignupRow, error) {
@@ -116,9 +124,22 @@ func (s *Store) ListSignupsForSessions(ctx context.Context, sessionIDs []int64) 
 	return many[models.SignupRow](ctx, s.db, `SELECT `+signupCols+signupFrom+` WHERE g.session_id = ANY($1) ORDER BY g.queue_pos, g.id`, sessionIDs)
 }
 
-// ListUserSignups returns everything a user signed up for.
+// ListTheorySignups returns theory-min signups of the given sessions: by
+// session, then in the order students signed up, then by lab number.
+func (s *Store) ListTheorySignups(ctx context.Context, sessionIDs []int64) ([]models.SignupRow, error) {
+	if len(sessionIDs) == 0 {
+		return []models.SignupRow{}, nil
+	}
+	return many[models.SignupRow](ctx, s.db, `SELECT `+theoryCols+theoryFrom+`
+		WHERE g.session_id = ANY($1)
+		ORDER BY g.session_id, min(g.created_at) OVER (PARTITION BY g.session_id, g.user_id), g.user_id, l.number`, sessionIDs)
+}
+
+// ListUserSignups returns everything a user signed up for, defenses and
+// theory mins (Theory) alike.
 func (s *Store) ListUserSignups(ctx context.Context, userID int64) ([]models.SignupRow, error) {
-	return many[models.SignupRow](ctx, s.db, `SELECT `+signupCols+signupFrom+` WHERE g.user_id = $1 ORDER BY g.created_at, l.number`, userID)
+	return many[models.SignupRow](ctx, s.db, `SELECT * FROM (SELECT `+signupCols+signupFrom+` WHERE g.user_id = $1
+		UNION ALL SELECT `+theoryCols+theoryFrom+` WHERE g.user_id = $1) x ORDER BY created_at, lab_number`, userID)
 }
 
 // ListSubjectLabRefs returns published labs of a subject for signup pickers.
@@ -131,7 +152,10 @@ func (s *Store) ListSubjectLabRefs(ctx context.Context, subjectID int64) ([]mode
 // Labs the student keeps keep their place; new ones get the next queue number,
 // which puts them at the end of a frozen or manual queue. There is no seat limit:
 // defenses beyond the capacity form the reserve.
-func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, labIDs []int64) error {
+//
+// theoryLabIDs are the labs whose theory min the student comes to; they are
+// outside the queue and need the subject's theoryMin. nil keeps them as they are.
+func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, labIDs, theoryLabIDs []int64) error {
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return wrap(err)
@@ -139,16 +163,23 @@ func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, lab
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var subjectID int64
-	if err := tx.QueryRow(ctx, `SELECT subject_id FROM practice_sessions WHERE id = $1 FOR UPDATE`, sessionID).Scan(&subjectID); err != nil {
+	var theoryMin bool
+	if err := tx.QueryRow(ctx, `SELECT ps.subject_id, s.theory_min FROM practice_sessions ps JOIN subjects s ON s.id = ps.subject_id
+		WHERE ps.id = $1 FOR UPDATE OF ps`, sessionID).Scan(&subjectID, &theoryMin); err != nil {
 		return wrap(err)
 	}
-	for _, labID := range labIDs {
-		var ok bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM labs WHERE id = $1 AND subject_id = $2 AND status = 'published')`, labID, subjectID).Scan(&ok); err != nil {
-			return wrap(err)
-		}
-		if !ok {
-			return &httpx.ValidationError{Fields: map[string]string{"labIds": "Лаба не относится к этому предмету"}}
+	if len(theoryLabIDs) > 0 && !theoryMin {
+		return &httpx.ValidationError{Fields: map[string]string{"theoryLabIds": "У этого предмета нет теормина"}}
+	}
+	for field, ids := range map[string][]int64{"labIds": labIDs, "theoryLabIds": theoryLabIDs} {
+		for _, labID := range ids {
+			var ok bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM labs WHERE id = $1 AND subject_id = $2 AND status = 'published')`, labID, subjectID).Scan(&ok); err != nil {
+				return wrap(err)
+			}
+			if !ok {
+				return &httpx.ValidationError{Fields: map[string]string{field: "Лаба не относится к этому предмету"}}
+			}
 		}
 	}
 	if labIDs == nil {
@@ -160,6 +191,15 @@ func (s *Store) ReplaceSignups(ctx context.Context, sessionID, userID int64, lab
 	if _, err := tx.Exec(ctx, `INSERT INTO practice_signups (session_id, user_id, lab_id)
 		SELECT $1, $2, unnest($3::bigint[]) ON CONFLICT DO NOTHING`, sessionID, userID, labIDs); err != nil {
 		return wrap(err)
+	}
+	if theoryLabIDs != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM practice_theory_signups WHERE session_id = $1 AND user_id = $2 AND NOT (lab_id = ANY($3))`, sessionID, userID, theoryLabIDs); err != nil {
+			return wrap(err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO practice_theory_signups (session_id, user_id, lab_id)
+			SELECT $1, $2, unnest($3::bigint[]) ON CONFLICT DO NOTHING`, sessionID, userID, theoryLabIDs); err != nil {
+			return wrap(err)
+		}
 	}
 	return wrap(tx.Commit(ctx))
 }

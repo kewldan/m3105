@@ -83,10 +83,11 @@ export const userApi = {
   practiceGet: (id: number) =>
     apiClient<PracticeSessionView>(`/practice/${id}`),
   /** Replaces the caller's lab list for the session; an empty list cancels. */
-  practiceSignup: (id: number, labIds: number[]) =>
+  /** Защиты лаб и теормин по лабам (без theoryLabIds теормин не трогается). */
+  practiceSignup: (id: number, labIds: number[], theoryLabIds?: number[]) =>
     apiClient<PracticeSessionView>(`/practice/${id}/signups`, {
       method: "PUT",
-      body: { labIds },
+      body: { labIds, theoryLabIds },
     }),
   practiceCancel: (id: number) =>
     apiClient<PracticeSessionView>(`/practice/${id}/signups`, {

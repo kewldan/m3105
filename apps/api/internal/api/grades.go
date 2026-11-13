@@ -115,19 +115,43 @@ func (h *Handler) getGrades(w http.ResponseWriter, r *http.Request) {
 	for i, s := range sources {
 		resp.Sources[i] = s.Summary()
 	}
-	if len(sources) == 0 {
+	// Сводный рейтинг потока — последней вкладкой и только студентам этого потока.
+	board, err := h.viewerStreamBoard(ctx, user, sources)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
+	if board != nil {
+		resp.Sources = append(resp.Sources, board.summary)
+	}
+	if len(resp.Sources) == 0 {
 		httpx.JSON(w, http.StatusOK, resp)
 		return
 	}
 	selected := 0
 	if id, err := strconv.ParseInt(r.URL.Query().Get("source"), 10, 64); err == nil {
-		for i, s := range sources {
+		for i, s := range resp.Sources {
 			if s.ID == id {
 				selected = i
 			}
 		}
 	}
 	resp.Source = &resp.Sources[selected]
+	if selected >= len(sources) {
+		rows, err := board.rows(ctx, h, user.ISU)
+		if err != nil {
+			httpx.Fail(w, err)
+			return
+		}
+		resp.Rows = rows
+		for _, e := range rows {
+			if e.Me {
+				resp.MyGroup = e.Group
+			}
+		}
+		httpx.JSON(w, http.StatusOK, resp)
+		return
+	}
 	rows, err := h.store.ListGradeRows(ctx, sources[selected].ID)
 	if err != nil {
 		httpx.Fail(w, err)

@@ -440,6 +440,8 @@ export type GradeSourceSummary = {
   syncedAt: DateTime | null;
   /** Таблица одной группы (английский): места внутри неё, без учебных групп */
   membersOnly: boolean;
+  /** Только у сводного рейтинга потока (id = −номер потока): столбцы — итоги по предметам, итог — их сумма, строки — студенты потока, `labs` пустые */
+  stream?: number;
 };
 
 export type GradeEntry = {

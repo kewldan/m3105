@@ -24,7 +24,7 @@ export default async function GradesPage({
   const raw = Array.isArray(source) ? source[0] : source;
   const data = await getGrades(
     cookie,
-    raw && /^\d+$/.test(raw) ? Number(raw) : undefined,
+    raw && /^-?\d+$/.test(raw) ? Number(raw) : undefined,
   );
 
   return (
@@ -32,7 +32,7 @@ export default async function GradesPage({
       <PageHeader
         eyebrow="Рейтинг"
         title="Баллы"
-        description="Баллы из таблиц преподавателей: места в группе, на курсе и среди тех, кто есть на сайте."
+        description="Баллы из таблиц преподавателей: места в группе, на курсе и среди тех, кто есть на сайте. У первого потока — ещё и общий рейтинг по сумме ДМ, ОП и Алгосов."
       />
       <GradesBoard initial={data} />
     </div>

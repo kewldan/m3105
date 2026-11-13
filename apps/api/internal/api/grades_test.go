@@ -237,3 +237,67 @@ func TestGrades(t *testing.T) {
 		t.Fatalf("failed sync state: %v", got)
 	}
 }
+
+// Сводный рейтинг первого потока: сумма итогов по ДМ, ОП и АиСД, видят только студенты потока.
+func TestStreamRating(t *testing.T) {
+	header := ",ФИО,Итог,ИСУ\n"
+	setFakeTab("11", header+
+		`1,Сводный Семён Петрович,"10,5",200001`+"\n"+
+		`2,Потоков Пётр Ильич,20,200002`+"\n")
+	setFakeTab("12", header+`1,Чужой Чарли Иванович,99,200003`+"\n")
+
+	admin := newClient(t).bearer(testAPIToken)
+	sheet := "https://docs.google.com/spreadsheets/d/1RPnkkIYz1yWKvegiurVcmc-UIvRXBZZ7OqjRtw_gI9E/edit"
+	for _, name := range []string{"Дискретная математика", "Основы программирования"} {
+		subj := admin.do("POST", "/api/v1/admin/subjects", map[string]any{"name": name, "color": "blue"}, 201)
+		subjectID := int64(subj["id"].(float64))
+		t.Cleanup(func() { admin.do("DELETE", fmt.Sprintf("/api/v1/admin/subjects/%d", subjectID), nil, 200) })
+		src := admin.do("POST", "/api/v1/admin/grade-sources", map[string]any{"subjectId": subjectID, "spreadsheet": sheet,
+			"syncHours": 3, "enabled": true, "nameColumn": "ФИО", "idColumn": "ИСУ", "totalColumn": "Итог"}, 201)
+		admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", int64(src["id"].(float64))), nil, 200)
+	}
+	admin.do("POST", "/api/v1/admin/students/import", map[string]string{"text": "200001\tСводный Семён Петрович\tM3105\t1\n" +
+		"200002\tПотоков Пётр Ильич\tM3105\t1\n200003\tЧужой Чарли Иванович\tM3104\t2"}, 200)
+	claim := func(login, fullName string) *client {
+		c := newClient(t)
+		c.do("POST", "/api/v1/auth/dev-login", map[string]string{"name": login}, 200)
+		for _, f := range c.list("/api/v1/me/students", 200) {
+			if f["fullName"] == fullName {
+				c.do("POST", "/api/v1/me/claim", map[string]any{"studentId": f["id"]}, 200)
+			}
+		}
+		return c
+	}
+	hasStream := func(page map[string]any) bool {
+		for _, s := range page["sources"].([]any) {
+			if s.(map[string]any)["id"] == float64(-1) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if hasStream(newClient(t).do("GET", "/api/v1/grades", nil, 200)) {
+		t.Fatal("guest sees the stream rating")
+	}
+	if hasStream(claim("Чарли Чужой", "Чужой Чарли Иванович").do("GET", "/api/v1/grades", nil, 200)) {
+		t.Fatal("another stream sees the stream rating")
+	}
+	semen := claim("Семён Сводный", "Сводный Семён Петрович")
+	page := semen.do("GET", "/api/v1/grades?source=-1", nil, 200)
+	src := page["source"].(map[string]any)
+	if src["stream"] != float64(1) || src["maxTotal"] != float64(200) || len(src["columns"].([]any)) != 2 {
+		t.Fatalf("stream rating source: %v", src)
+	}
+	rows := page["rows"].([]any)
+	if len(rows) != 2 {
+		t.Fatalf("only the stream's students expected: %v", rows)
+	}
+	first, second := rows[0].(map[string]any), rows[1].(map[string]any)
+	if first["name"] != "Потоков Пётр" || first["total"] != float64(40) {
+		t.Fatalf("leader: %v", first)
+	}
+	if second["me"] != true || second["total"] != float64(21) || second["parts"].(map[string]any)["dm"] != 10.5 {
+		t.Fatalf("own row: %v", second)
+	}
+}

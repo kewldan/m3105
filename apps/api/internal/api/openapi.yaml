@@ -377,6 +377,8 @@ paths:
         Имена — «Фамилия Имя», номера ИСУ наружу не отдаются, места фронт считает сам.
         Со студенческой кукой `edu_user` своя строка помечена `me`, а `myGroup` — группа студента;
         без неё `myGroup` — группа сайта. Таблицы одной группы (`membersOnly`) видят только те, кто в них есть.
+        Подтверждённому студенту потока со сводным рейтингом последним в `sources` приходит и он (`stream`, отрицательный `id`):
+        сумма итогов по нескольким предметам (у первого потока — ДМ, ОП и АиСД) среди студентов потока.
       operationId: getGrades
       parameters:
         - name: source
@@ -1070,6 +1072,11 @@ components:
           items: { $ref: "#/components/schemas/GradeColumn" }
         syncedAt: { oneOf: [{ $ref: "#/components/schemas/DateTime" }, { type: "null" }] }
         membersOnly: { type: boolean, description: "Таблица одной группы (английский): места внутри неё, без учебных групп" }
+        stream:
+          type: integer
+          description: >-
+            Только у сводного рейтинга потока (id = −номер потока): столбцы — итоги по предметам, итог — их сумма,
+            строки — студенты потока, `labs` пустые
       required: [id, title, subjectSlug, subjectName, subjectColor, subjectIcon, maxTotal, columns, syncedAt, membersOnly]
 
     GradeEntry:

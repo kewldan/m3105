@@ -151,8 +151,10 @@ function Distribution({
             />
           ))}
         </div>
-        {LETTERS.filter((l) => (l.min / 100) * source.maxTotal < domain).map(
-          (l) => (
+        {/* У суммы нескольких предметов буквенной оценки нет. */}
+        {(source.stream ? [] : LETTERS)
+          .filter((l) => (l.min / 100) * source.maxTotal < domain)
+          .map((l) => (
             <div
               key={l.letter}
               className="pointer-events-none absolute inset-y-0 border-l border-dashed border-foreground/20"
@@ -164,8 +166,7 @@ function Distribution({
                 {l.letter}
               </span>
             </div>
-          ),
-        )}
+          ))}
       </div>
       <div className="mt-1 flex justify-between text-[10px] text-muted-foreground tabular-nums">
         <span>0</span>
@@ -261,7 +262,9 @@ function RatingList({
               <span className="w-14 shrink-0 text-right text-sm font-semibold tabular-nums">
                 {fmtScore(r.total)}
               </span>
-              <LetterChip total={r.total} max={source.maxTotal} />
+              {source.stream ? null : (
+                <LetterChip total={r.total} max={source.maxTotal} />
+              )}
             </button>
             {expanded ? (
               <div className="space-y-3 px-4 pb-4 sm:pl-[4.75rem]">
@@ -362,6 +365,7 @@ function MyResult({
   siteSize,
   source,
   grouped,
+  courseWord,
   onCompare,
 }: {
   me: RankedEntry;
@@ -373,12 +377,14 @@ function MyResult({
   source: GradeSourceSummary;
   /** False for one group's sheet: no study-group place, the course is the sheet. */
   grouped: boolean;
+  /** Where the whole list is: «на курсе», or «в потоке» for a stream rating. */
+  courseWord: string;
   onCompare: () => void;
 }) {
   const places = grouped
     ? [
         { label: "в группе", rank: me.rank, size: groupSize },
-        { label: "на курсе", rank: courseRank, size: ranked.length },
+        { label: courseWord, rank: courseRank, size: ranked.length },
         { label: "на сайте", rank: siteRank, size: siteSize },
       ]
     : [
@@ -400,7 +406,9 @@ function MyResult({
       <div className="min-w-0 flex-1 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold">Ваш результат</h2>
-          <LetterChip total={me.total} max={source.maxTotal} />
+          {source.stream ? null : (
+            <LetterChip total={me.total} max={source.maxTotal} />
+          )}
         </div>
         <dl
           className={cn(
@@ -423,13 +431,15 @@ function MyResult({
           ))}
         </dl>
         <p className="text-sm text-muted-foreground text-pretty">
-          {next
-            ? `До ${next.letter} не хватает ${fmtScore(next.points)}. `
-            : "Это уже A — дальше только удержать. "}
+          {source.stream
+            ? ""
+            : next
+              ? `До ${next.letter} не хватает ${fmtScore(next.points)}. `
+              : "Это уже A — дальше только удержать. "}
           {nearestAhead
-            ? `Чтобы подняться ${grouped ? "на курсе" : "в таблице"}, нужно ещё ${fmtScore(nearestAhead.total - me.total)}.`
+            ? `Чтобы подняться ${grouped ? courseWord : "в таблице"}, нужно ещё ${fmtScore(nearestAhead.total - me.total)}.`
             : courseRank === 1
-              ? `Вы первый ${grouped ? "на курсе" : "в таблице"}.`
+              ? `Вы первый ${grouped ? courseWord : "в таблице"}.`
               : ""}
         </p>
         <PendingTheory labs={me.labs} total={me.total} max={source.maxTotal} />
@@ -456,6 +466,8 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
   const myGroup = data.myGroup;
   // Таблица одной группы (английский): учебные группы в ней не сравниваются.
   const grouped = !source?.membersOnly;
+  // Сводный рейтинг потока: столбцы — предметы, итог — их сумма.
+  const stream = source?.stream;
   const hasGroup = grouped && data.rows.some((r) => r.group === myGroup);
   const [pickedScope, setScope] = useState<Scope>(
     hasGroup ? "group" : "course",
@@ -592,6 +604,7 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
           siteSize={site.length}
           source={source}
           grouped={grouped}
+          courseWord={stream ? "в потоке" : "на курсе"}
           onCompare={() => openCompare(null)}
         />
       ) : ctxMe ? (
@@ -661,7 +674,7 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
               <TabsTrigger value="group">{myGroup}</TabsTrigger>
             ) : null}
             <TabsTrigger value="course">
-              {grouped ? "Курс" : "Вся таблица"}
+              {stream ? `${stream} поток` : grouped ? "Курс" : "Вся таблица"}
             </TabsTrigger>
             <TabsTrigger value="site">На сайте</TabsTrigger>
             {grouped ? (
@@ -758,7 +771,9 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
       ) : null}
 
       <p className="text-xs text-muted-foreground">
-        Данные из таблицы преподавателя
+        {stream
+          ? `Сумма итогов по ${source.columns.map((c) => c.label).join(", ")} из таблиц преподавателей, только студенты ${stream} потока`
+          : "Данные из таблицы преподавателя"}
         {source.syncedAt ? `, сверены ${fmtRelative(source.syncedAt)}` : ""}.
         Места делят студенты с одинаковым баллом. Аватар — у тех, кто есть на
         сайте; в рейтинге «На сайте» — {site.length}{" "}

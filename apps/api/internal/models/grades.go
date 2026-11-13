@@ -204,6 +204,9 @@ type GradeSourceSummary struct {
 	SyncedAt     *time.Time    `json:"syncedAt"`
 	// MembersOnly: one small group's sheet; places are counted within it only.
 	MembersOnly bool `json:"membersOnly"`
+	// Stream is set on a stream's combined rating: the sum of totals over
+	// several subjects, shown only to that stream's students.
+	Stream int `json:"stream,omitempty"`
 }
 
 // Summary strips admin-only settings.

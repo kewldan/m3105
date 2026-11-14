@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon, KeyRoundIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -103,7 +103,24 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <LogoutButton variant="menu" />
             </SidebarMenuItem>
-          ) : null}
+          ) : (
+            // Ответственного пускает и студенческий вход: без него админ, у
+            // которого истекла сессия, молча оказался бы в урезанной админке.
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Войти как администратор"
+                render={
+                  <Link
+                    href="/admin/login"
+                    onClick={() => setOpenMobile(false)}
+                  />
+                }
+              >
+                <KeyRoundIcon />
+                <span>Войти как администратор</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />

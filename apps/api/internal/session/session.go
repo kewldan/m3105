@@ -17,6 +17,8 @@ import (
 type Store interface {
 	Create(ctx context.Context, ttl time.Duration) (string, error)
 	Exists(ctx context.Context, token string) (bool, error)
+	// Extend pushes a live session's expiry to ttl from now; false if it is gone.
+	Extend(ctx context.Context, token string, ttl time.Duration) (bool, error)
 	Delete(ctx context.Context, token string) error
 	// Hit increments a rate-limit counter and returns the new value.
 	Hit(ctx context.Context, key string, window time.Duration) (int64, error)
@@ -90,6 +92,19 @@ func (m *Memory) Exists(_ context.Context, token string) (bool, error) {
 		delete(m.sessions, "session:"+token)
 		return false, nil
 	}
+	return true, nil
+}
+
+func (m *Memory) Extend(_ context.Context, token string, ttl time.Duration) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.sessions["session:"+token]
+	if !ok || time.Now().After(e.exp) {
+		delete(m.sessions, "session:"+token)
+		return false, nil
+	}
+	e.exp = time.Now().Add(ttl)
+	m.sessions["session:"+token] = e
 	return true, nil
 }
 
@@ -192,6 +207,14 @@ func (v *Valkey) Create(ctx context.Context, ttl time.Duration) (string, error) 
 
 func (v *Valkey) Exists(ctx context.Context, token string) (bool, error) {
 	n, err := v.client.Do(ctx, v.client.B().Exists().Key("session:"+token).Build()).AsInt64()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+func (v *Valkey) Extend(ctx context.Context, token string, ttl time.Duration) (bool, error) {
+	n, err := v.client.Do(ctx, v.client.B().Expire().Key("session:"+token).Seconds(int64(ttl.Seconds())).Build()).AsInt64()
 	if err != nil {
 		return false, err
 	}

@@ -104,7 +104,8 @@ func (s *Service) BearerAuthenticated(r *http.Request) bool {
 }
 
 // Authenticated reports whether the request carries the API token or a valid
-// session cookie.
+// session cookie. A live session is extended to the full TTL on every check:
+// the admin is logged out only after TTL without visits, not TTL after login.
 func (s *Service) Authenticated(ctx context.Context, r *http.Request) bool {
 	if s.BearerAuthenticated(r) {
 		return true
@@ -113,7 +114,7 @@ func (s *Service) Authenticated(ctx context.Context, r *http.Request) bool {
 	if err != nil || c.Value == "" {
 		return false
 	}
-	ok, err := s.store.Exists(ctx, c.Value)
+	ok, err := s.store.Extend(ctx, c.Value, s.ttl)
 	if err != nil {
 		slog.Warn("session lookup failed", "err", err)
 		return false
@@ -132,6 +133,14 @@ func (s *Service) SetCookie(w http.ResponseWriter, token string) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(s.ttl.Seconds()),
 	})
+}
+
+// RefreshCookie re-sends the session cookie so the browser keeps it as long as
+// the store does (see Authenticated). No-op without the cookie.
+func (s *Service) RefreshCookie(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie(s.cookieName); err == nil && c.Value != "" {
+		s.SetCookie(w, c.Value)
+	}
 }
 
 // ClearCookie expires the session cookie.

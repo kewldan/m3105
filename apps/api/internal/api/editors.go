@@ -65,6 +65,10 @@ func (h *Handler) requireStaff(next http.Handler) http.Handler {
 			httpx.Error(w, http.StatusUnauthorized, "unauthorized", "Требуется вход в админку")
 			return
 		}
+		if p.Admin {
+			// Сессия продлевается при каждом заходе (Authenticated), кука — вместе с ней.
+			h.auth.RefreshCookie(w, r)
+		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey{}, p)))
 	})
 }

@@ -766,13 +766,13 @@ func queuePlace(v models.PracticeSessionView, userID, labID int64) (int, models.
 	return 0, models.QueueEntry{}
 }
 
-// telegramOf is the student's Telegram chat, nil if unknown.
-func (h *Handler) telegramOf(ctx context.Context, userID int64) *int64 {
-	u, err := h.store.GetUser(ctx, userID)
+// recipientOf is the student as a bot notification recipient.
+func (h *Handler) recipientOf(ctx context.Context, userID int64) store.Recipient {
+	r, err := h.store.UserRecipient(ctx, userID)
 	if err != nil {
-		return nil
+		return store.Recipient{UserID: &userID}
 	}
-	return u.TelegramID
+	return r
 }
 
 // requestSwap offers another student to trade places and tells them in Telegram.
@@ -809,7 +809,7 @@ func (h *Handler) requestSwap(w http.ResponseWriter, r *http.Request) {
 	}
 	mine, me := queuePlace(v, userID, in.LabID)
 	theirs, them := queuePlace(v, in.WithUserID, in.WithLabID)
-	h.notify.SwapRequested(h.telegramOf(ctx, in.WithUserID), swapID, v.PracticeSession, sc.Loc, me.User.Name,
+	h.notify.SwapRequested(h.recipientOf(ctx, in.WithUserID), swapID, v.PracticeSession, sc.Loc, me.User.Name,
 		bot.SwapPlace{Place: mine, Lab: me.Lab.Number}, bot.SwapPlace{Place: theirs, Lab: them.Lab.Number})
 	httpx.JSON(w, http.StatusOK, v)
 }
@@ -835,7 +835,7 @@ func (h *Handler) acceptSwap(w http.ResponseWriter, r *http.Request) {
 	}
 	place, _ := queuePlace(v, res.FromUserID, res.FromLabID)
 	_, me := queuePlace(v, userID, res.ToLabID)
-	h.notify.SwapAccepted(h.telegramOf(ctx, res.FromUserID), v.PracticeSession, sc.Loc, me.User.Name, place)
+	h.notify.SwapAccepted(h.recipientOf(ctx, res.FromUserID), v.PracticeSession, sc.Loc, me.User.Name, place)
 	httpx.JSON(w, http.StatusOK, v)
 }
 
@@ -860,7 +860,7 @@ func (h *Handler) deleteSwap(w http.ResponseWriter, r *http.Request) {
 	// Отказ получателя — сообщаем отправителю; свой отозванный запрос — молча.
 	if res.ToUserID == userID {
 		_, me := queuePlace(v, userID, res.ToLabID)
-		h.notify.SwapDeclined(h.telegramOf(r.Context(), res.FromUserID), v.PracticeSession, sc.Loc, me.User.Name)
+		h.notify.SwapDeclined(h.recipientOf(r.Context(), res.FromUserID), v.PracticeSession, sc.Loc, me.User.Name)
 	}
 	httpx.JSON(w, http.StatusOK, v)
 }

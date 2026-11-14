@@ -313,6 +313,62 @@ export type Edit = {
   createdAt: string;
 };
 
+/** Bot mailing kinds, see models/broadcasts.go. */
+export type BroadcastKind =
+  | "lab"
+  | "digest"
+  | "grades"
+  | "practice_canceled"
+  | "practice_moved"
+  | "practice_restored"
+  | "swap"
+  | "admin";
+
+/** A bot mailing with delivery counters (/admin/broadcasts). */
+export type Broadcast = {
+  id: number;
+  kind: BroadcastKind;
+  title: string;
+  refType: string;
+  refId: number | null;
+  createdAt: string;
+  lastAt: string;
+  total: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  pending: number;
+};
+
+export type DeliveryStatus = "pending" | "sent" | "failed" | "skipped";
+
+/** One recipient of a mailing. */
+export type BroadcastDelivery = {
+  id: number;
+  broadcastId: number;
+  userId: number | null;
+  chatId: number | null;
+  recipient: string;
+  groupName: string;
+  status: DeliveryStatus;
+  /** Why it was not delivered: Telegram's answer or the reason it was skipped. */
+  error: string;
+  /** The message as sent (Telegram HTML). */
+  text: string;
+  attempts: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BroadcastDetail = Broadcast & { deliveries: BroadcastDelivery[] };
+
+export type BroadcastRetryResult = {
+  retried: number;
+  sent: number;
+  failed: number;
+  broadcast: BroadcastDetail;
+};
+
 export type StudyGroup = { name: string; stream: number; students: number };
 
 export type StudentImportResult = {

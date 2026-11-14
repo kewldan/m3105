@@ -6,6 +6,9 @@ import type {
   AdminComment,
   AdminUser,
   AdminUserInput,
+  Broadcast,
+  BroadcastDetail,
+  BroadcastRetryResult,
   Comment,
   Edit,
   EditorCandidate,
@@ -116,6 +119,19 @@ export const adminApi = {
       ),
     revert: (id: number) =>
       apiClient<{ ok: true; entityId: number }>(`/admin/journal/${id}/revert`, {
+        method: "POST",
+      }),
+  },
+  /** Журнал рассылок бота: кому ушло сообщение и кому нет. */
+  broadcasts: {
+    list: (kind?: string) =>
+      apiClient<Broadcast[]>(
+        `/admin/broadcasts${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`,
+      ),
+    get: (id: number) => apiClient<BroadcastDetail>(`/admin/broadcasts/${id}`),
+    /** Повторить неудачные доставки тем же текстом. */
+    retry: (id: number) =>
+      apiClient<BroadcastRetryResult>(`/admin/broadcasts/${id}/retry`, {
         method: "POST",
       }),
   },

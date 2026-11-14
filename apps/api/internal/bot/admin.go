@@ -11,23 +11,44 @@ import (
 
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/models"
+	"github.com/kewldan/edu3105/apps/api/internal/store"
 )
 
 // AdminNotifier sends service messages to the admin's chat.
 type AdminNotifier struct {
-	api    *Client
+	c      *courier
 	chatID int64
 	site   string
-	log    *slog.Logger
 }
 
 // NewAdminNotifier returns nil when the token or the chat is not configured;
 // methods of a nil notifier do nothing.
-func NewAdminNotifier(token string, chatID int64, site string) *AdminNotifier {
+func NewAdminNotifier(token string, chatID int64, site string, st *store.Store) *AdminNotifier {
 	if token == "" || chatID == 0 {
 		return nil
 	}
-	return &AdminNotifier{api: NewClient(token), chatID: chatID, site: site, log: slog.Default().With("component", "admin-notify")}
+	return &AdminNotifier{
+		c:      &courier{api: NewClient(token), store: st, log: slog.Default().With("component", "admin-notify")},
+		chatID: chatID, site: site,
+	}
+}
+
+// send delivers a message to the admin chat in the background and records it
+// in the broadcast journal.
+func (n *AdminNotifier) send(title, text string, keyboard map[string]any) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		id := n.c.open(ctx, store.NewBroadcast{Kind: models.BroadcastAdmin, Title: title})
+		chat := n.chatID
+		var markup any
+		if keyboard != nil {
+			markup = keyboard
+		}
+		if err := n.c.deliver(ctx, id, Recipient{ChatID: &chat, Name: "Админ"}, text, markup); err != nil {
+			n.c.log.Warn("send", "title", title, "err", err)
+		}
+	}()
 }
 
 // Claimed reports that a student picked themselves in the course list. It does
@@ -37,14 +58,7 @@ func (n *AdminNotifier) Claimed(u models.User, st models.Student) {
 	if n == nil {
 		return
 	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		opts := SendOptions{DisablePreview: true, ReplyMarkup: unclaimKeyboard(u.ID)}
-		if err := n.api.SendHTML(ctx, n.chatID, claimedMessage(n.site, u, st), opts); err != nil {
-			n.log.Warn("claimed", "user", u.ID, "err", err)
-		}
-	}()
+	n.send("Админу: студент выбрал себя — "+st.FullName, claimedMessage(n.site, u, st), unclaimKeyboard(u.ID))
 }
 
 // Edited tells the admin what an editor changed, with a link to the journal.
@@ -53,13 +67,7 @@ func (n *AdminNotifier) Edited(e models.Edit) {
 	if n == nil {
 		return
 	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := n.api.SendHTML(ctx, n.chatID, editedMessage(n.site, e), SendOptions{DisablePreview: true}); err != nil {
-			n.log.Warn("edited", "edit", e.ID, "err", err)
-		}
-	}()
+	n.send("Админу: правка — "+e.Title, editedMessage(n.site, e), nil)
 }
 
 const (

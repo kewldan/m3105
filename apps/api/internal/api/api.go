@@ -68,8 +68,8 @@ func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.
 		revalidator: revalidate.New(cfg.WebURL, cfg.RevalidateToken),
 		files:       fs,
 		resizer:     resizer,
-		admin:       bot.NewAdminNotifier(cfg.TelegramBotToken, cfg.AdminChatID, cfg.PublicURL),
-		notify:      bot.NewNotifier(cfg.TelegramBotToken, cfg.PublicURL),
+		admin:       bot.NewAdminNotifier(cfg.TelegramBotToken, cfg.AdminChatID, cfg.PublicURL, st),
+		notify:      bot.NewNotifier(cfg.TelegramBotToken, cfg.PublicURL, st),
 		grades:      grades.NewSyncer(st, &grades.Fetcher{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: cfg.SheetsURL}),
 		cpp:         newCppService(cfg),
 	}

@@ -353,6 +353,9 @@ func (h *Handler) mountAdmin(r chi.Router) {
 		r.Get("/files", h.adminListFiles)
 		r.Delete("/files/{id}", h.adminDeleteFile)
 		r.Post("/journal/{id}/revert", h.revertEdit)
+		r.Get("/broadcasts", h.listBroadcasts)
+		r.Get("/broadcasts/{id}", h.getBroadcast)
+		r.Post("/broadcasts/{id}/retry", h.retryBroadcast)
 		r.Route("/grade-sources", h.mountGradeSources)
 		r.Route("/pages", func(r chi.Router) {
 			mount[models.Page, models.PageInput](h, r, crud[models.Page, models.PageInput]{

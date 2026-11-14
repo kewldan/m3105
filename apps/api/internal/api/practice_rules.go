@@ -149,13 +149,13 @@ func (h *Handler) previewPracticeRule(w http.ResponseWriter, r *http.Request) {
 
 // noticeCanceled tells the signed-up students (chats, or loaded now) that the
 // session is canceled. Without moved it points to the next session.
-func (h *Handler) noticeCanceled(ctx context.Context, sess models.PracticeSession, loc *time.Location, chats []int64, moved *models.PracticeSession) {
+func (h *Handler) noticeCanceled(ctx context.Context, sess models.PracticeSession, loc *time.Location, chats []store.Recipient, moved *models.PracticeSession) {
 	if h.notify == nil || sess.StartsAt.Before(time.Now()) {
 		return
 	}
 	if chats == nil {
 		var err error
-		if chats, err = h.store.PracticeChats(ctx, sess.ID); err != nil {
+		if chats, err = h.store.PracticeRecipients(ctx, sess.ID); err != nil {
 			slog.Warn("practice chats", "session", sess.ID, "err", err)
 			return
 		}
@@ -185,7 +185,7 @@ func (h *Handler) practiceChanged(ctx context.Context, before, after models.Prac
 	case after.Canceled && !before.Canceled:
 		h.noticeCanceled(ctx, after, sc.Loc, nil, nil)
 	case !after.Canceled && (before.Canceled || moved):
-		chats, err := h.store.PracticeChats(ctx, after.ID)
+		chats, err := h.store.PracticeRecipients(ctx, after.ID)
 		if err != nil || len(chats) == 0 {
 			return
 		}
@@ -264,7 +264,7 @@ func (h *Handler) cancelPractice(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		// Записи могут уехать на другую сдачу: кому писать, узнаём заранее.
-		chats, err := h.store.PracticeChats(ctx, sess.ID)
+		chats, err := h.store.PracticeRecipients(ctx, sess.ID)
 		if err != nil {
 			return err
 		}

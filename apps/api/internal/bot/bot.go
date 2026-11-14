@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/kewldan/edu3105/apps/api/internal/httpx"
+	"github.com/kewldan/edu3105/apps/api/internal/models"
 	"github.com/kewldan/edu3105/apps/api/internal/store"
 )
 
@@ -29,9 +31,12 @@ type Options struct {
 // Bot ties the Telegram client to the store.
 type Bot struct {
 	api   *Client
+	c     *courier
 	store *store.Store
 	opts  Options
 	log   *slog.Logger
+	// prunedAt is when old broadcasts were last dropped from the journal.
+	prunedAt time.Time
 }
 
 // New builds a bot; returns nil when no token is configured.
@@ -45,7 +50,8 @@ func New(st *store.Store, opts Options) *Bot {
 	if opts.DigestHour < 0 || opts.DigestHour > 23 {
 		opts.DigestHour = 10
 	}
-	return &Bot{api: NewClient(opts.Token), store: st, opts: opts, log: slog.Default().With("component", "bot")}
+	api, log := NewClient(opts.Token), slog.Default().With("component", "bot")
+	return &Bot{api: api, c: &courier{api: api, store: st, log: log}, store: st, opts: opts, log: log}
 }
 
 var commands = []Command{
@@ -262,6 +268,7 @@ func (b *Bot) schedule(ctx context.Context) {
 		b.announceNewLabs(ctx)
 		b.sendDigests(ctx)
 		b.notifyGrades(ctx)
+		b.pruneJournal(ctx)
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
@@ -286,13 +293,13 @@ func (b *Bot) announceNewLabs(ctx context.Context) {
 	}
 	now, loc := b.site(ctx)
 	for _, lab := range labs {
-		// Mark first: a crash mid-broadcast must not repeat the announcement to everyone.
+		// Mark first: a crash mid-broadcast must not repeat the announcement to
+		// everyone. The journal shows who got it before the crash.
 		if err := b.store.MarkLabAnnounced(ctx, lab.ID); err != nil {
 			b.log.Warn("mark announced", "lab", lab.ID, "err", err)
 			continue
 		}
 		msg := newLabMessage(b.opts.SiteURL, lab, now, loc)
-		sent := 0
 		chats := chats
 		if len(lab.Audience) > 0 {
 			if chats, err = b.store.ListBotChatsForLab(ctx, lab.ID); err != nil {
@@ -300,13 +307,33 @@ func (b *Bot) announceNewLabs(ctx context.Context) {
 				continue
 			}
 		}
+		labID := lab.ID
+		id := b.c.open(ctx, store.NewBroadcast{
+			Kind: models.BroadcastLab, Key: "lab:" + strconv.FormatInt(lab.ID, 10),
+			Title: announceTitle(lab), RefType: "lab", RefID: &labID,
+		})
+		sent := 0
 		for _, chat := range chats {
-			if b.send(ctx, chat.ChatID, msg) {
+			if b.send(ctx, id, chat.ChatID, msg) {
 				sent++
+			}
+		}
+		if id != 0 {
+			unreachable, err := b.store.LabUnreachable(ctx, lab.ID)
+			if err != nil {
+				b.log.Warn("lab unreachable", "lab", lab.ID, "err", err)
+			}
+			for _, r := range unreachable {
+				b.c.skip(ctx, id, r, r.Reason, msg)
 			}
 		}
 		b.log.Info("announced lab", "lab", lab.ID, "title", lab.Title, "chats", sent)
 	}
+}
+
+// announceTitle names a lab announcement in the journal.
+func announceTitle(lab models.Lab) string {
+	return "Новая лаба: " + lab.SubjectName + " — " + labTitle(lab)
 }
 
 func (b *Bot) sendDigests(ctx context.Context) {
@@ -320,6 +347,12 @@ func (b *Bot) sendDigests(ctx context.Context) {
 		b.log.Warn("digest chats", "err", err)
 		return
 	}
+	if len(chats) == 0 {
+		return
+	}
+	id := b.c.open(ctx, store.NewBroadcast{
+		Kind: models.BroadcastDigest, Key: "digest:" + today, Title: "Дайджест дедлайнов " + now.Format("02.01.2006"),
+	})
 	for _, chat := range chats {
 		from := now.Add(-30 * 24 * time.Hour)
 		to := now.Add(b.opts.DigestWindow)
@@ -333,14 +366,18 @@ func (b *Bot) sendDigests(ctx context.Context) {
 			continue
 		}
 		if msg := digestMessage(b.opts.SiteURL, labs, now, loc, b.opts.DigestWindow); msg != "" {
-			b.send(ctx, chat.ChatID, msg)
+			b.send(ctx, id, chat.ChatID, msg)
+		} else {
+			chatID := chat.ChatID
+			b.c.skip(ctx, id, Recipient{ChatID: &chatID}, "Нет несданных лаб с близким дедлайном", "")
 		}
 	}
 }
 
-// send delivers a notification; a blocked bot unsubscribes the chat. Reports success.
-func (b *Bot) send(ctx context.Context, chatID int64, msg string) bool {
-	err := b.api.SendHTML(ctx, chatID, msg, SendOptions{DisablePreview: true})
+// send delivers a notification and records it in the journal under the
+// broadcast; a blocked bot unsubscribes the chat. Reports success.
+func (b *Bot) send(ctx context.Context, broadcastID, chatID int64, msg string) bool {
+	err := b.c.deliver(ctx, broadcastID, Recipient{ChatID: &chatID}, msg, nil)
 	if err == nil {
 		time.Sleep(50 * time.Millisecond) // stay well under Telegram's broadcast rate limit
 		return true
@@ -354,6 +391,22 @@ func (b *Bot) send(ctx context.Context, chatID int64, msg string) bool {
 	}
 	b.log.Warn("send", "chat", chatID, "err", err)
 	return false
+}
+
+// journalKeep is how long broadcasts stay in the journal.
+const journalKeep = 180 * 24 * time.Hour
+
+// pruneJournal drops old broadcasts, at most once a day.
+func (b *Bot) pruneJournal(ctx context.Context) {
+	if time.Since(b.prunedAt) < 24*time.Hour {
+		return
+	}
+	b.prunedAt = time.Now()
+	if n, err := b.store.PruneBroadcasts(ctx, time.Now().Add(-journalKeep)); err != nil {
+		b.log.Warn("prune broadcasts", "err", err)
+	} else if n > 0 {
+		b.log.Info("pruned broadcasts", "count", n)
+	}
 }
 
 func (b *Bot) grades(ctx context.Context, chatID, telegramID int64) error {
@@ -387,6 +440,8 @@ func (b *Bot) notifyGrades(ctx context.Context) {
 		b.log.Warn("grade changes", "err", err)
 		return
 	}
+	// One broadcast per score sheet and pass of the scheduler.
+	broadcasts := map[int64]int64{}
 	for _, c := range changes {
 		// Mark first, like lab announcements: a crash must not repeat the message.
 		if err := b.store.MarkGradeNotified(ctx, c); err != nil {
@@ -394,8 +449,20 @@ func (b *Bot) notifyGrades(ctx context.Context) {
 			continue
 		}
 		// Поменялась только незаметная ячейка блока лабы — писать не о чем.
-		if msg := gradeChangeMessage(b.opts.SiteURL, c); msg != "" {
-			b.send(ctx, c.ChatID, msg)
+		msg := gradeChangeMessage(b.opts.SiteURL, c)
+		if msg == "" {
+			continue
 		}
+		id, ok := broadcasts[c.SourceID]
+		if !ok {
+			source := c.SourceID
+			title := "Баллы: " + c.SubjectName
+			if c.Title != "" && c.Title != c.SubjectName {
+				title += " — " + c.Title
+			}
+			id = b.c.open(ctx, store.NewBroadcast{Kind: models.BroadcastGrades, Title: title, RefType: "grade_source", RefID: &source})
+			broadcasts[c.SourceID] = id
+		}
+		b.send(ctx, id, c.ChatID, msg)
 	}
 }

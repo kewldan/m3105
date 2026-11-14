@@ -9,6 +9,7 @@ import {
   LayoutDashboardIcon,
   ListChecksIcon,
   type LucideIcon,
+  MegaphoneIcon,
   MessageCircleIcon,
   NotebookPenIcon,
   PaperclipIcon,
@@ -69,6 +70,7 @@ export const ADMIN_NAV: NavItem[] = [
   { title: "Журнал", href: "/admin/journal", icon: HistoryIcon, editor: true },
   { title: "Баллы", href: "/admin/grades", icon: TrophyIcon },
   { title: "Комментарии", href: "/admin/comments", icon: MessageCircleIcon },
+  { title: "Рассылки бота", href: "/admin/broadcasts", icon: MegaphoneIcon },
   { title: "Поиск", href: "/admin/search", icon: SearchIcon },
   { title: "Настройки", href: "/admin/settings", icon: SettingsIcon },
 ];

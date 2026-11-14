@@ -427,14 +427,11 @@ func (s *Store) ResetPracticeSession(ctx context.Context, id int64, loc *time.Lo
 	return nil
 }
 
-// PracticeChats are the Telegram chats of the students signed up for a session.
-func (s *Store) PracticeChats(ctx context.Context, sessionID int64) ([]int64, error) {
-	rows, err := s.db.Query(ctx, `SELECT DISTINCT u.telegram_id FROM users u
-		WHERE u.telegram_id IS NOT NULL AND u.id IN (SELECT user_id FROM practice_signups WHERE session_id = $1
-			UNION SELECT user_id FROM practice_theory_signups WHERE session_id = $1)`, sessionID)
-	if err != nil {
-		return nil, wrap(err)
-	}
-	ids, err := pgx.CollectRows(rows, pgx.RowTo[int64])
-	return ids, wrap(err)
+// PracticeRecipients are the students signed up for a session, with their
+// Telegram chats (nil when the account has none).
+func (s *Store) PracticeRecipients(ctx context.Context, sessionID int64) ([]Recipient, error) {
+	return many[Recipient](ctx, s.db, `SELECT u.id AS user_id, u.telegram_id AS chat_id, `+userNameExpr+` AS name
+		FROM users u WHERE u.id IN (SELECT user_id FROM practice_signups WHERE session_id = $1
+			UNION SELECT user_id FROM practice_theory_signups WHERE session_id = $1)
+		ORDER BY u.id`, sessionID)
 }

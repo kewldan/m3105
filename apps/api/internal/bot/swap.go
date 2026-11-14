@@ -76,14 +76,19 @@ func (b *Bot) swapFromButton(ctx context.Context, q *CallbackQuery) (string, err
 	q2 := queues[sess.ID]
 	sender := queueName(q2, res.FromUserID)
 	me := queueName(q2, user.ID)
-	senderChat := b.telegramOf(ctx, res.FromUserID)
+	senderTo, err := b.store.UserRecipient(ctx, res.FromUserID)
+	if err != nil {
+		senderTo = Recipient{UserID: &res.FromUserID}
+	}
 
-	var text, toSender, answer string
+	var text, toSender, answer, title string
 	if accept {
+		title = "Обмен: согласие"
 		text = swapDoneMessage(b.opts.SiteURL, sess, loc, sender, queuePlace(q2, res.ToUserID, res.ToLabID))
 		toSender = swapAcceptedMessage(b.opts.SiteURL, sess, loc, me, queuePlace(q2, res.FromUserID, res.FromLabID))
 		answer = "Поменялись местами"
 	} else {
+		title = "Обмен: отказ"
 		text = swapRefusedMessage(b.opts.SiteURL, sess, loc, sender)
 		toSender = swapDeclinedMessage(b.opts.SiteURL, sess, loc, me)
 		answer = "Обмен отклонён"
@@ -93,10 +98,9 @@ func (b *Bot) swapFromButton(ctx context.Context, q *CallbackQuery) (string, err
 			b.log.Warn("edit swap message", "err", err)
 		}
 	}
-	if senderChat != nil {
-		if err := b.api.SendHTML(ctx, *senderChat, toSender, SendOptions{DisablePreview: true}); err != nil {
-			b.log.Warn("swap answer to sender", "user", res.FromUserID, "err", err)
-		}
+	bid := b.c.open(ctx, practiceBroadcast(models.BroadcastSwap, title, sess, loc))
+	if err := b.c.deliver(ctx, bid, senderTo, toSender, nil); err != nil && !errors.Is(err, errNoChat) {
+		b.log.Warn("swap answer to sender", "user", res.FromUserID, "err", err)
 	}
 	return answer, nil
 }
@@ -108,14 +112,6 @@ func (b *Bot) dropKeyboard(ctx context.Context, q *CallbackQuery) {
 	if err := b.api.RemoveKeyboard(ctx, q.Message.Chat.ID, q.Message.ID); err != nil {
 		b.log.Warn("remove swap keyboard", "err", err)
 	}
-}
-
-func (b *Bot) telegramOf(ctx context.Context, userID int64) *int64 {
-	u, err := b.store.GetUser(ctx, userID)
-	if err != nil {
-		return nil
-	}
-	return u.TelegramID
 }
 
 // queuePlace is the 1-based place of a defense, 0 if it is gone.

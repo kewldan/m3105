@@ -289,6 +289,11 @@ func TestStreamRating(t *testing.T) {
 	if src["stream"] != float64(1) || src["maxTotal"] != float64(200) || len(src["columns"].([]any)) != 2 {
 		t.Fatalf("stream rating source: %v", src)
 	}
+	for _, c := range src["columns"].([]any) {
+		if id, _ := c.(map[string]any)["sourceId"].(float64); id <= 0 {
+			t.Fatalf("stream column without its source: %v", c)
+		}
+	}
 	rows := page["rows"].([]any)
 	if len(rows) != 2 {
 		t.Fatalf("only the stream's students expected: %v", rows)

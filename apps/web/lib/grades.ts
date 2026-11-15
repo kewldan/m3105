@@ -282,3 +282,61 @@ export function fmtCount(
 ): string {
   return `${fmtScore(n)} ${Number.isInteger(n) ? plural(n, one, few, many) : few}`;
 }
+
+// «Тест» → «Тесты»: названия групп столбцов; что не знаем — как есть.
+const GROUP_NAMES: Record<string, string> = {
+  тест: "Тесты",
+  лаба: "Лабы",
+  лр: "Лабы",
+  дз: "ДЗ",
+  теормин: "Теормины",
+  коллоквиум: "Коллоквиумы",
+  кр: "Контрольные",
+  контрольная: "Контрольные",
+};
+
+export type ColumnGroup = {
+  /** «Тесты» for a group, the column's own label for a single column. */
+  label: string;
+  columns: GradeColumn[];
+};
+
+/**
+ * Columns grouped by their label without the trailing number («Тест 1»,
+ * «Тест 2» → «Тесты»), in the order of first appearance.
+ */
+export function groupColumns(columns: GradeColumn[]): ColumnGroup[] {
+  const groups = new Map<string, GradeColumn[]>();
+  for (const c of columns) {
+    const stem = c.label
+      .replace(/\s*№?\s*\d+$/, "")
+      .trim()
+      .toLowerCase();
+    const list = groups.get(stem || c.key) ?? [];
+    list.push(c);
+    groups.set(stem || c.key, list);
+  }
+  return [...groups.entries()].map(([stem, cols]) => ({
+    label:
+      cols.length > 1
+        ? (GROUP_NAMES[stem] ?? stem.charAt(0).toUpperCase() + stem.slice(1))
+        : cols[0].label,
+    columns: cols,
+  }));
+}
+
+/** The same student in another sheet: by account, else by name and group. */
+export function findStudent<T extends GradeEntry>(
+  rows: T[],
+  who: { name: string; group: string; userId?: number },
+): T | null {
+  if (who.userId != null) {
+    const byUser = rows.filter((r) => r.user?.id === who.userId);
+    if (byUser.length === 1) return byUser[0];
+  }
+  const byName = rows.filter(
+    (r) => r.name === who.name && r.group === who.group,
+  );
+  // Тёзки в одной группе: лучше не сравнивать, чем сравнить не с тем.
+  return byName.length === 1 ? byName[0] : null;
+}

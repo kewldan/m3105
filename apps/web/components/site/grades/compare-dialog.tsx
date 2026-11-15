@@ -1,12 +1,19 @@
 "use client";
 
 import { ArrowDownIcon, ArrowUpIcon, EqualIcon, UsersIcon } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import {
   ComboboxField,
   type ComboOption,
 } from "@/components/admin/combobox-field";
+import {
+  bothEmpty,
+  deltaTone,
+  Highlights,
+  PairBars,
+  PartsBreakdown,
+} from "@/components/site/grades/compare-parts";
 import { LetterChip } from "@/components/site/grades/letter-chip";
 import { GroupBadge } from "@/components/site/group-badge";
 import { UserAvatar } from "@/components/site/user-avatar";
@@ -18,38 +25,50 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import type {
   GradeEntry,
+  GradeLabs,
   GradeParts,
   GradeSourceSummary,
+  GradesResponse,
 } from "@/lib/api/types";
 import { plural } from "@/lib/format";
 import {
   averageParts,
   diffParts,
+  findStudent,
   fmtDelta,
   fmtScore,
   mean,
   type PartDiff,
-  percent,
   type RankedEntry,
+  rank,
 } from "@/lib/grades";
 import { subjectColor } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
 
-/** Whom to compare with: a student from the sheet or an average over a scope. */
-export type Opponent = {
-  /** `row:<index in the response>` or `avg:group` / `avg:course`. */
-  id: string;
+/** One side of a comparison: a student or an average over a scope. */
+export type Contender = {
   name: string;
   /** Empty for averages. */
   group: string;
   total: number;
   parts: GradeParts;
-  /** Place on the course (in the sheet); null for averages. */
+  /** Empty for averages. */
+  labs: GradeLabs;
+  /** Place among `size` people; null for averages. */
   rank: number | null;
   photoUrl?: string;
   average: boolean;
+};
+
+/** Whom to compare with: a student from the sheet or an average over a scope. */
+export type Opponent = Contender & {
+  /** `row:<index in the response>` or `avg:group` / `avg:course`. */
+  id: string;
+  /** Account, to find the same student in another sheet. */
+  userId?: number;
 };
 
 type Ranked = RankedEntry & { key: number };
@@ -75,6 +94,7 @@ export function buildOpponents({
     group: "",
     total: mean(rows.map((r) => r.total)),
     parts: averageParts(rows, source.columns),
+    labs: {},
     rank: null,
     average: true,
   });
@@ -97,8 +117,10 @@ export function buildOpponents({
       group: r.group,
       total: r.total,
       parts: r.parts,
+      labs: r.labs,
       rank: r.rank,
       photoUrl: r.user?.photoUrl,
+      userId: r.user?.id,
       average: false,
     });
   }
@@ -145,13 +167,6 @@ export function quickPicks({
   return picks.filter((p) => !seen.has(p.id) && seen.add(p.id));
 }
 
-function deltaTone(v: number | null): string {
-  if (v == null || Math.abs(v) < 0.005) return "text-muted-foreground";
-  return v > 0
-    ? "text-emerald-700 dark:text-emerald-300"
-    : "text-rose-700 dark:text-rose-300";
-}
-
 function Side({
   name,
   group,
@@ -163,6 +178,7 @@ function Side({
   align,
   you,
   average,
+  letters,
 }: {
   name: string;
   group: string;
@@ -174,6 +190,8 @@ function Side({
   align: "start" | "end";
   you?: boolean;
   average?: boolean;
+  /** No letter grade for a sum over several subjects. */
+  letters: boolean;
 }) {
   return (
     <div
@@ -209,7 +227,7 @@ function Side({
         <span className="text-2xl font-semibold tabular-nums tracking-tight">
           {fmtScore(total)}
         </span>
-        <LetterChip total={total} max={max} />
+        {letters ? <LetterChip total={total} max={max} /> : null}
       </div>
       <span className="text-xs text-muted-foreground">
         {rank
@@ -222,73 +240,10 @@ function Side({
   );
 }
 
-/** Two bars on one scale: mine in the subject colour, theirs neutral. */
-function PairBars({
-  mine,
-  theirs,
-  max,
-  color,
-}: {
-  mine: number | null | undefined;
-  theirs: number | null | undefined;
-  max: number;
-  color: string;
-}) {
-  const bar = (v: number | null | undefined, tone: string) => (
-    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-      <div
-        className={cn(
-          "h-full rounded-full transition-[width] duration-500 ease-out",
-          tone,
-        )}
-        style={{ width: `${v == null ? 0 : percent(v, max)}%` }}
-      />
-    </div>
-  );
-  return (
-    <div className="space-y-1" aria-hidden>
-      {bar(mine, color)}
-      {bar(theirs, "bg-foreground/35")}
-    </div>
-  );
-}
-
-function PartRow({ d, color }: { d: PartDiff; color: string }) {
-  const { column, mine, theirs, delta } = d;
-  // Без известного максимума шкала — больший из двух баллов.
-  const scale =
-    column.max > 0 ? column.max : Math.max(mine ?? 0, theirs ?? 0, 1);
-  return (
-    <li className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
-      <span className="truncate text-xs text-muted-foreground">
-        {column.label}
-        {column.max > 0 ? ` · из ${fmtScore(column.max)}` : ""}
-      </span>
-      <span
-        className={cn(
-          "text-right text-xs font-semibold tabular-nums",
-          deltaTone(delta),
-        )}
-      >
-        {delta == null ? "нет у одного" : fmtDelta(delta)}
-      </span>
-      <PairBars mine={mine} theirs={theirs} max={scale} color={color} />
-      <span className="w-20 text-right text-xs tabular-nums">
-        <span className="font-medium">
-          {mine === undefined ? "нет" : fmtScore(mine)}
-        </span>
-        <span className="text-muted-foreground">
-          {" "}
-          / {theirs === undefined ? "нет" : fmtScore(theirs)}
-        </span>
-      </span>
-    </li>
-  );
-}
-
 function Summary({ diffs, total }: { diffs: PartDiff[]; total: number }) {
+  // Столбцы, где баллов пока нет ни у кого, в счёт не идут.
   const both = diffs.filter(
-    (d): d is PartDiff & { delta: number } => d.delta != null,
+    (d): d is PartDiff & { delta: number } => d.delta != null && !bothEmpty(d),
   );
   const ahead = both.filter((d) => d.delta > 0.005);
   const behind = both.filter((d) => d.delta < -0.005);
@@ -338,6 +293,74 @@ function Summary({ diffs, total }: { diffs: PartDiff[]; total: number }) {
   );
 }
 
+/** Another sheet as the comparison sees it: loaded, on its way or failed. */
+export type Sheet = GradesResponse | "loading" | "error";
+
+/** Both sides within one sheet, places among `size` people. */
+type View = {
+  source: GradeSourceSummary;
+  me: Contender;
+  other: Contender;
+  size: number;
+};
+
+function contender(r: RankedEntry): Contender {
+  return {
+    name: r.name,
+    group: r.group,
+    total: r.total,
+    parts: r.parts,
+    labs: r.labs,
+    rank: r.rank,
+    photoUrl: r.user?.photoUrl,
+    average: false,
+  };
+}
+
+/**
+ * The same comparison in another subject's sheet: me, the same student (or
+ * the same kind of average) and places among the same people — the stream's
+ * groups for a stream rating. Null when one of us is not in that sheet.
+ */
+function viewIn(
+  sheet: GradesResponse,
+  other: Opponent,
+  groups: Set<string> | null,
+  myGroup: string,
+): View | null {
+  const source = sheet.source;
+  if (!source) return null;
+  const people = rank(
+    groups ? sheet.rows.filter((r) => groups.has(r.group)) : sheet.rows,
+  );
+  const me = people.find((r) => r.me);
+  if (!me) return null;
+  let them: Contender | null = null;
+  if (other.average) {
+    const rows =
+      other.id === "avg:group"
+        ? people.filter((r) => r.group === myGroup)
+        : people;
+    if (rows.length) {
+      them = {
+        ...other,
+        total: mean(rows.map((r) => r.total)),
+        parts: averageParts(rows, source.columns),
+        labs: {},
+      };
+    }
+  } else {
+    const row = findStudent(people, other);
+    if (row) {
+      them = contender(row);
+      them.photoUrl ??= other.photoUrl;
+    }
+  }
+  return (
+    them && { source, me: contender(me), other: them, size: people.length }
+  );
+}
+
 /** Side-by-side comparison of my row with another student or an average. */
 export function CompareDialog({
   open,
@@ -348,7 +371,10 @@ export function CompareDialog({
   opponents,
   picks,
   source,
-  courseSize,
+  sources,
+  sheets,
+  course,
+  myGroup,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -357,13 +383,18 @@ export function CompareDialog({
   onOpponentChange: (id: string) => void;
   opponents: Opponent[];
   picks: { id: string; label: string }[];
+  /** The sheet the rating is open on. */
   source: GradeSourceSummary;
-  courseSize: number;
+  /** Every sheet the viewer sees: the other subjects to compare in. */
+  sources: GradeSourceSummary[];
+  sheets: Record<number, Sheet>;
+  course: Ranked[];
+  myGroup: string;
 }) {
   // Фокус не в поле поиска: на телефоне иначе сразу вылезает клавиатура.
   const focusRef = useRef<HTMLDivElement>(null);
+  const [subjectId, setSubjectId] = useState(source.id);
   const other = opponents.find((o) => o.id === opponentId) ?? null;
-  const color = subjectColor(source.subjectColor).dot;
   const options: ComboOption[] = opponents.map((o) => ({
     value: o.id,
     label: o.group ? `${o.name} ${o.group}` : o.name,
@@ -380,8 +411,50 @@ export function CompareDialog({
       </span>
     ),
   }));
-  const diffs = other ? diffParts(source.columns, me.parts, other.parts) : [];
-  const total = other ? me.total - other.total : 0;
+
+  // Предметы: открытый рейтинг первым, дальше остальные таблицы, где есть оба.
+  // У сводного рейтинга потока места в предмете — среди того же потока.
+  const groups = source.stream ? new Set(course.map((r) => r.group)) : null;
+  const order = (s: GradeSourceSummary) => {
+    const i = source.columns.findIndex((c) => c.sourceId === s.id);
+    return i < 0 ? source.columns.length : i;
+  };
+  const current: View | null = other
+    ? { source, me: contender(me), other, size: course.length }
+    : null;
+  const subjects = [
+    {
+      id: source.id,
+      label: source.stream ? "Сумма" : source.title,
+      color: source.subjectColor,
+      view: current as View | "loading" | null,
+    },
+    ...sources
+      .filter((s) => s.id !== source.id && !s.stream)
+      .sort((a, b) => order(a) - order(b))
+      .map((s) => {
+        const sheet = sheets[s.id];
+        return {
+          id: s.id,
+          label:
+            source.columns.find((c) => c.sourceId === s.id)?.label ?? s.title,
+          color: s.subjectColor,
+          view:
+            !other || sheet === "error"
+              ? null
+              : sheet === undefined || sheet === "loading"
+                ? ("loading" as const)
+                : viewIn(sheet, other, groups, myGroup),
+        };
+      }),
+  ].filter((s) => s.view != null);
+  const picked = subjects.find((s) => s.id === subjectId)?.view;
+  const view = picked && picked !== "loading" ? picked : current;
+  const activeId = view === current ? source.id : subjectId;
+  const openSubject = (id: number | undefined) => {
+    const s = subjects.find((x) => x.id === id);
+    return s && s.view !== "loading" ? () => setSubjectId(s.id) : undefined;
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -389,8 +462,10 @@ export function CompareDialog({
         <DialogHeader>
           <DialogTitle>Сравнение баллов</DialogTitle>
           <DialogDescription>
-            {source.title}: ваши баллы рядом с чужими по каждому столбцу
-            таблицы.
+            {(view?.source ?? source).title}
+            {view?.source.stream
+              ? ": суммы по предметам. Выберите предмет, чтобы сравнить каждый тест и лабу."
+              : ": ваши баллы рядом с чужими по каждому столбцу таблицы."}
           </DialogDescription>
         </DialogHeader>
 
@@ -418,83 +493,40 @@ export function CompareDialog({
           ) : null}
         </div>
 
-        {other ? (
-          <>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl border bg-card p-4">
-              <Side
-                you
-                name={me.name}
-                group={me.group}
-                photoUrl={me.user?.photoUrl}
-                total={me.total}
-                max={source.maxTotal}
-                rank={me.rank}
-                courseSize={courseSize}
-                align="start"
-              />
-              <div
+        {subjects.length > 1 ? (
+          <fieldset
+            aria-label="Предмет"
+            className="flex min-w-0 flex-wrap gap-1 rounded-lg border-0 bg-muted p-1"
+          >
+            {subjects.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                aria-pressed={s.id === activeId}
+                disabled={s.view === "loading"}
+                onClick={() => setSubjectId(s.id)}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 px-1",
-                  deltaTone(total),
+                  "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50",
+                  s.id === activeId &&
+                    "bg-background text-foreground shadow-sm dark:bg-input/30",
                 )}
               >
-                {Math.abs(total) < 0.005 ? (
-                  <EqualIcon className="size-5" aria-hidden />
-                ) : total > 0 ? (
-                  <ArrowUpIcon className="size-5" aria-hidden />
-                ) : (
-                  <ArrowDownIcon className="size-5" aria-hidden />
-                )}
-                <span className="text-lg font-semibold tabular-nums">
-                  {fmtDelta(total)}
-                </span>
-              </div>
-              <Side
-                name={other.name}
-                group={other.group}
-                photoUrl={other.photoUrl}
-                total={other.total}
-                max={source.maxTotal}
-                rank={other.rank}
-                courseSize={courseSize}
-                align="end"
-                average={other.average}
-              />
-              <div className="col-span-3 pt-2">
-                <PairBars
-                  mine={me.total}
-                  theirs={other.total}
-                  max={source.maxTotal}
-                  color={color}
+                <span
+                  className={cn(
+                    "size-2 shrink-0 rounded-full",
+                    subjectColor(s.color).dot,
+                  )}
+                  aria-hidden
                 />
-              </div>
-            </div>
+                {s.label}
+                {s.view === "loading" ? <Spinner /> : null}
+              </button>
+            ))}
+          </fieldset>
+        ) : null}
 
-            <Summary diffs={diffs} total={total} />
-
-            {diffs.length ? (
-              <section className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-medium">По столбцам</h3>
-                  <span className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <span className={cn("h-1.5 w-3 rounded-full", color)} />
-                      вы
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-1.5 w-3 rounded-full bg-foreground/35" />
-                      {other.average ? "среднее" : other.name.split(" ")[0]}
-                    </span>
-                  </span>
-                </div>
-                <ul className="space-y-3">
-                  {diffs.map((d) => (
-                    <PartRow key={d.column.key} d={d} color={color} />
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-          </>
+        {view ? (
+          <Comparison view={view} onOpen={openSubject} />
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">
             Выберите, с кем сравнить.
@@ -502,5 +534,115 @@ export function CompareDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Comparison({
+  view,
+  onOpen,
+}: {
+  view: View;
+  /** Opens a subject of a stream rating; undefined when there is none. */
+  onOpen: (sourceId: number | undefined) => (() => void) | undefined;
+}) {
+  const { source, me, other, size } = view;
+  const color = subjectColor(source.subjectColor).dot;
+  const letters = !source.stream;
+  const diffs = diffParts(source.columns, me.parts, other.parts);
+  const total = me.total - other.total;
+  const surname = other.name.split(" ")[0];
+  return (
+    <>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl border bg-card p-4">
+        <Side
+          you
+          name={me.name}
+          group={me.group}
+          photoUrl={me.photoUrl}
+          total={me.total}
+          max={source.maxTotal}
+          rank={me.rank}
+          courseSize={size}
+          align="start"
+          letters={letters}
+        />
+        <div
+          className={cn(
+            "flex flex-col items-center gap-0.5 px-1",
+            deltaTone(total),
+          )}
+        >
+          {Math.abs(total) < 0.005 ? (
+            <EqualIcon className="size-5" aria-hidden />
+          ) : total > 0 ? (
+            <ArrowUpIcon className="size-5" aria-hidden />
+          ) : (
+            <ArrowDownIcon className="size-5" aria-hidden />
+          )}
+          <span className="text-lg font-semibold tabular-nums">
+            {fmtDelta(total)}
+          </span>
+        </div>
+        <Side
+          name={other.name}
+          group={other.group}
+          photoUrl={other.photoUrl}
+          total={other.total}
+          max={source.maxTotal}
+          rank={other.rank}
+          courseSize={size}
+          align="end"
+          average={other.average}
+          letters={letters}
+        />
+        <div className="col-span-3 pt-2">
+          <PairBars
+            mine={me.total}
+            theirs={other.total}
+            max={source.maxTotal}
+            color={color}
+          />
+        </div>
+      </div>
+
+      <Summary diffs={diffs} total={total} />
+
+      {diffs.length >= 4 ? (
+        <Highlights
+          diffs={diffs}
+          otherTitle={
+            other.average ? "Где выше среднее" : `Где сильнее ${surname}`
+          }
+        />
+      ) : null}
+
+      {diffs.length ? (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-medium">
+              {source.stream ? "По предметам" : "По столбцам"}
+            </h3>
+            <span className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className={cn("h-1.5 w-3 rounded-full", color)} />
+                вы
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-3 rounded-full bg-foreground/35" />
+                {other.average ? "среднее" : surname}
+              </span>
+            </span>
+          </div>
+          <PartsBreakdown
+            diffs={diffs}
+            color={color}
+            otherLabel={other.average ? "среднее" : surname}
+            mineLabs={me.labs}
+            theirLabs={other.labs}
+            onOpen={(d) => onOpen(d.column.sourceId)}
+          />
+        </section>
+      ) : null}
+    </>
   );
 }

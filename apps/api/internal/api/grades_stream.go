@@ -89,7 +89,7 @@ func (h *Handler) viewerStreamBoard(ctx context.Context, user models.User, sourc
 		b.sources = append(b.sources, src)
 		b.keys = append(b.keys, p.Key)
 		labels = append(labels, p.Label)
-		b.summary.Columns = append(b.summary.Columns, models.GradeColumn{Key: p.Key, Label: p.Label, Max: src.MaxTotal})
+		b.summary.Columns = append(b.summary.Columns, models.GradeColumn{Key: p.Key, Label: p.Label, Max: src.MaxTotal, SourceID: src.ID})
 		maxTotal += src.MaxTotal
 		// Сводный рейтинг свеж настолько, насколько свежа самая старая таблица.
 		if src.SyncedAt != nil && (synced == nil || src.SyncedAt.Before(*synced)) {

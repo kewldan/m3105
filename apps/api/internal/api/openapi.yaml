@@ -1055,6 +1055,7 @@ components:
         key: { type: string, description: "Ключ части в `GradeEntry.parts`" }
         label: { type: string }
         max: { type: number, description: "Сколько часть даёт максимум; 0 — неизвестно" }
+        sourceId: { type: integer, description: "Только у сводного рейтинга потока: таблица предмета, чей итог в этом столбце" }
       required: [key, label, max]
 
     GradeSourceSummary:

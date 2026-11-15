@@ -426,6 +426,8 @@ export type GradeColumn = {
   label: string;
   /** Сколько часть даёт максимум; 0 — неизвестно */
   max: number;
+  /** Только у сводного рейтинга потока: таблица предмета, чей итог в этом столбце */
+  sourceId?: number;
 };
 
 export type GradeSourceSummary = {

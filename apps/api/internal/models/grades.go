@@ -18,6 +18,9 @@ type GradeColumn struct {
 	Header string `json:"header"`
 	// Max is the most the part can give; 0 when unknown.
 	Max float64 `json:"max"`
+	// SourceID is set only on a stream rating's columns: the subject's source
+	// whose total the column is. Never stored.
+	SourceID int64 `json:"sourceId,omitempty"`
 }
 
 // GradeSource is an external spreadsheet with scores for one subject.
@@ -134,6 +137,7 @@ func (in *GradeSourceInput) Validate() error {
 		c.Header = strings.TrimSpace(c.Header)
 		c.Label = strings.TrimSpace(c.Label)
 		c.Key = strings.ToLower(strings.TrimSpace(c.Key))
+		c.SourceID = 0
 		if c.Key == "" {
 			c.Key = fmt.Sprintf("c%d", i+1)
 		}

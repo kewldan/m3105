@@ -19,6 +19,7 @@ import {
   buildOpponents,
   CompareDialog,
   quickPicks,
+  type Sheet,
 } from "@/components/site/grades/compare-dialog";
 import {
   LabProgress,
@@ -534,9 +535,25 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
   const picks = courseMe
     ? quickPicks({ me: courseMe, course, group, grouped })
     : [];
+  // Другие предметы для сравнения грузятся при первом открытии и остаются.
+  const [sheets, setSheets] = useState<Record<number, Sheet>>({});
+  const loadSheets = () => {
+    for (const s of data.sources) {
+      const known = sheets[s.id];
+      if (s.stream || s.id === source?.id || (known && known !== "error")) {
+        continue;
+      }
+      setSheets((prev) => ({ ...prev, [s.id]: "loading" }));
+      userApi.grades(s.id).then(
+        (r) => setSheets((prev) => ({ ...prev, [s.id]: r })),
+        () => setSheets((prev) => ({ ...prev, [s.id]: "error" })),
+      );
+    }
+  };
   const openCompare = (id: string | null) => {
     setCompareId(id ?? picks[0]?.id ?? null);
     setCompareOpen(true);
+    loadSheets();
   };
 
   const switchSource = async (id: number) => {
@@ -544,6 +561,10 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
     setLoading(true);
     try {
       const next = await userApi.grades(id);
+      // Открытая таблица пригодится в сравнении, когда откроют другую.
+      if (!source?.stream && source) {
+        setSheets((prev) => ({ ...prev, [source.id]: data }));
+      }
       setData(next);
       setCompareOpen(false);
       setCompareId(null);
@@ -758,6 +779,8 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
 
       {courseMe ? (
         <CompareDialog
+          // Сменилась таблица — выбор предмета в сравнении начинается заново.
+          key={`compare:${source.id}`}
           open={compareOpen}
           onOpenChange={setCompareOpen}
           me={courseMe}
@@ -766,7 +789,10 @@ export function GradesBoard({ initial }: { initial: GradesResponse }) {
           opponents={opponents}
           picks={picks}
           source={source}
-          courseSize={course.length}
+          sources={data.sources}
+          sheets={sheets}
+          course={course}
+          myGroup={myGroup}
         />
       ) : null}
 

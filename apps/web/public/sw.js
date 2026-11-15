@@ -4,13 +4,17 @@
  * Задача одна: прочитанные конспекты открываются в метро без связи.
  * Стратегии:
  *   - /_next/static и шрифты — cache-first, они неизменяемые;
- *   - страницы (навигация и RSC-переходы) — network-first с откатом в кеш,
- *     а если и в кеше пусто, показываем /offline;
+ *   - страницы с текстами (конспекты, лабы, предметы, «Полезное») —
+ *     network-first с откатом в кеш, а если и в кеше пусто, показываем /offline;
+ *   - живые страницы (очередь на сдачу, баллы, календарь, главная, профиль) —
+ *     только сеть, без сети сразу /offline: старая копия очереди хуже, чем
+ *     честное «нет связи» (однажды преподаватель увидел очередь недельной
+ *     давности);
  *   - картинки из вложений (/api/v1/files/…) — cache-first: по id файл
  *     никогда не меняется, а без них конспект со схемами офлайн неполный;
  *   - всё остальное (API, админка, POST) не трогаем вовсе.
  */
-const VERSION = "v2";
+const VERSION = "v3";
 const SHELL = `m3105-shell-${VERSION}`;
 const PAGES = `m3105-pages-${VERSION}`;
 const ASSETS = `m3105-assets-${VERSION}`;
@@ -73,6 +77,28 @@ async function cacheFirst(request, cacheName, limit) {
   return response;
 }
 
+/** Страницы, которые имеет смысл читать офлайн: их текст почти не меняется. */
+const READABLE = ["/notes", "/labs", "/subjects", "/p"];
+
+function isReadable(pathname) {
+  return READABLE.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+/** Живая страница: только сеть, без сети — заглушка /offline, но не копия. */
+async function networkOnly(request) {
+  try {
+    return await fetch(request);
+  } catch (err) {
+    if (request.mode === "navigate") {
+      const offline = await caches.match(OFFLINE_URL);
+      if (offline) return offline;
+    }
+    throw err;
+  }
+}
+
 async function networkFirst(request) {
   const key = cacheKey(request);
   const cache = await caches.open(PAGES);
@@ -123,6 +149,8 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate" || request.headers.get("RSC") === "1") {
-    event.respondWith(networkFirst(request));
+    event.respondWith(
+      isReadable(url.pathname) ? networkFirst(request) : networkOnly(request),
+    );
   }
 });

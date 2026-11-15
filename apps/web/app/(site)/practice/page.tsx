@@ -44,6 +44,7 @@ export default async function PracticePage({
       <QueueRules />
       <PracticeList
         initial={data}
+        renderedAt={new Date().toISOString()}
         tz={site.settings.timezone}
         highlightId={highlightId}
         forGroup={scope.forGroup}

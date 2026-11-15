@@ -26,6 +26,10 @@ type Syncer struct {
 	store   *store.Store
 	fetcher *Fetcher
 	log     *slog.Logger
+	// OnSynced is called after every successful sync, scheduled or manual:
+	// API сбрасывает по нему кеш рейтинга на фронте, иначе гости видят
+	// прошлые баллы до истечения TTL.
+	OnSynced func()
 
 	mu sync.Mutex
 	// failedAt remembers the last failed attempt per source.
@@ -93,6 +97,9 @@ func (s *Syncer) Sync(ctx context.Context, src models.GradeSource) (models.Grade
 			s.log.Warn("store sync error", "source", src.ID, "err", e)
 		}
 		return res, err
+	}
+	if s.OnSynced != nil {
+		s.OnSynced()
 	}
 	return res, nil
 }

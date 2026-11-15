@@ -2,6 +2,7 @@ import Script from "next/script";
 import type { ReactNode } from "react";
 
 import { JsonLd } from "@/components/site/json-ld";
+import { RefreshOnReturn } from "@/components/site/refresh-on-return";
 import { ServiceWorker } from "@/components/site/service-worker";
 import { SiteShell } from "@/components/site/site-shell";
 import { getSettings } from "@/lib/api/public";
@@ -58,6 +59,7 @@ export default async function SiteLayout({
       />
       {children}
       <ServiceWorker />
+      <RefreshOnReturn />
       {/* Umami: пустой скрипт, пока не задан UMAMI_WEBSITE_ID. */}
       <Script src="/insights.js" strategy="afterInteractive" />
     </SiteShell>

@@ -60,17 +60,21 @@ func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.
 	if err != nil {
 		slog.Error("imgproxy disabled", "err", err)
 	}
+	revalidator := revalidate.New(cfg.WebURL, cfg.RevalidateToken)
+	syncer := grades.NewSyncer(st, &grades.Fetcher{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: cfg.SheetsURL})
+	// Синк идёт по таймеру, мимо админского middleware revalidateCache.
+	syncer.OnSynced = func() { revalidator.Tags(tagsForPath("/admin/grade-sources")...) }
 	return &Handler{
 		store:       st,
 		auth:        au,
 		users:       users,
 		cfg:         cfg,
-		revalidator: revalidate.New(cfg.WebURL, cfg.RevalidateToken),
+		revalidator: revalidator,
 		files:       fs,
 		resizer:     resizer,
 		admin:       bot.NewAdminNotifier(cfg.TelegramBotToken, cfg.AdminChatID, cfg.PublicURL, st),
 		notify:      bot.NewNotifier(cfg.TelegramBotToken, cfg.PublicURL, st),
-		grades:      grades.NewSyncer(st, &grades.Fetcher{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: cfg.SheetsURL}),
+		grades:      syncer,
 		cpp:         newCppService(cfg),
 	}
 }

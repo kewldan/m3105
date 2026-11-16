@@ -62,11 +62,17 @@ func (s *Store) DeleteGradeSource(ctx context.Context, id int64) error {
 }
 
 // ListDueGradeSources returns enabled sources whose last successful sync is
-// older than their interval.
-func (s *Store) ListDueGradeSources(ctx context.Context, now time.Time) ([]models.GradeSource, error) {
+// older than their interval, or than live while a practice session of their
+// subject is on (from 10 minutes before the start to 30 minutes after the
+// end): then the grade changes get their time almost to the minute.
+func (s *Store) ListDueGradeSources(ctx context.Context, now time.Time, live time.Duration) ([]models.GradeSource, error) {
 	return many[models.GradeSource](ctx, s.db, `SELECT `+gradeSourceCols+gradeSourceFrom+`
-		WHERE g.enabled AND (g.synced_at IS NULL OR g.synced_at + g.sync_hours * interval '1 hour' <= $1)
-		ORDER BY g.id`, now)
+		WHERE g.enabled AND (g.synced_at IS NULL OR g.synced_at + g.sync_hours * interval '1 hour' <= $1
+			OR g.synced_at + make_interval(secs => $2) <= $1 AND EXISTS (
+				SELECT 1 FROM practice_sessions ps WHERE ps.subject_id = g.subject_id AND ps.canceled_at IS NULL
+					AND ps.starts_at - interval '10 minutes' <= $1
+					AND COALESCE(ps.ends_at, ps.starts_at + interval '90 minutes') + interval '30 minutes' >= $1))
+		ORDER BY g.id`, now, live.Seconds())
 }
 
 // MarkGradeSyncFailed keeps the old rows and stores the error for the admin.
@@ -79,11 +85,21 @@ func (s *Store) MarkGradeSyncFailed(ctx context.Context, id int64, msg string) e
 // rows keep their old notified_* for the bot to report the difference. The
 // first sync after the settings changed (synced_at is reset) re-baselines
 // every row: a new or renamed column is not a change of scores.
-func (s *Store) ReplaceGradeRows(ctx context.Context, sourceID int64, rows []models.GradeRow) error {
+//
+// What got graded since the previous sync (models.GradeChanges) goes to
+// grade_changes, except on a re-baseline and for rows seen the first time.
+func (s *Store) ReplaceGradeRows(ctx context.Context, src models.GradeSource, rows []models.GradeRow) error {
+	sourceID := src.ID
 	return s.inTx(ctx, func(tx pgx.Tx) error {
-		var baseline bool
-		if err := tx.QueryRow(ctx, `SELECT synced_at IS NULL FROM grade_sources WHERE id = $1 FOR UPDATE`, sourceID).Scan(&baseline); err != nil {
+		var prevSync *time.Time
+		if err := tx.QueryRow(ctx, `SELECT synced_at FROM grade_sources WHERE id = $1 FOR UPDATE`, sourceID).Scan(&prevSync); err != nil {
 			return wrap(err)
+		}
+		baseline := prevSync == nil
+		if !baseline {
+			if err := recordGradeChanges(ctx, tx, src, rows, *prevSync); err != nil {
+				return err
+			}
 		}
 		keys := make([]string, len(rows))
 		batch := &pgx.Batch{}
@@ -331,4 +347,34 @@ func (s *Store) ListBadgeGrades(ctx context.Context, isu string) ([]BadgeGrade, 
 // GetApprovedUserByISU finds the confirmed account the ISU number belongs to.
 func (s *Store) GetApprovedUserByISU(ctx context.Context, isu string) (models.User, error) {
 	return one[models.User](ctx, s.db, `SELECT `+userCols+` FROM users u WHERE u.isu = $1 AND u.approved_at IS NOT NULL`, isu)
+}
+
+// recordGradeChanges compares the new rows with the stored ones and writes
+// what got graded to grade_changes; the first sight of a change wins.
+func recordGradeChanges(ctx context.Context, tx pgx.Tx, src models.GradeSource, rows []models.GradeRow, prevSync time.Time) error {
+	old, err := many[models.GradeRow](ctx, tx, `SELECT source_id, row_key, isu, full_name, group_name, total, parts, details, changed_at
+		FROM grade_rows WHERE source_id = $1`, src.ID)
+	if err != nil {
+		return err
+	}
+	byKey := make(map[string]models.GradeRow, len(old))
+	for _, r := range old {
+		byKey[r.RowKey] = r
+	}
+	batch := &pgx.Batch{}
+	for _, r := range rows {
+		prev, ok := byKey[r.RowKey]
+		if !ok {
+			continue
+		}
+		for _, c := range models.GradeChanges(src, prev, r) {
+			batch.Queue(`INSERT INTO grade_changes (source_id, row_key, isu, full_name, group_name, part, kind, prev_synced_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING`,
+				src.ID, c.RowKey, c.ISU, c.FullName, c.Group, c.Part, c.Kind, prevSync)
+		}
+	}
+	if batch.Len() == 0 {
+		return nil
+	}
+	return wrap(tx.SendBatch(ctx, batch).Close())
 }

@@ -21,6 +21,10 @@ const retryAfter = 30 * time.Minute
 // fetchParallel is how many tabs are downloaded at once.
 const fetchParallel = 6
 
+// LiveSyncEvery is how often a sheet is synced while a practice session of
+// its subject is on: grade changes get their time with this precision.
+const LiveSyncEvery = 2 * time.Minute
+
 // Syncer copies sheets into grade_rows on schedule or on demand.
 type Syncer struct {
 	store   *store.Store
@@ -44,9 +48,9 @@ func NewSyncer(st *store.Store, f *Fetcher) *Syncer {
 	return &Syncer{store: st, fetcher: f, log: slog.Default().With("component", "grades"), failedAt: map[int64]time.Time{}}
 }
 
-// Run syncs due sources every few minutes until ctx ends.
+// Run syncs due sources every minute until ctx ends.
 func (s *Syncer) Run(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	for {
 		s.syncDue(ctx)
@@ -60,7 +64,7 @@ func (s *Syncer) Run(ctx context.Context) {
 
 func (s *Syncer) syncDue(ctx context.Context) {
 	now := time.Now()
-	due, err := s.store.ListDueGradeSources(ctx, now)
+	due, err := s.store.ListDueGradeSources(ctx, now, LiveSyncEvery)
 	if err != nil {
 		s.log.Warn("due sources", "err", err)
 		return
@@ -180,7 +184,7 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 	if len(rows) == 0 {
 		return res, fmt.Errorf("не нашлось ни одной строки: проверьте заголовок %q", src.NameColumn)
 	}
-	if err := s.store.ReplaceGradeRows(ctx, src.ID, rows); err != nil {
+	if err := s.store.ReplaceGradeRows(ctx, src, rows); err != nil {
 		return res, err
 	}
 	res.Rows = len(rows)

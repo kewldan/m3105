@@ -472,55 +472,45 @@ export type PracticeRulePlanItem = {
   differs: boolean;
 };
 
-/** Защита лабы (`lab`) или теормин (`theory`). */
-export type PracticeResultKind = "lab" | "theory";
+/** Приём лабы (`lab`) или зачёт по теормину (`theory`). */
+export type GradeChangeKind = "lab" | "theory";
 
-/** Отметка на паре: кому и когда поставили оценку. */
-export type PracticeResult = {
-  sessionId: number;
-  userId: number;
-  userName: string;
-  userGroup: string;
-  labId: number;
-  labNumber: number;
-  kind: PracticeResultKind;
-  /** false — попытка была, но не приняли. */
-  passed: boolean;
-  gradedAt: string;
-  /** Ответственный, поставивший отметку; null — админ. */
-  markedBy: string | null;
-};
-
-export type PracticeResultInput = {
-  userId: number;
-  labId: number;
-  kind: PracticeResultKind;
-  /** null — снять отметку. */
-  passed: boolean | null;
-  at?: string;
+/** Изменение в таблице баллов, отнесённое к сдаче. */
+export type PracticeChange = {
+  name: string;
+  group: string;
+  part: string;
+  /** Подпись столбца: «Лаба 3». */
+  label: string;
+  kind: GradeChangeKind;
+  /** Синк, который увидел изменение; случилось оно после `prevSyncAt`. */
+  detectedAt: string;
+  prevSyncAt: string | null;
+  /** Увидели во время пары (или вскоре после): идёт в темп. */
+  inSession: boolean;
 };
 
 /** Как прошёл один вид сдачи (защиты или теормин) на одном занятии. */
 export type Throughput = {
   signedUp: number;
-  attempts: number;
-  passed: number;
-  /** Записались, но без отметки — не дошли. */
+  /** Сколько оценок появилось в таблице; `inSession` — из них во время пары. */
+  graded: number;
+  inSession: number;
+  /** Записались, но оценки нет — не дошли. */
   left: number;
   first: string | null;
   last: string | null;
-  /** Минут на одну попытку от начала пары до последней отметки. */
+  /** Минут на одну оценку от начала пары до последней увиденной на паре. */
   minutesEach: number | null;
 };
 
 export type ThroughputSummary = {
   sessions: number;
-  /** Медианы за пару. */
-  attempts: number;
-  passed: number;
+  /** Медиана за пару. */
+  graded: number;
   max: number;
   minutesEach: number | null;
-  /** Сдач, где к концу оставались люди в очереди. */
+  /** Сдач, где к концу оставались люди без оценки. */
   busy: number;
   /** Сколько ставить в лимит. */
   suggested: number | null;
@@ -537,6 +527,7 @@ export type PracticeStatsSession = {
   finished: boolean;
   labs: Throughput;
   theory: Throughput;
+  changes: PracticeChange[];
 };
 
 export type PracticeStatsSubject = {

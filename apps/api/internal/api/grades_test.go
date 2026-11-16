@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -161,6 +162,36 @@ func TestGrades(t *testing.T) {
 	if mine := page["rows"].([]any)[0].(map[string]any); mine["me"] != true || mine["user"] == nil {
 		t.Fatalf("own row not marked: %v", mine)
 	}
+
+	// Карточка для README: SVG по номеру ИСУ подтверждённого аккаунта.
+	badge := func(path string, want int) string {
+		t.Helper()
+		res, err := http.Get(srvURL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		if res.StatusCode != want || !strings.HasPrefix(res.Header.Get("Content-Type"), "image/svg+xml") {
+			t.Fatalf("%s: %d %s: %s", path, res.StatusCode, res.Header.Get("Content-Type"), body)
+		}
+		return string(body)
+	}
+	if svg := badge("/api/badges/dark?isu=100002", 200); !strings.Contains(svg, "24,96") || !strings.Contains(svg, "Баллов Борис") ||
+		!strings.Contains(svg, "Программирование") {
+		t.Fatalf("badge: %s", svg)
+	}
+	if svg := badge("/api/v1/badges/shields.svg?isu=100002&name=0", 200); strings.Contains(svg, "Баллов") || !strings.Contains(svg, "№1") {
+		t.Fatalf("badge without name: %s", svg)
+	}
+	if svg := badge("/api/badges/terminal?isu=100002&subjects=nope", 200); !strings.Contains(svg, "нет баллов") {
+		t.Fatalf("badge with no subjects picked: %s", svg)
+	}
+	// Номер ИСУ без аккаунта на сайте (Грейдов пока не зарегистрирован) ничего не выдаёт.
+	if svg := badge("/api/badges/dark?isu=100001", 200); strings.Contains(svg, "Грейдов") || !strings.Contains(svg, "нет аккаунта") {
+		t.Fatalf("badge of a stranger: %s", svg)
+	}
+	badge("/api/badges/nope?isu=100002", 404)
 
 	// Таблица одной группы (как английский) видна только тем, кто в ней есть.
 	only := map[string]any{"subjectId": subjectID, "title": "Английский", "spreadsheet": src["spreadsheet"], "tabPattern": "^M3104$",

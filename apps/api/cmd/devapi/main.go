@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -31,6 +32,12 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	base := filepath.Join(os.TempDir(), "edu3105-devpg")
 	port := uint32(54330)
+	// DEVPG_PORT — второй dev-API рядом с первым: своя база в своей папке
+	// (порт самого API — ADDR).
+	if v, err := strconv.ParseUint(os.Getenv("DEVPG_PORT"), 10, 16); err == nil && v > 0 && v != 54330 {
+		port = uint32(v)
+		base += fmt.Sprintf("-%d", port)
+	}
 	runtimeDir := filepath.Join(base, "runtime")
 	_ = os.RemoveAll(runtimeDir)
 	pg := embeddedpostgres.NewDatabase(embeddedpostgres.DefaultConfig().

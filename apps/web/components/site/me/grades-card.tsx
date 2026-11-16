@@ -106,9 +106,20 @@ export function GradesCard({ me }: { me: MeResponse }) {
       title="Баллы"
       icon={TrophyIcon}
       action={
-        <Button variant="ghost" size="sm" render={<Link href="/grades" />}>
-          Рейтинг
-        </Button>
+        <div className="flex gap-1">
+          {linked && me.user.approved ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              render={<Link href="/grades/badges" />}
+            >
+              Для GitHub
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="sm" render={<Link href="/grades" />}>
+            Рейтинг
+          </Button>
+        </div>
       }
     >
       {!linked ? (

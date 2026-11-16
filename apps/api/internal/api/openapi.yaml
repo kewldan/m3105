@@ -392,6 +392,58 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/GradesResponse" }
 
+  /badges/{style}:
+    get:
+      tags: [grades]
+      summary: SVG-карточка баллов для README
+      description: |
+        Баллы студента картинкой — для профиля GitHub и любых README. Есть и короткий адрес без версии:
+        `https://m3105.ru/api/badges/dark?isu=…`. Конструктор с превью — на сайте, `/grades/badges`.
+        Карточка есть только у подтверждённых аккаунтов сайта; таблицы одной группы (`membersOnly`) в неё не попадают.
+        Ошибки (нет аккаунта, нет баллов) — тоже картинка с ответом 200: прокси картинок GitHub ошибочные ответы не показывает.
+        Ответ кэшируется на 30 минут.
+      operationId: getBadge
+      parameters:
+        - name: style
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [dark, light, rings-dark, rings-light, scoreboard-dark, scoreboard-light, contrib-dark, contrib-light,
+              terminal, neon, pixel, brutal, swiss, gradebook, receipt, shields]
+          description: Оформление; `.svg` на конце допускается
+        - name: isu
+          in: query
+          required: true
+          schema: { type: string, pattern: '^\d{4,10}$' }
+          description: Номер ИСУ студента
+        - name: subjects
+          in: query
+          schema: { type: string }
+          description: Слаги предметов или id источников через запятую, в нужном порядке; по умолчанию все
+        - name: name
+          in: query
+          schema: { type: string, enum: ["0"] }
+          description: "`0` — не показывать имя"
+        - name: total
+          in: query
+          schema: { type: string, enum: ["0"] }
+          description: "`0` — без бейджа с суммой (только для `shields`)"
+      responses:
+        "200":
+          description: Карточка
+          headers:
+            Cache-Control:
+              schema: { type: string, examples: ["public, max-age=1800"] }
+          content:
+            image/svg+xml:
+              schema: { type: string }
+        "404":
+          description: Нет такого оформления (тело — тоже SVG)
+          content:
+            image/svg+xml:
+              schema: { type: string }
+
   /practice:
     get:
       tags: [practice]

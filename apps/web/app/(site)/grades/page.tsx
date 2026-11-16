@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { GradesBoard } from "@/components/site/grades/grades-board";
 import { PageHeader } from "@/components/site/page-header";
+import { Button } from "@/components/ui/button";
 import { cookieHeader } from "@/lib/api/cookies";
 import { getGrades } from "@/lib/api/public";
 import { pageMetadata } from "@/lib/seo";
@@ -33,6 +35,15 @@ export default async function GradesPage({
         eyebrow="Рейтинг"
         title="Баллы"
         description="Баллы из таблиц преподавателей: места в группе, на курсе и среди тех, кто есть на сайте. У первого потока — ещё и общий рейтинг по сумме ДМ, ОП и Алгосов."
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            render={<Link href="/grades/badges" />}
+          >
+            Карточка для GitHub
+          </Button>
+        }
       />
       <GradesBoard initial={data} />
     </div>

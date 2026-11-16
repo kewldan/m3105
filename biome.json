@@ -4,6 +4,7 @@
     "includes": [
       "**",
       "!**/.next",
+      "!**/.next-*",
       "!**/next-env.d.ts",
       "!**/public",
       "!**/node_modules",

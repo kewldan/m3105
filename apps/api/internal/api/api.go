@@ -109,9 +109,11 @@ func (h *Handler) Router() http.Handler {
 	r.Use(requestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(timeoutExcept(30*time.Second, isFileTransfer))
-	r.Use(middleware.Compress(5, "application/json", "text/calendar"))
+	r.Use(middleware.Compress(5, "application/json", "text/calendar", "image/svg+xml"))
 
 	r.Get("/healthz", healthz)
+	// Короткий адрес для README: m3105.ru/api/badges/dark?isu=…
+	r.Get("/api/badges/{style}", h.getBadge)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(h.users.Middleware)
@@ -135,6 +137,7 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/search", h.search)
 		r.Post("/cpp/check", h.checkCpp)
 		r.Get("/grades", h.getGrades)
+		r.Get("/badges/{style}", h.getBadge)
 		r.Get("/practice", h.listPractice)
 		r.Get("/practice/{id}", h.getPractice)
 		r.With(userauth.Require, h.requireApproved).Put("/practice/{id}/signups", h.setPracticeSignup)

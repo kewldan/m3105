@@ -279,3 +279,56 @@ func (s *Store) GetUserISUByTelegramID(ctx context.Context, tgID int64) (string,
 	err := s.db.QueryRow(ctx, `SELECT COALESCE(isu, '') FROM users WHERE telegram_id = $1`, tgID).Scan(&isu)
 	return isu, wrap(err)
 }
+
+// BadgeGrade is one subject on a student's score badge.
+type BadgeGrade struct {
+	SourceID     int64      `db:"source_id"`
+	Title        string     `db:"title"`
+	SubjectSlug  string     `db:"subject_slug"`
+	SubjectName  string     `db:"subject_name"`
+	SubjectShort string     `db:"subject_short"`
+	MaxTotal     float64    `db:"max_total"`
+	FullName     string     `db:"full_name"`
+	Group        string     `db:"group_name"`
+	Total        float64    `db:"total"`
+	GroupRank    int        `db:"group_rank"`
+	GroupSize    int        `db:"group_size"`
+	CourseRank   int        `db:"course_rank"`
+	CourseSize   int        `db:"course_size"`
+	GroupMedian  float64    `db:"group_median"`
+	SyncedAt     *time.Time `db:"synced_at"`
+}
+
+// ListBadgeGrades returns the student's rows in enabled public sources (not
+// members-only: the badge is open to anyone) with places and the group median,
+// in the order of subjects on the site.
+func (s *Store) ListBadgeGrades(ctx context.Context, isu string) ([]BadgeGrade, error) {
+	if isu == "" {
+		return []BadgeGrade{}, nil
+	}
+	return many[BadgeGrade](ctx, s.db, `WITH ranked AS (
+			SELECT r.source_id, r.isu, r.full_name, r.group_name, r.total,
+				rank() OVER (PARTITION BY r.source_id ORDER BY r.total DESC) AS course_rank,
+				count(*) OVER (PARTITION BY r.source_id) AS course_size,
+				rank() OVER (PARTITION BY r.source_id, r.group_name ORDER BY r.total DESC) AS group_rank,
+				count(*) OVER (PARTITION BY r.source_id, r.group_name) AS group_size
+			FROM grade_rows r
+		), med AS (
+			SELECT source_id, group_name, percentile_cont(0.5) WITHIN GROUP (ORDER BY total) AS median
+			FROM grade_rows GROUP BY source_id, group_name
+		)
+		SELECT k.source_id, g.title, sb.slug AS subject_slug, sb.name AS subject_name, sb.short_name AS subject_short,
+			g.max_total, k.full_name, k.group_name, k.total, k.group_rank, k.group_size, k.course_rank, k.course_size,
+			COALESCE(m.median, 0) AS group_median, g.synced_at
+		FROM ranked k
+		JOIN grade_sources g ON g.id = k.source_id
+		JOIN subjects sb ON sb.id = g.subject_id
+		LEFT JOIN med m ON m.source_id = k.source_id AND m.group_name = k.group_name
+		WHERE k.isu = $1 AND g.enabled AND NOT g.members_only
+		ORDER BY sb.position, sb.id, g.id`, isu)
+}
+
+// GetApprovedUserByISU finds the confirmed account the ISU number belongs to.
+func (s *Store) GetApprovedUserByISU(ctx context.Context, isu string) (models.User, error) {
+	return one[models.User](ctx, s.db, `SELECT `+userCols+` FROM users u WHERE u.isu = $1 AND u.approved_at IS NOT NULL`, isu)
+}

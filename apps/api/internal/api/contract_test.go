@@ -111,7 +111,7 @@ func assertMatchesSchema(t *testing.T, s openapiSpec, schema string, obj map[str
 func TestSpecCoversPublicRoutes(t *testing.T) {
 	spec := loadSpec(t)
 	// Служебное и приватное в публичную спеку не входит.
-	skip := regexp.MustCompile(`^/api/v1/(admin|auth|me)(/|$)|^/api/v1/docs$|^/api/v1/openapi\.yaml$|^/healthz$`)
+	skip := regexp.MustCompile(`^/api/v1/(admin|auth|me)(/|$)|^/api/v1/docs$|^/api/v1/openapi\.yaml$|^/healthz$|^/api/badges/`)
 
 	router, ok := api.New(nil, nil, nil, config.Config{}, nil).Router().(chi.Routes)
 	if !ok {

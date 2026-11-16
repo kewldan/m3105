@@ -41,6 +41,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     route("/subjects", 0.7, "weekly", latest(subjects)),
     route("/practice", 0.6, "daily"),
     route("/cpp", 0.5, "monthly"),
+    route("/grades/badges", 0.4, "monthly"),
     route("/p", 0.5, "weekly", latest(pages)),
     ...subjects.map((s) =>
       route(`/subjects/${s.slug}`, 0.7, "weekly", new Date(s.updatedAt)),

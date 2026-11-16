@@ -46,6 +46,8 @@ const acceptsMarkdown = [
 ];
 
 const nextConfig: NextConfig = {
+  // Второй `next dev` рядом с первым (Next не пускает два в одну папку сборки).
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   reactCompiler: true,
   poweredByHeader: false,
   reactStrictMode: true,

@@ -209,8 +209,8 @@ const (
 type svg struct{ strings.Builder }
 
 func (b *svg) p(format string, a ...any) {
-	fmt.Fprintf(b, format, a...)
-	b.WriteByte('\n')
+	_, _ = fmt.Fprintf(b, format, a...)
+	_ = b.WriteByte('\n')
 }
 
 func (b *svg) open(w, h float64, label string) {
@@ -349,6 +349,6 @@ func season(t time.Time) string {
 
 func seed(s string) uint64 {
 	h := fnv.New64a()
-	h.Write([]byte(s))
+	_, _ = h.Write([]byte(s))
 	return h.Sum64()
 }

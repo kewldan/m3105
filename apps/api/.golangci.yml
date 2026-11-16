@@ -27,6 +27,8 @@ linters:
         linters: [bodyclose, noctx, gosec]
       - path: cmd/devapi/
         linters: [gosec]  # dev-обёртка: os.Setenv без проверки ошибок не страшен
+      - path: internal/api/badges\.go
+        text: G705        # SVG собран из экранированного текста, отдаётся с nosniff и CSP sandbox
       - path: internal/files/strip\.go
         text: G115        # длины сегментов проверены выше по коду
       - path: internal/files/dir\.go

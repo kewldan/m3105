@@ -3,6 +3,7 @@ package badges
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -29,7 +30,7 @@ func wellFormed(t *testing.T, name string, out []byte) {
 	d := xml.NewDecoder(bytes.NewReader(out))
 	for {
 		_, err := d.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return
 		}
 		if err != nil {

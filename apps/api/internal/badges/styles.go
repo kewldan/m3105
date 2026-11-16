@@ -10,7 +10,7 @@ import (
 // gh is a GitHub-like palette.
 type gh struct {
 	bg, border, accent, text, muted, track string
-	// tiers colour places from the top quarter to the bottom one.
+	// tiers color places from the top quarter to the bottom one.
 	tiers [4]string
 }
 

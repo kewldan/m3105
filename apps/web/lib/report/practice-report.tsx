@@ -30,12 +30,18 @@ import { fmtDate, fmtTime, inTz, plural, WEEKDAYS_FULL } from "@/lib/format";
 import { subjectIcon } from "@/lib/subject-icons";
 
 /**
- * Картинка «Кто сдаёт» для Telegram-бота: одна сдача, очередь защит и теормин.
- * Рендерит takumi (JSX → PNG), ширина 1080, высота по содержимому. Макет —
- * Claude Design «Кто сдаёт — картинка для бота М3105».
+ * Картинка «Кто сдаёт» для Telegram-бота: одна сдача, очередь защит и теормин
+ * в одну строку. Рендерит takumi (JSX → PNG), высота по содержимому. Макет —
+ * Claude Design «Кто сдаёт — картинка для бота М3105», развёрнутый горизонтально.
  */
 
-export const REPORT_WIDTH = 1080;
+/** Ширина в CSS-пикселях; PNG получается в REPORT_SCALE раз больше. */
+export const REPORT_WIDTH = 1600;
+/**
+ * Telegram хранит фото максимум 2560 px по большей стороне: 1600 × 1.6 —
+ * ровно предел, так картинка остаётся чёткой и не пережимается сильнее.
+ */
+export const REPORT_SCALE = 1.6;
 
 const C = {
   bg: "#0b0b0f",
@@ -46,7 +52,6 @@ const C = {
   text: "#fafafa",
   textSoft: "#e4e4e7",
   muted: "#a1a1aa",
-  faint: "#8a8a94",
   gray: "#d4d4d8",
   amber: "#ffd230",
 };
@@ -74,6 +79,9 @@ const AVATAR: [string, string][] = [
   ["rgba(0,188,125,0.22)", "#a4f4cf"],
   ["rgba(255,32,86,0.22)", "#ffccd3"],
 ];
+
+/** Ширина панели теормина справа от очереди. */
+const THEORY_WIDTH = 440;
 
 function rgba(hex: string, alpha: number): string {
   const n = Number.parseInt(hex.slice(1), 16);
@@ -210,17 +218,17 @@ function Chip({ icon, children }: { icon: ReactNode; children: ReactNode }) {
         display: "flex",
         alignItems: "center",
         gap: 8,
-        height: 44,
-        padding: "0 14px",
-        borderRadius: 12,
-        background: C.row,
+        height: 40,
+        padding: "0 12px",
+        borderRadius: 10,
+        background: "rgba(11,11,15,0.45)",
         flexShrink: 0,
       }}
     >
       {icon}
       <span
         style={{
-          fontSize: 22,
+          fontSize: 21,
           lineHeight: 1,
           color: C.textSoft,
           whiteSpace: "nowrap",
@@ -259,7 +267,7 @@ function GroupBadge({
       <span
         style={{
           ...heading,
-          fontSize: 20,
+          fontSize: 19,
           lineHeight: 1,
           color: home ? accent[1] : C.gray,
         }}
@@ -275,7 +283,7 @@ function Flag({
   label,
   color,
 }: {
-  icon: ReactNode;
+  icon: IconNode;
   label: string;
   color: string;
 }) {
@@ -286,18 +294,18 @@ function Flag({
         flexShrink: 0,
         alignItems: "center",
         gap: 6,
-        height: 30,
+        height: 28,
         padding: "0 10px",
         borderRadius: 8,
         background: rgba(color, 0.16),
         border: `1px solid ${rgba(color, 0.4)}`,
       }}
     >
-      {icon}
+      <Svg node={icon} size={15} color={color} strokeWidth={2.4} />
       <span
         style={{
           fontWeight: 700,
-          fontSize: 20,
+          fontSize: 19,
           lineHeight: 1,
           color,
           whiteSpace: "nowrap",
@@ -309,43 +317,44 @@ function Flag({
   );
 }
 
+/** Редкие флаги — плашкой под строкой; поздняя запись — только иконкой справа. */
 function flagsOf(e: QueueEntry): ReactNode[] {
   const out: ReactNode[] = [];
-  const icon = (node: IconNode, color: string) => (
-    <Svg node={node} size={16} color={color} strokeWidth={2.4} />
-  );
   if (e.carried) {
     const label = e.missed > 1 ? `из резерва ×${e.missed}` : "из резерва";
-    out.push(
-      <Flag
-        key="carried"
-        icon={icon(Undo, "#8ec5ff")}
-        label={label}
-        color="#8ec5ff"
-      />,
-    );
+    out.push(<Flag key="carried" icon={Undo} label={label} color="#8ec5ff" />);
   }
   if (e.notReached) {
     out.push(
       <Flag
         key="nr"
-        icon={icon(RotateCcw, "#c4b4ff")}
+        icon={RotateCcw}
         label="не успел в прошлый раз"
         color="#c4b4ff"
       />,
     );
   }
-  if (e.late) {
-    out.push(
-      <Flag
-        key="late"
-        icon={icon(Clock, C.amber)}
-        label="записался поздно"
-        color={C.amber}
-      />,
-    );
-  }
   return out;
+}
+
+function LateMark() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexShrink: 0,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        background: rgba(C.amber, 0.16),
+        border: `1px solid ${rgba(C.amber, 0.45)}`,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Svg node={Clock} size={20} color={C.amber} strokeWidth={2.4} />
+    </div>
+  );
 }
 
 function Avatar({
@@ -374,7 +383,7 @@ function Avatar({
         overflow: "hidden",
       }}
     >
-      <span style={{ ...heading, fontSize: 20, lineHeight: 1, color: fg }}>
+      <span style={{ ...heading, fontSize: 19, lineHeight: 1, color: fg }}>
         {initials(user.name)}
       </span>
       {src ? (
@@ -418,10 +427,10 @@ function QueueRow({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 14,
-        height: flags.length ? 116 : 80,
-        padding: "0 16px 0 12px",
-        borderRadius: 14,
+        gap: 12,
+        height: flags.length ? 104 : 72,
+        padding: "0 14px 0 10px",
+        borderRadius: 12,
         background: C.row,
         flexShrink: 0,
         opacity: entry.reserve ? 0.6 : 1,
@@ -430,9 +439,9 @@ function QueueRow({
       <div
         style={{
           display: "flex",
-          width: 48,
-          height: 48,
-          borderRadius: 12,
+          width: 44,
+          height: 44,
+          borderRadius: 11,
           background: rgba(accent[0], 0.2),
           alignItems: "center",
           justifyContent: "center",
@@ -440,17 +449,17 @@ function QueueRow({
         }}
       >
         <span
-          style={{ ...heading, fontSize: 26, lineHeight: 1, color: accent[1] }}
+          style={{ ...heading, fontSize: 24, lineHeight: 1, color: accent[1] }}
         >
           {pos}
         </span>
       </div>
-      <Avatar user={entry.user} avatars={avatars} size={52} />
+      <Avatar user={entry.user} avatars={avatars} size={48} />
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 2,
+          gap: 1,
           flex: 1,
           minWidth: 0,
         }}
@@ -458,8 +467,8 @@ function QueueRow({
         <span
           style={{
             fontWeight: 700,
-            fontSize: 27,
-            lineHeight: "32px",
+            fontSize: 25,
+            lineHeight: "30px",
             color: C.text,
             ...ellipsis,
           }}
@@ -470,7 +479,7 @@ function QueueRow({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            gap: 8,
             minWidth: 0,
           }}
         >
@@ -478,13 +487,13 @@ function QueueRow({
             group={entry.user.group}
             home={entry.user.group === home}
             accent={accent}
-            size={30}
+            size={28}
           />
           <span
             style={{
               fontWeight: 700,
-              fontSize: 24,
-              lineHeight: "30px",
+              fontSize: 22,
+              lineHeight: "28px",
               color: accent[1],
               flexShrink: 0,
             }}
@@ -493,8 +502,8 @@ function QueueRow({
           </span>
           <span
             style={{
-              fontSize: 24,
-              lineHeight: "30px",
+              fontSize: 22,
+              lineHeight: "28px",
               color: C.muted,
               flex: 1,
               minWidth: 0,
@@ -508,60 +517,72 @@ function QueueRow({
           <div style={{ display: "flex", gap: 8, marginTop: 6 }}>{flags}</div>
         ) : null}
       </div>
+      {entry.late ? <LateMark /> : null}
     </div>
   );
 }
 
-function halves<T>(list: T[]): [T[], T[]] {
-  const mid = Math.ceil(list.length / 2);
-  return [list.slice(0, mid), list.slice(mid)];
+/** Делит список на `n` колонок по порядку: сначала первая сверху вниз. */
+function columnsOf<T>(list: T[], n: number): T[][] {
+  const size = Math.ceil(list.length / n);
+  return Array.from({ length: n }, (_, i) =>
+    list.slice(i * size, (i + 1) * size),
+  );
 }
 
 function Queue({
   queue,
+  columns,
   home,
   accent,
   avatars,
 }: {
   queue: QueueEntry[];
+  columns: number;
   home: string;
   accent: [string, string];
   avatars: Map<string, Uint8Array>;
 }) {
   const reserveAt = queue.findIndex((e) => e.reserve);
-  const [left, right] = halves(
-    queue.map((entry, i) => ({ entry, pos: i + 1 })),
-  );
-  const column = (items: typeof left) => (
+  const items = queue.map((entry, i) => ({ entry, pos: i + 1 }));
+  return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 10,
         flex: 1,
         minWidth: 0,
       }}
     >
-      {items.map(({ entry, pos }) => (
-        <QueueRow
-          key={`${entry.user.id}-${entry.lab.id}`}
-          pos={pos}
-          entry={entry}
-          home={home}
-          accent={accent}
-          avatars={avatars}
-        />
-      ))}
-    </div>
-  );
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-        {column(left)}
-        {column(right)}
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        {columnsOf(items, columns).map((col, i) => (
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: колонки не переставляются
+            key={i}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {col.map(({ entry, pos }) => (
+              <QueueRow
+                key={`${entry.user.id}-${entry.lab.id}`}
+                pos={pos}
+                entry={entry}
+                home={home}
+                accent={accent}
+                avatars={avatars}
+              />
+            ))}
+          </div>
+        ))}
       </div>
       {reserveAt >= 0 ? (
-        <span style={{ fontSize: 22, lineHeight: "28px", color: C.muted }}>
+        <span style={{ fontSize: 21, lineHeight: "26px", color: C.muted }}>
           С {reserveAt + 1}-го места — резерв: примут, если останется время
         </span>
       ) : null}
@@ -585,69 +606,9 @@ function Theory({
     for (const l of p.labs)
       perLab.set(l.number, (perLab.get(l.number) ?? 0) + 1);
   const labs = [...perLab].sort((a, b) => a[0] - b[0]);
-  // Своя группа справа, как в макете: остальные — по порядку записи.
+  // Своя группа в конце, как в макете: остальные — по порядку записи.
   const sorted = [...theory].sort(
     (a, b) => Number(a.user.group === home) - Number(b.user.group === home),
-  );
-  const [left, right] = halves(sorted);
-  const column = (items: Participant[]) => (
-    <div
-      style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}
-    >
-      {items.map((p) => (
-        <div
-          key={p.user.id}
-          style={{ display: "flex", alignItems: "center", gap: 10, height: 46 }}
-        >
-          <GroupBadge
-            group={p.user.group}
-            home={p.user.group === home}
-            accent={accent}
-            size={28}
-          />
-          <span
-            style={{
-              fontSize: 26,
-              lineHeight: "32px",
-              color: C.textSoft,
-              flex: 1,
-              minWidth: 0,
-              ...ellipsis,
-            }}
-          >
-            {p.user.name}
-          </span>
-          <div style={{ display: "flex", gap: 6 }}>
-            {p.labs.map((l) => (
-              <div
-                key={l.id}
-                style={{
-                  display: "flex",
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  background: rgba(accent[0], 0.2),
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <span
-                  style={{
-                    ...heading,
-                    fontSize: 20,
-                    lineHeight: 1,
-                    color: accent[1],
-                  }}
-                >
-                  {l.number}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
   );
   const people = theory.length;
   return (
@@ -655,56 +616,38 @@ function Theory({
       style={{
         display: "flex",
         flexDirection: "column",
-        marginTop: 24,
-        padding: 24,
+        width: THEORY_WIDTH,
+        flexShrink: 0,
+        padding: "18px 20px",
         borderRadius: 16,
-        background: "#111116",
+        background: C.card,
         border: `1px solid ${C.cardBorder}`,
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          height: 44,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Svg node={BookOpen} size={30} color={accent[1]} />
-          <span
-            style={{ ...heading, fontSize: 32, lineHeight: 1, color: C.text }}
-          >
-            Теормин
-          </span>
-        </div>
-        <div
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Svg node={BookOpen} size={28} color={accent[1]} />
+        <span
+          style={{ ...heading, fontSize: 30, lineHeight: 1, color: C.text }}
+        >
+          Теормин
+        </span>
+        <span
           style={{
-            display: "flex",
-            alignItems: "center",
-            height: 44,
-            padding: "0 16px",
-            borderRadius: 12,
-            background: rgba(accent[0], 0.18),
+            ...heading,
+            fontSize: 22,
+            lineHeight: 1,
+            color: accent[1],
+            marginLeft: "auto",
           }}
         >
-          <span
-            style={{
-              ...heading,
-              fontSize: 26,
-              lineHeight: 1,
-              color: accent[1],
-            }}
-          >
-            {people
-              ? `${people} ${plural(people, "человек", "человека", "человек")}, ${count} ${plural(count, "отметка", "отметки", "отметок")}`
-              : "никто не отметился"}
-          </span>
-        </div>
+          {people
+            ? `${people} чел. · ${count} ${plural(count, "отметка", "отметки", "отметок")}`
+            : "никто не отметился"}
+        </span>
       </div>
       {labs.length ? (
         <div
-          style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}
+          style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}
         >
           {labs.map(([n, c]) => (
             <div
@@ -712,20 +655,20 @@ function Theory({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
-                height: 40,
-                padding: "0 14px",
-                borderRadius: 10,
+                gap: 7,
+                height: 36,
+                padding: "0 12px",
+                borderRadius: 9,
                 background: C.row,
               }}
             >
-              <span style={{ fontSize: 22, lineHeight: 1, color: C.muted }}>
+              <span style={{ fontSize: 20, lineHeight: 1, color: C.muted }}>
                 ЛР {n}
               </span>
               <span
                 style={{
                   ...heading,
-                  fontSize: 22,
+                  fontSize: 20,
                   lineHeight: 1,
                   color: C.text,
                 }}
@@ -738,15 +681,66 @@ function Theory({
       ) : null}
       {people ? (
         <div
-          style={{
-            display: "flex",
-            gap: 28,
-            marginTop: 16,
-            alignItems: "flex-start",
-          }}
+          style={{ display: "flex", flexDirection: "column", marginTop: 10 }}
         >
-          {column(left)}
-          {column(right)}
+          {sorted.map((p) => (
+            <div
+              key={p.user.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                height: 44,
+              }}
+            >
+              <GroupBadge
+                group={p.user.group}
+                home={p.user.group === home}
+                accent={accent}
+                size={28}
+              />
+              <span
+                style={{
+                  fontSize: 24,
+                  lineHeight: "30px",
+                  color: C.textSoft,
+                  flex: 1,
+                  minWidth: 0,
+                  ...ellipsis,
+                }}
+              >
+                {p.user.name}
+              </span>
+              <div style={{ display: "flex", gap: 6 }}>
+                {p.labs.map((l) => (
+                  <div
+                    key={l.id}
+                    style={{
+                      display: "flex",
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: rgba(accent[0], 0.2),
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        ...heading,
+                        fontSize: 19,
+                        lineHeight: 1,
+                        color: accent[1],
+                      }}
+                    >
+                      {l.number}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : null}
     </div>
@@ -770,43 +764,123 @@ function Report({ session: s, settings, avatars, now }: ReportInput) {
   const weekday =
     WEEKDAYS_FULL[(inTz(starts, tz).getDay() + 6) % 7].toLowerCase();
   const week = academicWeek(starts, settings);
-  const iconNode = subjectIconNode(s.subjectIcon);
   const defenses = s.queue.length;
   const time = `${fmtTime(s.startsAt, tz)}${s.endsAt ? `–${fmtTime(s.endsAt, tz)}` : ""}`;
+  const showTheory = s.theoryMin && !s.canceled;
   const mutedIcon = (node: IconNode) => (
-    <Svg node={node} size={22} color={C.muted} />
+    <Svg node={node} size={20} color={C.muted} />
   );
+
+  let body: ReactNode;
+  if (s.canceled) {
+    body = (
+      <div
+        style={{
+          display: "flex",
+          flex: 1,
+          padding: "20px 24px",
+          borderRadius: 14,
+          background: "rgba(255,32,86,0.14)",
+          border: "1px solid rgba(255,32,86,0.4)",
+        }}
+      >
+        <span
+          style={{
+            ...heading,
+            fontSize: 30,
+            lineHeight: "38px",
+            color: "#ffa1ad",
+          }}
+        >
+          Занятие отменено{s.cancelReason ? `: ${s.cancelReason}` : ""}
+        </span>
+      </div>
+    );
+  } else if (defenses) {
+    body = (
+      <Queue
+        queue={s.queue}
+        columns={showTheory ? 2 : 3}
+        home={home}
+        accent={accent}
+        avatars={avatars}
+      />
+    );
+  } else {
+    body = (
+      <div
+        style={{
+          display: "flex",
+          flex: 1,
+          justifyContent: "center",
+          padding: "40px 0",
+          borderRadius: 14,
+          background: C.row,
+        }}
+      >
+        <span style={{ fontSize: 28, color: C.muted }}>
+          Пока никто не записался
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
+        gap: 18,
         width: REPORT_WIDTH,
-        padding: "52px 40px 40px",
+        padding: "26px 28px 28px",
         backgroundColor: C.bg,
-        backgroundImage: `linear-gradient(180deg, ${rgba(accent[0], 0.16)} 0px, ${C.bg} 460px)`,
+        backgroundImage: `linear-gradient(180deg, ${rgba(accent[0], 0.16)} 0px, ${C.bg} 360px)`,
         fontFamily: "Inter",
         color: C.text,
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            height: 36,
-          }}
-        >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 20,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "baseline", gap: 18 }}>
+          <span
+            style={{
+              ...heading,
+              fontSize: 56,
+              lineHeight: "64px",
+              letterSpacing: -1.2,
+              color: C.text,
+            }}
+          >
+            {fmtDate(starts, tz)}, {weekday}
+          </span>
+          {week ? (
+            <span style={{ fontSize: 26, lineHeight: "32px", color: C.muted }}>
+              {week.number} неделя ·{" "}
+              {week.parity === "odd" ? "нечётная" : "чётная"}
+            </span>
+          ) : null}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Svg node={RefreshCw} size={20} color={C.muted} />
+            <span style={{ fontSize: 21, lineHeight: 1, color: C.muted }}>
+              обновлено {fmtTime(now, tz)}
+            </span>
+          </div>
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 10,
-              height: 36,
+              height: 38,
               padding: "0 14px",
-              borderRadius: 18,
+              borderRadius: 19,
               background: rgba(accent[0], 0.18),
               border: `1px solid ${rgba(accent[0], 0.4)}`,
             }}
@@ -832,137 +906,81 @@ function Report({ session: s, settings, avatars, now }: ReportInput) {
               {when}
             </span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Svg node={RefreshCw} size={20} color={C.muted} />
-            <span style={{ fontSize: 22, lineHeight: 1, color: C.muted }}>
-              обновлено {fmtTime(now, tz)}
-            </span>
-          </div>
         </div>
-        <span
-          style={{
-            ...heading,
-            fontSize: 68,
-            lineHeight: "78px",
-            letterSpacing: -1.5,
-            color: C.text,
-          }}
-        >
-          {fmtDate(starts, tz)}, {weekday}
-        </span>
-        {week ? (
-          <span style={{ fontSize: 28, lineHeight: "34px", color: C.muted }}>
-            {week.number} неделя ·{" "}
-            {week.parity === "odd" ? "нечётная" : "чётная"}
-          </span>
-        ) : null}
       </div>
 
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
-          marginTop: 28,
-          padding: 20,
-          borderRadius: 20,
-          background: C.card,
+          alignItems: "center",
+          gap: 18,
+          height: 100,
+          padding: "0 22px",
+          borderRadius: 16,
           border: `1px solid ${C.cardBorder}`,
-          boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
+          backgroundColor: C.card,
+          backgroundImage: `linear-gradient(110deg, ${rgba(accent[0], 0.42)} 0%, ${rgba(accent[0], 0.12)} 45%, ${rgba(accent[0], 0.04)} 100%)`,
         }}
       >
         <div
           style={{
             display: "flex",
+            width: 64,
+            height: 64,
+            borderRadius: 16,
+            background: accent[0],
             alignItems: "center",
-            gap: 20,
-            height: 124,
-            padding: "0 24px",
-            borderRadius: 14,
-            backgroundImage: `linear-gradient(120deg, ${rgba(accent[0], 0.42)} 0%, ${rgba(accent[0], 0.12)} 55%, ${rgba(accent[0], 0.04)} 100%)`,
+            justifyContent: "center",
+            flexShrink: 0,
+            boxShadow: `0 8px 24px ${rgba(accent[0], 0.45)}`,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              width: 76,
-              height: 76,
-              borderRadius: 18,
-              background: accent[0],
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-              boxShadow: `0 8px 24px ${rgba(accent[0], 0.45)}`,
-            }}
-          >
-            <Svg node={iconNode} size={38} color="#ffffff" strokeWidth={2.2} />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              flex: 1,
-              minWidth: 0,
-              gap: 2,
-            }}
-          >
-            <span
-              style={{
-                ...heading,
-                fontSize: 44,
-                lineHeight: "48px",
-                ...ellipsis,
-              }}
-            >
-              {s.subjectShortName || s.subjectName}
-            </span>
-            {s.subjectShortName ? (
-              <span
-                style={{
-                  fontSize: 24,
-                  lineHeight: "30px",
-                  color: C.muted,
-                  ...ellipsis,
-                }}
-              >
-                {s.subjectName}
-              </span>
-            ) : null}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: 4,
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ ...heading, fontSize: 40, lineHeight: "44px" }}>
-              {time}
-            </span>
-            {s.location ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {mutedIcon(MapPin)}
-                <span
-                  style={{
-                    fontSize: 24,
-                    lineHeight: "30px",
-                    color: C.textSoft,
-                  }}
-                >
-                  ауд. {s.location}
-                </span>
-              </div>
-            ) : null}
-          </div>
+          <Svg
+            node={subjectIconNode(s.subjectIcon)}
+            size={34}
+            color="#ffffff"
+            strokeWidth={2.2}
+          />
         </div>
-
         <div
           style={{
             display: "flex",
-            gap: 10,
-            margin: "16px 0",
-            flexWrap: "wrap",
+            flexDirection: "column",
+            flexShrink: 1,
+            minWidth: 0,
+            maxWidth: 420,
+          }}
+        >
+          <span
+            style={{
+              ...heading,
+              fontSize: 40,
+              lineHeight: "44px",
+              ...ellipsis,
+            }}
+          >
+            {s.subjectShortName || s.subjectName}
+          </span>
+          {s.subjectShortName ? (
+            <span
+              style={{
+                fontSize: 21,
+                lineHeight: "26px",
+                color: C.muted,
+                ...ellipsis,
+              }}
+            >
+              {s.subjectName}
+            </span>
+          ) : null}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flex: 1,
+            minWidth: 0,
+            justifyContent: "center",
           }}
         >
           <Chip icon={mutedIcon(Users)}>{audienceLabel(s.audience)}</Chip>
@@ -975,56 +993,38 @@ function Report({ session: s, settings, avatars, now }: ReportInput) {
             <Chip icon={mutedIcon(Lock)}>порядок зафиксирован</Chip>
           ) : (
             <Chip icon={mutedIcon(LockOpen)}>
-              порядок зафиксируют в {fmtTime(s.freezesAt, tz)}
+              фиксация в {fmtTime(s.freezesAt, tz)}
             </Chip>
           )}
         </div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 2,
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ ...heading, fontSize: 38, lineHeight: "42px" }}>
+            {time}
+          </span>
+          {s.location ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {mutedIcon(MapPin)}
+              <span
+                style={{ fontSize: 22, lineHeight: "28px", color: C.textSoft }}
+              >
+                ауд. {s.location}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      </div>
 
-        {s.canceled ? (
-          <div
-            style={{
-              display: "flex",
-              padding: "20px 24px",
-              borderRadius: 14,
-              background: "rgba(255,32,86,0.14)",
-              border: "1px solid rgba(255,32,86,0.4)",
-            }}
-          >
-            <span
-              style={{
-                ...heading,
-                fontSize: 30,
-                lineHeight: "38px",
-                color: "#ffa1ad",
-              }}
-            >
-              Занятие отменено{s.cancelReason ? `: ${s.cancelReason}` : ""}
-            </span>
-          </div>
-        ) : defenses ? (
-          <Queue
-            queue={s.queue}
-            home={home}
-            accent={accent}
-            avatars={avatars}
-          />
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              padding: "40px 0",
-              borderRadius: 14,
-              background: C.row,
-            }}
-          >
-            <span style={{ fontSize: 28, color: C.muted }}>
-              Пока никто не записался
-            </span>
-          </div>
-        )}
-
-        {s.theoryMin && !s.canceled ? (
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+        {body}
+        {showTheory ? (
           <Theory
             theory={s.theory}
             count={s.theoryCount}
@@ -1032,29 +1032,6 @@ function Report({ session: s, settings, avatars, now }: ReportInput) {
             accent={accent}
           />
         ) : null}
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginTop: 28,
-        }}
-      >
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: 22,
-            lineHeight: "30px",
-            color: C.muted,
-          }}
-        >
-          m3105.ru/practice
-        </span>
-        <span style={{ fontSize: 22, lineHeight: "30px", color: C.faint }}>
-          группа {home}
-        </span>
       </div>
     </div>
   );
@@ -1084,13 +1061,15 @@ function renderer(): Promise<Renderer> {
   return rendererPromise;
 }
 
-/** PNG отчёта по сдаче. */
+/** PNG отчёта по сдаче, REPORT_WIDTH × REPORT_SCALE пикселей в ширину. */
 export async function renderPracticeReport(
   input: ReportInput,
 ): Promise<Uint8Array> {
   return render(<Report {...input} />, {
     renderer: await renderer(),
-    width: REPORT_WIDTH,
+    // width — в пикселях PNG, devicePixelRatio масштабирует вёрстку под него.
+    width: Math.round(REPORT_WIDTH * REPORT_SCALE),
+    devicePixelRatio: REPORT_SCALE,
     format: "png",
     images: [...input.avatars].map(([src, data]) => ({ src, data })),
   });

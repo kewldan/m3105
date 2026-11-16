@@ -472,6 +472,84 @@ export type PracticeRulePlanItem = {
   differs: boolean;
 };
 
+/** Защита лабы (`lab`) или теормин (`theory`). */
+export type PracticeResultKind = "lab" | "theory";
+
+/** Отметка на паре: кому и когда поставили оценку. */
+export type PracticeResult = {
+  sessionId: number;
+  userId: number;
+  userName: string;
+  userGroup: string;
+  labId: number;
+  labNumber: number;
+  kind: PracticeResultKind;
+  /** false — попытка была, но не приняли. */
+  passed: boolean;
+  gradedAt: string;
+  /** Ответственный, поставивший отметку; null — админ. */
+  markedBy: string | null;
+};
+
+export type PracticeResultInput = {
+  userId: number;
+  labId: number;
+  kind: PracticeResultKind;
+  /** null — снять отметку. */
+  passed: boolean | null;
+  at?: string;
+};
+
+/** Как прошёл один вид сдачи (защиты или теормин) на одном занятии. */
+export type Throughput = {
+  signedUp: number;
+  attempts: number;
+  passed: number;
+  /** Записались, но без отметки — не дошли. */
+  left: number;
+  first: string | null;
+  last: string | null;
+  /** Минут на одну попытку от начала пары до последней отметки. */
+  minutesEach: number | null;
+};
+
+export type ThroughputSummary = {
+  sessions: number;
+  /** Медианы за пару. */
+  attempts: number;
+  passed: number;
+  max: number;
+  minutesEach: number | null;
+  /** Сдач, где к концу оставались люди в очереди. */
+  busy: number;
+  /** Сколько ставить в лимит. */
+  suggested: number | null;
+};
+
+export type PracticeStatsSession = {
+  id: number;
+  startsAt: string;
+  endsAt: string | null;
+  location: string;
+  capacity: number | null;
+  audience: string[];
+  minutes: number;
+  finished: boolean;
+  labs: Throughput;
+  theory: Throughput;
+};
+
+export type PracticeStatsSubject = {
+  subjectId: number;
+  subjectName: string;
+  subjectShortName: string;
+  subjectColor: SubjectColor;
+  theoryMin: boolean;
+  labs: ThroughputSummary;
+  theory: ThroughputSummary;
+  sessions: PracticeStatsSession[];
+};
+
 export type MySignup = {
   session: PracticeSession;
   labs: LabRef[];

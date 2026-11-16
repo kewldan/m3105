@@ -990,9 +990,15 @@ func (h *Handler) writeAdminSignups(w http.ResponseWriter, r *http.Request, id i
 		httpx.Fail(w, err)
 		return
 	}
+	results, err := h.store.ListPracticeResults(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, err)
+		return
+	}
 	freezesAt := queue.FreezeAt(sess.StartsAt, sc.Loc)
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"session":     sess,
+		"results":     results,
 		"queue":       entries,
 		"theory":      theoryParticipants(theoryRows),
 		"queueManual": sess.QueueManual,

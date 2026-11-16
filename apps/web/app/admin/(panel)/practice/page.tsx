@@ -21,6 +21,7 @@ import { ParticipantsDialog } from "@/components/admin/participants-dialog";
 import { PracticeCancelDialog } from "@/components/admin/practice-cancel-dialog";
 import { PracticeDialog } from "@/components/admin/practice-dialog";
 import { PracticeRuleDialog } from "@/components/admin/practice-rule-dialog";
+import { PracticeStats } from "@/components/admin/practice-stats";
 import { RowActions } from "@/components/admin/row-actions";
 import { AudienceBadge } from "@/components/site/audience/audience-badge";
 import { SubjectBadge } from "@/components/site/subject-badge";
@@ -48,7 +49,7 @@ import { cn } from "@/lib/utils";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-type Tab = "sessions" | "rules";
+type Tab = "sessions" | "rules" | "stats";
 
 function shiftWeek(iso: string | null): string | null {
   if (!iso) return null;
@@ -76,11 +77,13 @@ function PracticePageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const tab: Tab = searchParams.get("tab") === "rules" ? "rules" : "sessions";
+  const tabParam = searchParams.get("tab");
+  const tab: Tab =
+    tabParam === "rules" || tabParam === "stats" ? tabParam : "sessions";
   const ruleFilter = Number(searchParams.get("rule")) || null;
   const setView = (next: Tab, rule: number | null = null) => {
     const qs = new URLSearchParams();
-    if (next === "rules") qs.set("tab", "rules");
+    if (next !== "sessions") qs.set("tab", next);
     if (rule) qs.set("rule", String(rule));
     const q = qs.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
@@ -89,6 +92,11 @@ function PracticePageInner() {
   const subjects = useQuery(() => adminApi.subjects.list());
   const sessions = useQuery(() => adminApi.practice.list());
   const rules = useQuery(() => adminApi.practiceRules.list());
+  // Статистика нужна только на своей вкладке и каждый раз свежая.
+  const stats = useQuery(
+    () => (tab === "stats" ? adminApi.practice.stats() : Promise.resolve(null)),
+    tab,
+  );
   const reloadAll = () => {
     sessions.reload();
     rules.reload();
@@ -527,10 +535,13 @@ function PracticePageInner() {
               <span className="text-muted-foreground">{rules.data.length}</span>
             ) : null}
           </TabsTrigger>
+          <TabsTrigger value="stats">Приём</TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {tab === "rules" ? (
+      {tab === "stats" ? (
+        <PracticeStats data={stats.data} loading={stats.loading} />
+      ) : tab === "rules" ? (
         <DataTable
           rows={rules.loading && !rules.data ? null : rules.data}
           loading={rules.loading}

@@ -825,6 +825,38 @@ func TestStudentAccounts(t *testing.T) {
 	if adm := admin.do("GET", fmt.Sprintf("/api/v1/admin/practice/%d/signups", sessID), nil, 200); len(adm["theory"].([]any)) != 1 {
 		t.Fatalf("theory missing from admin view: %v", adm["theory"])
 	}
+	// Итоги пары: кому и когда поставили оценку (защита или теормин, в том числе
+	// «не принято»), отметку можно снять; по ним считается статистика приёма.
+	resURL := fmt.Sprintf("/api/v1/admin/practice/%d/results", sessID)
+	admin.do("PUT", resURL, map[string]any{"userId": petya, "labId": lab1ID, "kind": "bogus", "passed": true}, 422)
+	admin.do("PUT", resURL, map[string]any{"userId": 999999, "labId": lab1ID, "kind": "lab", "passed": true}, 422)
+	admin.do("PUT", resURL, map[string]any{"userId": petya, "labId": lab1ID, "kind": "lab", "passed": true, "at": time.Now().Add(time.Hour).Format(time.RFC3339)}, 422)
+	u.do("PUT", resURL, map[string]any{"userId": petya, "labId": lab1ID, "kind": "theory", "passed": true}, 401)
+	admin.do("PUT", resURL, map[string]any{"userId": petya, "labId": lab1ID, "kind": "theory", "passed": true}, 200)
+	earlier := time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)
+	rres := admin.do("PUT", resURL, map[string]any{"userId": masha, "labId": lab1ID, "kind": "lab", "passed": false, "at": earlier}, 200)
+	if rs := rres["results"].([]any); len(rs) != 2 || rs[0].(map[string]any)["userId"] != float64(masha) ||
+		rs[0].(map[string]any)["passed"] != false || rs[1].(map[string]any)["kind"] != "theory" || rres["queue"] == nil {
+		t.Fatalf("results wrong: %v", rres["results"])
+	}
+	// Повторная отметка заменяет прежнюю.
+	rres = admin.do("PUT", resURL, map[string]any{"userId": masha, "labId": lab1ID, "kind": "lab", "passed": true}, 200)
+	if rs := rres["results"].([]any); len(rs) != 2 || rs[1].(map[string]any)["passed"] != true {
+		t.Fatalf("result not replaced: %v", rs)
+	}
+	pstats := admin.list("/api/v1/admin/practice/stats", 200)
+	if len(pstats) != 1 {
+		t.Fatalf("stats wrong: %v", pstats)
+	}
+	ss := pstats[0]["sessions"].([]any)[0].(map[string]any)
+	if labs, th := ss["labs"].(map[string]any), ss["theory"].(map[string]any); labs["attempts"] != 1.0 || labs["passed"] != 1.0 ||
+		th["attempts"] != 1.0 || th["left"] != 0.0 || ss["finished"] != false {
+		t.Fatalf("stats session wrong: %v", ss)
+	}
+	admin.do("PUT", resURL, map[string]any{"userId": petya, "labId": lab1ID, "kind": "theory"}, 200)
+	if rs := admin.do("GET", fmt.Sprintf("/api/v1/admin/practice/%d/signups", sessID), nil, 200)["results"].([]any); len(rs) != 1 {
+		t.Fatalf("result not cleared: %v", rs)
+	}
 	u.do("DELETE", fmt.Sprintf("/api/v1/practice/%d/signups", sessID), nil, 200)
 	if got := u.do("GET", "/api/v1/me/", nil, 200); len(got["signups"].([]any)) != 0 {
 		t.Fatalf("cancel failed: %v", got["signups"])

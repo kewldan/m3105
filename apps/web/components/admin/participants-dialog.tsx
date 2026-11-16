@@ -26,12 +26,19 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  indexResults,
+  livePace,
+  MarkButtons,
+  OrphanResults,
+  PaceLine,
+  resultKey,
+  TheoryMarks,
+  useNow,
+} from "@/components/admin/practice-results";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { GroupBadge } from "@/components/site/group-badge";
-import {
-  TheoryList,
-  theoryTotal,
-} from "@/components/site/practice/theory-list";
+import { theoryTotal } from "@/components/site/practice/theory-list";
 import { SubjectBadge } from "@/components/site/subject-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,7 +60,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@/lib/admin/use-query";
 import { adminApi } from "@/lib/api/admin";
-import type { PracticeSession, QueueEntry } from "@/lib/api/types";
+import type {
+  Participant,
+  PracticeResult,
+  PracticeResultKind,
+  PracticeSession,
+  QueueEntry,
+} from "@/lib/api/types";
 import { fmtDateTime, fmtTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -70,10 +83,14 @@ function QueueRow({
   entry: e,
   index,
   disabled,
+  result,
+  onMark,
 }: {
   entry: QueueEntry;
   index: number;
   disabled: boolean;
+  result: PracticeResult | undefined;
+  onMark: (passed: boolean | null) => void;
 }) {
   const {
     attributes,
@@ -92,6 +109,8 @@ function QueueRow({
         "relative flex items-start gap-2 bg-background px-3 py-2.5",
         isDragging && "z-10 rounded-lg shadow-lg ring-1 ring-border",
         e.reserve && "bg-muted/40",
+        result?.passed === true && "bg-emerald-500/10",
+        result?.passed === false && "bg-destructive/5",
       )}
     >
       <button
@@ -132,6 +151,12 @@ function QueueRow({
           {e.late ? <Badge variant="outline">поздняя</Badge> : null}
         </div>
       </div>
+      <MarkButtons
+        result={result}
+        disabled={disabled}
+        what={`${e.user.name}, лаба ${e.lab.number}`}
+        onMark={onMark}
+      />
     </li>
   );
 }
@@ -157,10 +182,70 @@ export function ParticipantsDialog({
   const [entries, setEntries] = useState<QueueEntry[]>([]);
   const [manual, setManual] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [results, setResults] = useState<PracticeResult[]>([]);
+  const [theory, setTheory] = useState<Participant[]>([]);
   useEffect(() => {
     setEntries(data?.queue ?? []);
     setManual(data?.queueManual ?? false);
+    setResults(data?.results ?? []);
+    setTheory(data?.theory ?? []);
   }, [data]);
+  const now = useNow(open);
+
+  // Отметка ставится сразу, сервер присылает список целиком.
+  async function mark(
+    kind: PracticeResultKind,
+    userId: number,
+    labId: number,
+    passed: boolean | null,
+  ) {
+    if (sessionId <= 0) return;
+    const key = resultKey(kind, userId, labId);
+    const previous = results;
+    const rest = results.filter(
+      (r) => resultKey(r.kind, r.userId, r.labId) !== key,
+    );
+    setResults(
+      passed === null
+        ? rest
+        : [
+            ...rest,
+            {
+              ...(previous.find(
+                (r) => resultKey(r.kind, r.userId, r.labId) === key,
+              ) ?? {
+                sessionId,
+                userId,
+                labId,
+                kind,
+                userName: "",
+                userGroup: "",
+                labNumber: 0,
+                markedBy: null,
+              }),
+              passed,
+              gradedAt: new Date().toISOString(),
+            },
+          ],
+    );
+    try {
+      const res = await adminApi.practice.setResult(sessionId, {
+        userId,
+        labId,
+        kind,
+        passed,
+      });
+      setResults(res.results);
+      setEntries(res.queue);
+      setTheory(res.theory);
+      setManual(res.queueManual);
+    } catch (e) {
+      setResults(previous);
+      toast.error(
+        e instanceof Error ? e.message : "Не удалось сохранить отметку",
+      );
+    }
+  }
 
   async function resetAuto() {
     if (sessionId <= 0) return;
@@ -169,6 +254,7 @@ export function ParticipantsDialog({
       const res = await adminApi.practice.autoQueue(sessionId);
       setEntries(res.queue);
       setManual(res.queueManual);
+      setResults(res.results);
       toast.success("Очередь пересчитана");
     } catch (e) {
       toast.error(
@@ -211,8 +297,29 @@ export function ParticipantsDialog({
       setSaving(false);
     }
   }
-  const theory = data?.theory ?? [];
   const theoryCount = theoryTotal(theory);
+  const byKey = indexResults(results);
+  const signedKeys = new Set([
+    ...entries.map((e) => resultKey("lab", e.user.id, e.lab.id)),
+    ...theory.flatMap((p) =>
+      p.labs.map((l) => resultKey("theory", p.user.id, l.id)),
+    ),
+  ]);
+  const orphans = results.filter(
+    (r) => !signedKeys.has(resultKey(r.kind, r.userId, r.labId)),
+  );
+  const unmarked = (kind: PracticeResultKind) =>
+    [...signedKeys].filter((k) => k.startsWith(`${kind}:`) && !byKey.has(k))
+      .length;
+  const labPace = session
+    ? livePace(session, results, "lab", unmarked("lab"), now)
+    : null;
+  const theoryPace =
+    session?.theoryMin && theory.length > 0
+      ? livePace(session, results, "theory", unmarked("theory"), now)
+      : null;
+  const markText = (r: PracticeResult | undefined) =>
+    r ? ` — ${r.passed ? "✓" : "✗"} ${fmtTime(r.gradedAt)}` : "";
   const seats = session
     ? (session.capacity != null
         ? `${entries.length} из ${session.capacity} защит`
@@ -223,13 +330,13 @@ export function ParticipantsDialog({
   async function copyList() {
     const lines = entries.map(
       (e, i) =>
-        `${i + 1}. ${e.user.name}${e.user.group ? ` (${e.user.group})` : ""} — лаба ${e.lab.number}${e.reserve ? " (резерв)" : ""}`,
+        `${i + 1}. ${e.user.name}${e.user.group ? ` (${e.user.group})` : ""} — лаба ${e.lab.number}${e.reserve ? " (резерв)" : ""}${markText(byKey.get(resultKey("lab", e.user.id, e.lab.id)))}`,
     );
     if (theory.length > 0) {
       lines.push("", `Теормин (${theoryCount}):`);
       for (const p of theory) {
         lines.push(
-          `— ${p.user.name}${p.user.group ? ` (${p.user.group})` : ""} — ${p.labs.map((l) => `лаба ${l.number}`).join(", ")}`,
+          `— ${p.user.name}${p.user.group ? ` (${p.user.group})` : ""} — ${p.labs.map((l) => `лаба ${l.number}${markText(byKey.get(resultKey("theory", p.user.id, l.id)))}`).join(", ")}`,
         );
       }
     }
@@ -276,7 +383,9 @@ export function ParticipantsDialog({
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-2/3" />
           </div>
-        ) : entries.length === 0 && theory.length === 0 ? (
+        ) : entries.length === 0 &&
+          theory.length === 0 &&
+          orphans.length === 0 ? (
           <Empty className="border border-dashed py-8">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -291,6 +400,14 @@ export function ParticipantsDialog({
           </Empty>
         ) : (
           <>
+            {labPace && (labPace.attempts > 0 || entries.length > 0) ? (
+              <div className="space-y-0.5">
+                <PaceLine label="Защиты" pace={labPace} />
+                {theoryPace ? (
+                  <PaceLine label="Теормин" pace={theoryPace} />
+                ) : null}
+              </div>
+            ) : null}
             {entries.length > 0 ? (
               <DndContext
                 sensors={sensors}
@@ -308,6 +425,12 @@ export function ParticipantsDialog({
                         entry={e}
                         index={i}
                         disabled={saving}
+                        result={byKey.get(
+                          resultKey("lab", e.user.id, e.lab.id),
+                        )}
+                        onMark={(passed) =>
+                          mark("lab", e.user.id, e.lab.id, passed)
+                        }
                       />
                     ))}
                   </ol>
@@ -336,11 +459,25 @@ export function ParticipantsDialog({
                   {data?.frozen
                     ? "Порядок заморожен, новые записи встают в конец."
                     : `До ${fmtDateTime(data?.freezesAt ?? "")} порядок пересчитывается при каждой записи.`}{" "}
-                  Перетащите за ручку, чтобы задать порядок вручную.
+                  Перетащите за ручку, чтобы задать порядок вручную. ✓ и ✗ —
+                  приняли или нет: по этим отметкам считается, сколько успевают
+                  принять за пару.
                 </p>
               )
             ) : null}
-            {theory.length > 0 ? <TheoryList theory={theory} /> : null}
+            {theory.length > 0 ? (
+              <TheoryMarks
+                theory={theory}
+                results={byKey}
+                onMark={(userId, labId, passed) =>
+                  mark("theory", userId, labId, passed)
+                }
+              />
+            ) : null}
+            <OrphanResults
+              results={orphans}
+              onClear={(r) => mark(r.kind, r.userId, r.labId, null)}
+            />
           </>
         )}
 

@@ -26,11 +26,14 @@ import type {
   Page,
   PageInput,
   Participant,
+  PracticeResult,
+  PracticeResultInput,
   PracticeRule,
   PracticeRuleInput,
   PracticeRulePlanItem,
   PracticeSession,
   PracticeSessionInput,
+  PracticeStatsSubject,
   QueueEntry,
   Quiz,
   QuizInput,
@@ -56,6 +59,8 @@ export type PracticeQueue = {
   queue: QueueEntry[];
   /** Кто придёт на теормин и по каким лабам. */
   theory: Participant[];
+  /** Кому и когда поставили оценку на этой паре. */
+  results: PracticeResult[];
   queueManual: boolean;
   freezesAt: string;
   frozen: boolean;
@@ -187,6 +192,14 @@ export const adminApi = {
       apiClient<PracticeQueue>(`/admin/practice/${id}/signups/auto`, {
         method: "POST",
       }),
+    /** Отметить, что защиту или теормин приняли (или нет); `passed: null` снимает отметку. */
+    setResult: (id: number, input: PracticeResultInput) =>
+      apiClient<PracticeQueue>(`/admin/practice/${id}/results`, {
+        method: "PUT",
+        body: input,
+      }),
+    /** Сколько защит и теорминов принимают за пару, по предметам. */
+    stats: () => apiClient<PracticeStatsSubject[]>("/admin/practice/stats"),
     /** Отменить занятие; `moveSignups` — перенести записи на следующее. */
     cancel: (id: number, input: { reason: string; moveSignups: boolean }) =>
       apiClient<PracticeSession>(`/admin/practice/${id}/cancel`, {

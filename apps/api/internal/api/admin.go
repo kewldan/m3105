@@ -375,6 +375,8 @@ func (h *Handler) mountAdmin(r chi.Router) {
 		r.With(h.practiceInZone).Post("/{id}/cancel", h.cancelPractice)
 		r.With(h.practiceInZone).Post("/{id}/restore", h.restorePractice)
 		r.With(h.practiceInZone).Post("/{id}/reset", h.resetPractice)
+		r.With(h.practiceInZone).Put("/{id}/results", h.setPracticeResult)
+		r.Get("/stats", h.practiceStats)
 		mount[models.PracticeSession, models.PracticeSessionInput](h, r, crud[models.PracticeSession, models.PracticeSessionInput]{
 			entity: "practice",
 			list: func(ctx context.Context, r *http.Request) (any, error) {

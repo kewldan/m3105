@@ -33,6 +33,10 @@ func tagsForPath(path string) []string {
 	case "events":
 		return []string{"calendar", "home"}
 	case "practice", "practice-rules":
+		// Отметки «кому поставили оценку» на сайте не видны, а ставятся часто.
+		if strings.HasSuffix(rest, "/results") {
+			return nil
+		}
 		return []string{"practice", "calendar", "home"}
 	case "grade-sources":
 		return []string{"grades"}

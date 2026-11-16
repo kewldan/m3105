@@ -21,10 +21,10 @@ import (
 
 var isuRe = regexp.MustCompile(`^\d{4,10}$`)
 
-// getBadge draws a student's scores as an SVG card for a GitHub README.
-// Only confirmed site accounts have a badge: the ISU number alone of someone
-// who never signed up gives nothing away. Errors are badges too (200), since
-// GitHub's image proxy shows nothing for an error status.
+// getBadge draws a student's scores as an SVG card for a GitHub README by the
+// ISU number from the grade tables; an account on the site is not needed, it
+// only adds the Telegram handle. Errors are badges too (200), since GitHub's
+// image proxy shows nothing for an error status.
 func (h *Handler) getBadge(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	style := strings.TrimSuffix(chi.URLParam(r, "style"), ".svg")
@@ -41,17 +41,20 @@ func (h *Handler) getBadge(w http.ResponseWriter, r *http.Request) {
 		fail(http.StatusOK, "укажите ?isu=")
 		return
 	}
-	user, err := h.store.GetApprovedUserByISU(ctx, isu)
-	if errors.Is(err, httpx.ErrNotFound) {
-		fail(http.StatusOK, "нет аккаунта на m3105.ru")
-		return
-	}
+	rows, err := h.store.ListBadgeGrades(ctx, isu)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
 	}
-	rows, err := h.store.ListBadgeGrades(ctx, isu)
-	if err != nil {
+	if len(rows) == 0 {
+		fail(http.StatusOK, "ИСУ "+isu+" нет в таблицах баллов")
+		return
+	}
+	var user models.User
+	switch u, err := h.store.GetApprovedUserByISU(ctx, isu); {
+	case err == nil:
+		user = u
+	case !errors.Is(err, httpx.ErrNotFound):
 		httpx.Fail(w, err)
 		return
 	}
@@ -89,8 +92,9 @@ func (h *Handler) getBadge(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			name = g.SubjectName
 		}
+		// Короткое название предмета («Прога») читается лучше заголовка таблицы.
 		short := g.SubjectShort
-		if g.Title != "" {
+		if short == "" {
 			short = g.Title
 		}
 		card.Subjects = append(card.Subjects, badges.Subject{

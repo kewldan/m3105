@@ -187,9 +187,12 @@ func TestGrades(t *testing.T) {
 	if svg := badge("/api/badges/terminal?isu=100002&subjects=nope", 200); !strings.Contains(svg, "нет баллов") {
 		t.Fatalf("badge with no subjects picked: %s", svg)
 	}
-	// Номер ИСУ без аккаунта на сайте (Грейдов пока не зарегистрирован) ничего не выдаёт.
-	if svg := badge("/api/badges/dark?isu=100001", 200); strings.Contains(svg, "Грейдов") || !strings.Contains(svg, "нет аккаунта") {
-		t.Fatalf("badge of a stranger: %s", svg)
+	// Аккаунт не нужен: Грейдов не зарегистрирован, но есть в таблице.
+	if svg := badge("/api/badges/dark?isu=100001", 200); !strings.Contains(svg, "Грейдов Георгий") {
+		t.Fatalf("badge without an account: %s", svg)
+	}
+	if svg := badge("/api/badges/dark?isu=999999", 200); !strings.Contains(svg, "нет в таблицах баллов") {
+		t.Fatalf("badge of an unknown ISU: %s", svg)
 	}
 	badge("/api/badges/nope?isu=100002", 404)
 

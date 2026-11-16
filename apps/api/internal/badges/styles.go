@@ -518,7 +518,7 @@ func shields(c Card) string {
 		if s.Group.known() {
 			v += fmt.Sprintf(" · №%d", s.Group.Rank)
 		}
-		parts = append(parts, shield{strings.ToLower(clip(s.short(), 20)), v, shieldTiers[s.Group.tier()]})
+		parts = append(parts, shield{clip(s.short(), 20), v, shieldTiers[s.Group.tier()]})
 	}
 	if !c.NoTotal || len(parts) == 0 {
 		parts = append(parts, shield{strings.TrimSpace(c.Group + " Σ"), ru(c.total()), "#007ec6"})

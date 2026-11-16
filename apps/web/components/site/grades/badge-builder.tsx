@@ -1,7 +1,6 @@
 "use client";
 
 import { CheckIcon, CopyIcon, ImageOffIcon } from "lucide-react";
-import Link from "next/link";
 import { useDeferredValue, useState } from "react";
 import { toast } from "sonner";
 
@@ -71,22 +70,9 @@ export function BadgeBuilder({ subjects }: { subjects: BadgeSubject[] }) {
             className="max-w-56 tabular-nums"
           />
           <p className="text-sm text-muted-foreground text-pretty">
-            {myIsu && cleanIsu === myIsu ? (
-              "Это ваш номер — подставили из профиля."
-            ) : me ? (
-              "Карточка есть только у подтверждённых аккаунтов сайта."
-            ) : (
-              <>
-                Карточка есть только у тех, кто{" "}
-                <Link
-                  href="/login"
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  вошёл на сайт
-                </Link>{" "}
-                и выбрал себя в списке курса.
-              </>
-            )}
+            {myIsu && cleanIsu === myIsu
+              ? "Это ваш номер — подставили из профиля."
+              : "Карточка строится по номеру ИСУ из таблиц баллов, входить на сайт не нужно."}
           </p>
         </section>
 

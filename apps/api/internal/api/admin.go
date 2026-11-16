@@ -376,6 +376,7 @@ func (h *Handler) mountAdmin(r chi.Router) {
 		r.With(h.practiceInZone).Post("/{id}/restore", h.restorePractice)
 		r.With(h.practiceInZone).Post("/{id}/reset", h.resetPractice)
 		r.With(h.practiceInZone).Put("/{id}/results", h.setPracticeResult)
+		r.With(adminOnly).Post("/{id}/report", h.sendPracticeReport)
 		r.Get("/stats", h.practiceStats)
 		mount[models.PracticeSession, models.PracticeSessionInput](h, r, crud[models.PracticeSession, models.PracticeSessionInput]{
 			entity: "practice",

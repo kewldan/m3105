@@ -53,7 +53,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../../"),
-  serverExternalPackages: ["shiki"],
+  // takumi — нативный аддон (napi): бандлить нельзя, standalone берёт его из node_modules.
+  serverExternalPackages: ["shiki", "takumi-js", "@takumi-rs/core"],
   agentRules: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

@@ -6,6 +6,7 @@ import {
   PlusIcon,
   RepeatIcon,
   RotateCcwIcon,
+  SendIcon,
   UndoIcon,
   UsersIcon,
   XIcon,
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { handleApiError } from "@/lib/admin/errors";
+import { useStaff } from "@/lib/admin/staff";
 import { useQuery } from "@/lib/admin/use-query";
 import { adminApi } from "@/lib/api/admin";
 import type { PracticeRule, PracticeSession } from "@/lib/api/types";
@@ -74,6 +76,7 @@ export function ruleSchedule(r: PracticeRule): string {
 }
 
 function PracticePageInner() {
+  const { isAdmin } = useStaff();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -383,6 +386,19 @@ function PracticePageInner() {
                     Отменить занятие…
                   </DropdownMenuItem>
                 )}
+                {isAdmin && !r.canceled ? (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      void act(
+                        () => adminApi.practice.report(r.id),
+                        "Отчёт отправлен в Telegram",
+                      )
+                    }
+                  >
+                    <SendIcon />
+                    Отчёт в Telegram
+                  </DropdownMenuItem>
+                ) : null}
                 {r.ruleId && r.overridden ? (
                   <DropdownMenuItem
                     onClick={() =>

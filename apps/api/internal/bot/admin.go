@@ -19,17 +19,19 @@ type AdminNotifier struct {
 	c      *courier
 	chatID int64
 	site   string
+	// reports renders practice reports; nil without WEB_URL.
+	reports *Reports
 }
 
 // NewAdminNotifier returns nil when the token or the chat is not configured;
 // methods of a nil notifier do nothing.
-func NewAdminNotifier(token string, chatID int64, site string, st *store.Store) *AdminNotifier {
+func NewAdminNotifier(token string, chatID int64, site string, st *store.Store, reports *Reports) *AdminNotifier {
 	if token == "" || chatID == 0 {
 		return nil
 	}
 	return &AdminNotifier{
 		c:      &courier{api: NewClient(token), store: st, log: slog.Default().With("component", "admin-notify")},
-		chatID: chatID, site: site,
+		chatID: chatID, site: site, reports: reports,
 	}
 }
 
@@ -92,6 +94,9 @@ func (b *Bot) callback(ctx context.Context, q *CallbackQuery) {
 	case strings.HasPrefix(q.Data, swapAcceptPrefix), strings.HasPrefix(q.Data, swapDeclinePrefix):
 		answer, err = b.swapFromButton(ctx, q)
 		fallback = "Не получилось, ответьте на сайте"
+	case strings.HasPrefix(q.Data, reportPrefix):
+		answer, err = b.refreshReport(ctx, q)
+		fallback = "Не получилось обновить"
 	case strings.HasPrefix(q.Data, approvePrefix):
 		answer = "Подтверждать больше не нужно: студенты сами выбирают себя в списке"
 		if q.Message != nil {

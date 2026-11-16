@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -50,6 +52,38 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	return c.do(req, out)
+}
+
+// callMultipart is call with a file: fields go as form values, the file under
+// fileField (referenced from JSON fields as attach://<fileField>).
+func (c *Client) callMultipart(ctx context.Context, method string, fields map[string]string, fileField, fileName string, data []byte, out any) error {
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	for k, v := range fields {
+		if err := mw.WriteField(k, v); err != nil {
+			return err
+		}
+	}
+	fw, err := mw.CreateFormFile(fileField, fileName)
+	if err != nil {
+		return err
+	}
+	if _, err := fw.Write(data); err != nil {
+		return err
+	}
+	if err := mw.Close(); err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+method, &body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	return c.do(req, out)
+}
+
+func (c *Client) do(req *http.Request, out any) error {
 	res, err := c.hc.Do(req)
 	if err != nil {
 		return err
@@ -165,6 +199,48 @@ func (c *Client) EditHTML(ctx context.Context, chatID, messageID int64, text str
 		params["reply_markup"] = opts.ReplyMarkup
 	}
 	return c.call(ctx, "editMessageText", params, nil)
+}
+
+// SendPhoto sends a PNG with an HTML caption.
+func (c *Client) SendPhoto(ctx context.Context, chatID int64, png []byte, caption string, markup any) error {
+	fields := map[string]string{
+		"chat_id": strconv.FormatInt(chatID, 10), "caption": caption, "parse_mode": "HTML",
+	}
+	if err := setMarkup(fields, markup); err != nil {
+		return err
+	}
+	return c.callMultipart(ctx, "sendPhoto", fields, "photo", "report.png", png, nil)
+}
+
+// EditPhoto replaces the picture and caption of a sent photo message.
+func (c *Client) EditPhoto(ctx context.Context, chatID, messageID int64, png []byte, caption string, markup any) error {
+	media, err := json.Marshal(map[string]string{
+		"type": "photo", "media": "attach://report", "caption": caption, "parse_mode": "HTML",
+	})
+	if err != nil {
+		return err
+	}
+	fields := map[string]string{
+		"chat_id":    strconv.FormatInt(chatID, 10),
+		"message_id": strconv.FormatInt(messageID, 10),
+		"media":      string(media),
+	}
+	if err := setMarkup(fields, markup); err != nil {
+		return err
+	}
+	return c.callMultipart(ctx, "editMessageMedia", fields, "report", "report.png", png, nil)
+}
+
+func setMarkup(fields map[string]string, markup any) error {
+	if markup == nil {
+		return nil
+	}
+	raw, err := json.Marshal(markup)
+	if err != nil {
+		return err
+	}
+	fields["reply_markup"] = string(raw)
+	return nil
 }
 
 // RemoveKeyboard drops the inline keyboard of a sent message.

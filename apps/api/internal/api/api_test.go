@@ -1176,6 +1176,9 @@ func TestPracticeRules(t *testing.T) {
 	}
 	admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/restore", legacyID), nil, 200)
 	admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/restore", legacyID), nil, 422)
+	// Отчёт в Telegram без бота и WEB_URL: 503, несуществующая сдача — 404.
+	admin.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/report", legacyID), nil, 503)
+	admin.do("POST", "/api/v1/admin/practice/999999/report", nil, 404)
 
 	// Только нечётные недели: лишние даты без записей уходят, а с записями отменяются.
 	rule["weeks"] = "odd"
@@ -1242,6 +1245,7 @@ func TestPracticeRules(t *testing.T) {
 	editor.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/cancel", adminSession), map[string]any{}, 403)
 	editor.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/cancel", mineSession), map[string]any{"reason": "Перенос"}, 200)
 	editor.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/restore", mineSession), nil, 200)
+	editor.do("POST", fmt.Sprintf("/api/v1/admin/practice/%d/report", mineSession), nil, 403)
 	own["audience"] = []string{"stream:8"}
 	editor.do("PUT", fmt.Sprintf("/api/v1/admin/practice-rules/%v", mine["id"]), own, 200)
 	var edit map[string]any

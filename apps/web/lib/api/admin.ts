@@ -215,6 +215,11 @@ export const adminApi = {
       apiClient<PracticeSession>(`/admin/practice/${id}/reset`, {
         method: "POST",
       }),
+    /** Прислать админу в Telegram картинку «Кто сдаёт» с кнопкой «Обновить». */
+    report: (id: number) =>
+      apiClient<{ ok: true }>(`/admin/practice/${id}/report`, {
+        method: "POST",
+      }),
   },
   practiceRules: {
     ...resource<PracticeRule, PracticeRuleInput>("/admin/practice-rules"),

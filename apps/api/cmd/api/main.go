@@ -104,7 +104,7 @@ func main() {
 		go files.RunGC(ctx, st, fileStore)
 		go handler.BackfillAvatars(ctx)
 	}
-	if tg := bot.New(st, bot.Options{Token: cfg.TelegramBotToken, SiteURL: cfg.PublicURL, DigestHour: cfg.BotDigestHour, Poll: cfg.BotPoll, AdminChatID: cfg.AdminChatID}); tg != nil {
+	if tg := bot.New(st, bot.Options{Token: cfg.TelegramBotToken, SiteURL: cfg.PublicURL, DigestHour: cfg.BotDigestHour, Poll: cfg.BotPoll, AdminChatID: cfg.AdminChatID, Reports: bot.NewReports(cfg.WebURL, cfg.RevalidateToken)}); tg != nil {
 		go tg.Run(ctx)
 		slog.Info("telegram bot started", "bot", cfg.TelegramBotUsername, "poll", cfg.BotPoll)
 	}

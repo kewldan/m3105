@@ -26,6 +26,8 @@ type Options struct {
 	Poll bool
 	// AdminChatID is the only chat allowed to press inline buttons (account approval).
 	AdminChatID int64
+	// Reports renders practice reports for the refresh button; nil without WEB_URL.
+	Reports *Reports
 }
 
 // Bot ties the Telegram client to the store.

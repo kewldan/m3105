@@ -72,7 +72,7 @@ func New(st *store.Store, au *auth.Service, users *userauth.Service, cfg config.
 		revalidator: revalidator,
 		files:       fs,
 		resizer:     resizer,
-		admin:       bot.NewAdminNotifier(cfg.TelegramBotToken, cfg.AdminChatID, cfg.PublicURL, st),
+		admin:       bot.NewAdminNotifier(cfg.TelegramBotToken, cfg.AdminChatID, cfg.PublicURL, st, bot.NewReports(cfg.WebURL, cfg.RevalidateToken)),
 		notify:      bot.NewNotifier(cfg.TelegramBotToken, cfg.PublicURL, st),
 		grades:      syncer,
 		cpp:         newCppService(cfg),

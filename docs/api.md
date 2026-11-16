@@ -138,7 +138,12 @@
 (сдачи: предмет, дата, аудитория, сколько защит примут за пару, заметка), `GET /admin/practice/{id}/signups`
 (`{ session, queue, queueManual, freezesAt, frozen }`), `PUT /admin/practice/{id}/signups/order`
 (`{ entries: [{ userId, labId }] }` — ручной порядок всех защит, дальше новые записи встают в конец),
-`POST /admin/practice/{id}/signups/auto` (вернуть порядок по правилам).
+`POST /admin/practice/{id}/signups/auto` (вернуть порядок по правилам),
+`POST /admin/practice/{id}/report` (только админ: бот присылает в `ADMIN_CHAT_ID` картинку «Кто сдаёт» —
+дата, неделя, очередь защит с флагами и теормин — с кнопкой «🔄 Обновить» (`report:<id>`, принимается только
+из `ADMIN_CHAT_ID`), которая перерисовывает её в том же сообщении; отвечает, когда сообщение ушло, 503 без бота,
+`ADMIN_CHAT_ID` или `WEB_URL`, 502 при ошибке рендера или Telegram). Картинку рендерит фронт через takumi:
+`GET {WEB_URL}/api/practice-report?id=…` с `Authorization: Bearer <REVALIDATE_TOKEN>` (`lib/report/practice-report.tsx`).
 
 ### Регулярные сдачи
 

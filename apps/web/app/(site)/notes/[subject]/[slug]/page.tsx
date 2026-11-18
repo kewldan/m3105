@@ -227,7 +227,7 @@ export default async function NotePage({ params }: { params: Params }) {
             </div>
           </div>
           <aside className="hidden lg:block print:hidden">
-            <div className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-6 overflow-y-auto">
+            <div className="thin-scrollbar sticky top-24 max-h-[calc(100vh-7rem)] space-y-6 overflow-y-auto pr-2">
               {hasOutline ? (
                 <CourseOutline
                   notes={siblings}

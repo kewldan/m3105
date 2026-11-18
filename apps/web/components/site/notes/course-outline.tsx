@@ -106,7 +106,7 @@ function OutlineList({
     <ul
       ref={listRef}
       className={cn(
-        "relative space-y-px overflow-y-auto border-l text-sm",
+        "thin-scrollbar relative space-y-px overflow-y-auto border-l text-sm",
         className,
       )}
     >

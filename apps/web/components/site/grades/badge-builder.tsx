@@ -55,8 +55,10 @@ export function BadgeBuilder({ subjects }: { subjects: BadgeSubject[] }) {
   // Превью идут через тот же сайт: в dev — через прокси Next на локальный API.
   const previews = themedUrls(family, theme, options, "");
 
+  // grid-cols-1 — колонка minmax(0, 1fr): широкая карточка в превью («Табло»,
+  // бейджи) прокручивается внутри своей рамки, а не растягивает страницу.
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
       <div className="space-y-6">
         <section className="space-y-2">
           <Label htmlFor="badge-isu">Номер ИСУ</Label>
@@ -206,7 +208,7 @@ export function BadgeBuilder({ subjects }: { subjects: BadgeSubject[] }) {
       <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
         <section
           aria-label="Превью"
-          className="flex min-h-48 flex-col items-center justify-center gap-3 overflow-x-auto rounded-2xl border bg-[repeating-conic-gradient(var(--color-muted)_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-4"
+          className="flex min-h-48 flex-col items-center-safe justify-center gap-3 overflow-x-auto rounded-2xl border bg-[repeating-conic-gradient(var(--color-muted)_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-4"
         >
           {valid ? (
             Object.entries(previews).map(([t, src]) => (

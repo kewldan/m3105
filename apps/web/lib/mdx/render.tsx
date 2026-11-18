@@ -1,5 +1,6 @@
-import { evaluate } from "@mdx-js/mdx";
+import { compile, run } from "@mdx-js/mdx";
 import type { Element, ElementContent, Root } from "hast";
+import type { MDXContent } from "mdx/types";
 import type { ReactNode } from "react";
 import * as runtime from "react/jsx-runtime";
 import rehypeKatex from "rehype-katex";
@@ -136,35 +137,106 @@ export type RenderedMdx = {
   error: string | null;
 };
 
+type Compiled = {
+  Content: MDXContent | null;
+  toc: TocItem[];
+  error: string | null;
+  /** Length of the compiled code: what the entry costs in the cache. */
+  size: number;
+};
+
 /**
- * Compiles and renders MDX on the server. Errors in the source are reported
- * as a message instead of crashing the page.
+ * The slow half: remark, rehype, shiki and KaTeX turn the source into a
+ * component. Never rejects — a broken source is a result with `error`.
  */
-export async function renderMdx(source: string): Promise<RenderedMdx> {
+async function compileMdx(source: string): Promise<Compiled> {
   const toc: TocItem[] = [];
-  if (!source?.trim()) {
-    return { content: null, toc, error: null };
-  }
   try {
-    const { default: MDXContent } = await evaluate(source, {
-      ...runtime,
-      remarkPlugins: [remarkGfm, remarkMath],
-      rehypePlugins: [
-        rehypeSlug,
-        rehypeTaskList,
-        rehypeToc(toc),
-        rehypeKatex,
-        [rehypePrettyCode, prettyCode],
-      ],
-      development: false,
-    });
-    return {
-      content: <MDXContent components={mdxComponents} />,
-      toc,
-      error: null,
-    };
+    const code = String(
+      await compile(source, {
+        outputFormat: "function-body",
+        remarkPlugins: [remarkGfm, remarkMath],
+        rehypePlugins: [
+          rehypeSlug,
+          rehypeTaskList,
+          rehypeToc(toc),
+          rehypeKatex,
+          [rehypePrettyCode, prettyCode],
+        ],
+        development: false,
+      }),
+    );
+    const { default: Content } = await run(code, { ...runtime });
+    return { Content, toc, error: null, size: code.length };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { content: null, toc, error: message };
+    return { Content: null, toc, error: message, size: message.length };
   }
+}
+
+/**
+ * Скомпилированный MDX по исходнику. Компиляция конспекта — сотни
+ * миллисекунд процессора, и пока она идёт, сервер не отвечает остальным;
+ * текст же меняется редко, поэтому результат живёт в памяти процесса.
+ * Ключ — сам исходник: правка в админке даёт новый ключ, сбрасывать нечего.
+ * На globalThis, чтобы кеш был один на все серверные бандлы.
+ */
+type CacheEntry = { result: Promise<Compiled>; size: number };
+type MdxCache = { entries: Map<string, CacheEntry>; size: number };
+const CACHE_KEY = Symbol.for("edu3105.mdx-cache");
+/** Символов скомпилированного кода: конспект с формулами — до 2–3 млн. */
+const CACHE_BUDGET = 24_000_000;
+
+function mdxCache(): MdxCache {
+  const store = globalThis as { [CACHE_KEY]?: MdxCache };
+  store[CACHE_KEY] ??= { entries: new Map(), size: 0 };
+  return store[CACHE_KEY];
+}
+
+function compileCached(source: string): Promise<Compiled> {
+  const cache = mdxCache();
+  const hit = cache.entries.get(source);
+  if (hit) {
+    // Map помнит порядок вставки: свежие — в конце, вытесняются с начала.
+    cache.entries.delete(source);
+    cache.entries.set(source, hit);
+    return hit.result;
+  }
+  // В кеше лежит промис: одновременные запросы ждут одну компиляцию.
+  const entry: CacheEntry = { result: compileMdx(source), size: 0 };
+  cache.entries.set(source, entry);
+  void entry.result.then((compiled) => {
+    if (cache.entries.get(source) !== entry) return;
+    entry.size = compiled.size;
+    cache.size += compiled.size;
+    for (const [key, old] of cache.entries) {
+      if (cache.size <= CACHE_BUDGET || old === entry) break;
+      cache.entries.delete(key);
+      cache.size -= old.size;
+    }
+  });
+  return entry.result;
+}
+
+/**
+ * Compiles and renders MDX on the server. Errors in the source are reported
+ * as a message instead of crashing the page. `cache: false` — for drafts
+ * typed in the editor, which would only push real pages out of the cache.
+ */
+export async function renderMdx(
+  source: string,
+  { cache = true }: { cache?: boolean } = {},
+): Promise<RenderedMdx> {
+  if (!source?.trim()) {
+    return { content: null, toc: [], error: null };
+  }
+  const { Content, toc, error } = await (cache
+    ? compileCached(source)
+    : compileMdx(source));
+  return {
+    content: Content ? <Content components={mdxComponents} /> : null,
+    // Копия: массив из кеша общий для всех запросов.
+    toc: [...toc],
+    error,
+  };
 }

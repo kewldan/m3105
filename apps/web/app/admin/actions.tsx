@@ -22,6 +22,6 @@ async function requireAdmin(): Promise<void> {
 /** Renders MDX for the admin editor preview. Only for authenticated admins. */
 export async function previewMdx(source: string): Promise<ReactNode> {
   await requireAdmin();
-  const rendered = await renderMdx(source);
+  const rendered = await renderMdx(source, { cache: false });
   return <MdxBody rendered={rendered} size="sm" />;
 }

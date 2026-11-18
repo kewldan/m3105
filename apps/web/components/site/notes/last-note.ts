@@ -9,6 +9,8 @@ export type LastNote = {
   slug: string;
   title: string;
   number: number;
+  /** How much of it is read, 0..1; absent in records saved before. */
+  progress?: number;
   at: string;
 };
 

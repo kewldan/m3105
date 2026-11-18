@@ -9,6 +9,7 @@ import { SubjectIcon } from "@/components/site/subject-icon";
 import { fmtRelative } from "@/lib/format";
 
 import { type LastNote, readLastNote } from "./last-note";
+import { DONE } from "./reading-position";
 
 /** Card with the last opened lecture (browser-local). Renders nothing until known. */
 export function ContinueReading() {
@@ -20,6 +21,13 @@ export function ContinueReading() {
   }, []);
 
   if (!last) return null;
+  const progress = last.progress ?? 0;
+  const read =
+    progress >= DONE
+      ? "дочитано"
+      : progress >= 0.01
+        ? `прочитано ${Math.round(progress * 100)}%`
+        : null;
   return (
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 8 }}
@@ -44,7 +52,9 @@ export function ContinueReading() {
             {last.number}. {last.title}
           </div>
           <div className="truncate text-xs text-muted-foreground">
-            {last.subjectName} · открыто {fmtRelative(last.at)}
+            {last.subjectName}
+            {read ? ` · ${read} · ` : " · открыто "}
+            {fmtRelative(last.at)}
           </div>
         </div>
         <ArrowRightIcon

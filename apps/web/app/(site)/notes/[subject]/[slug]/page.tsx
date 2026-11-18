@@ -209,7 +209,7 @@ export default async function NotePage({ params }: { params: Params }) {
               variant="inline"
               className="lg:hidden print:hidden"
             />
-            <div className="animate-fade-in">
+            <div className="animate-fade-in" data-note-body>
               <MdxBody rendered={rendered} />
             </div>
             <p className="hidden border-t pt-3 text-xs text-muted-foreground print:block">

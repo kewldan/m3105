@@ -264,6 +264,7 @@ type Note = {
   content: string;
   lectureDate: string | null;
   status: string;
+  audience?: string[];
   quizzesCount?: number;
 };
 type Quiz = {
@@ -322,6 +323,7 @@ function joinFrontmatter(meta: Frontmatter, body: string): string {
     "summary",
     "lectureDate",
     "status",
+    "audience",
   ];
   const keys = [
     ...order.filter((k) => meta[k] !== undefined),
@@ -419,6 +421,15 @@ async function notePush(): Promise<void> {
     content: (await uploadLocalLinks(body, dirname(resolve(file)))).trimEnd(),
     lectureDate: meta.lectureDate || null,
     status,
+    // PUT заменяет аудиторию целиком: без поля в шапке остаётся та, что
+    // выставлена на сайте, иначе push молча открывал бы конспект всем.
+    audience:
+      meta.audience !== undefined
+        ? meta.audience
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : (existing?.audience ?? []),
   };
   const saved = existing
     ? await admin<Note>("PUT", `/admin/notes/${existing.id}`, input)

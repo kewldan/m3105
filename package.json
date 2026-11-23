@@ -14,5 +14,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.7"
+  },
+  "overrides": {
+    "katex": "^0.19.1"
   }
 }

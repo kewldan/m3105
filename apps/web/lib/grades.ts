@@ -28,18 +28,46 @@ export function letterFor(total: number, max: number): Letter {
   return LETTERS.find((l) => p >= l.min)?.letter ?? "F";
 }
 
-/** Points left to the next letter, or null at A. */
+/** Pass-fail subjects (English, ИСРПО): no letters, 60% of the maximum is a pass. */
+export const PASS_MIN = 60;
+
+export function passed(total: number, max: number): boolean {
+  return percent(total, max) >= PASS_MIN;
+}
+
+/** The letter, or for a pass-fail subject «зачёт» / «незачёт». */
+export function markFor(total: number, max: number, passFail: boolean): string {
+  if (!passFail) return letterFor(total, max);
+  return passed(total, max) ? "зачёт" : "незачёт";
+}
+
+/**
+ * Points left to the next letter, or null at A. For a pass-fail subject the
+ * only step is the pass: `letter` is then «зачёта» («до зачёта»).
+ */
 export function toNextLetter(
   total: number,
   max: number,
-): { letter: Letter; points: number } | null {
+  passFail = false,
+): { letter: string; points: number } | null {
   const p = percent(total, max);
-  const next = [...LETTERS].reverse().find((l) => p < l.min);
+  const next = passFail
+    ? p < PASS_MIN
+      ? { letter: "зачёта", min: PASS_MIN }
+      : undefined
+    : [...LETTERS].reverse().find((l) => p < l.min);
   if (!next) return null;
   return {
     letter: next.letter,
     points: Math.max(0, (next.min / 100) * max - total),
   };
+}
+
+/** Thresholds drawn on the distribution: letters, or the single pass line. */
+export function thresholds(
+  passFail: boolean,
+): readonly { letter: string; min: number }[] {
+  return passFail ? [{ letter: "зачёт", min: PASS_MIN }] : LETTERS;
 }
 
 /** Tailwind classes for a letter chip; F is neutral, A is the brightest. */

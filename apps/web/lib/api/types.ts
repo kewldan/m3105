@@ -610,6 +610,7 @@ export type GradeSource = {
   syncHours: number;
   enabled: boolean;
   membersOnly: boolean;
+  passFail: boolean;
   syncedAt: string | null;
   syncError: string;
   rowsCount: number;
@@ -639,6 +640,7 @@ export type GradeSourceInput = {
   syncHours: number;
   enabled: boolean;
   membersOnly: boolean;
+  passFail: boolean;
 };
 
 export type GradeSyncResult = {

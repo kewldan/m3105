@@ -54,12 +54,12 @@ import {
   type GroupStat,
   groupStats,
   histogram,
-  LETTERS,
   labColumns,
   mean,
   median,
   type RankedEntry,
   rank,
+  thresholds,
   toNextLetter,
 } from "@/lib/grades";
 import { subjectColor } from "@/lib/subject-colors";
@@ -153,7 +153,7 @@ function Distribution({
           ))}
         </div>
         {/* У суммы нескольких предметов буквенной оценки нет. */}
-        {(source.stream ? [] : LETTERS)
+        {(source.stream ? [] : thresholds(source.passFail))
           .filter((l) => (l.min / 100) * source.maxTotal < domain)
           .map((l) => (
             <div
@@ -264,7 +264,11 @@ function RatingList({
                 {fmtScore(r.total)}
               </span>
               {source.stream ? null : (
-                <LetterChip total={r.total} max={source.maxTotal} />
+                <LetterChip
+                  total={r.total}
+                  max={source.maxTotal}
+                  passFail={source.passFail}
+                />
               )}
             </button>
             {expanded ? (
@@ -392,7 +396,7 @@ function MyResult({
         { label: "в таблице", rank: courseRank, size: ranked.length },
         { label: "на сайте", rank: siteRank, size: siteSize },
       ];
-  const next = toNextLetter(me.total, source.maxTotal);
+  const next = toNextLetter(me.total, source.maxTotal, source.passFail);
   // Курс отсортирован по убыванию: с конца первый, кто выше, — ближайший.
   const nearestAhead = [...ranked].reverse().find((r) => r.total > me.total);
   return (
@@ -408,7 +412,11 @@ function MyResult({
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold">Ваш результат</h2>
           {source.stream ? null : (
-            <LetterChip total={me.total} max={source.maxTotal} />
+            <LetterChip
+              total={me.total}
+              max={source.maxTotal}
+              passFail={source.passFail}
+            />
           )}
         </div>
         <dl
@@ -436,14 +444,21 @@ function MyResult({
             ? ""
             : next
               ? `До ${next.letter} не хватает ${fmtScore(next.points)}. `
-              : "Это уже A — дальше только удержать. "}
+              : source.passFail
+                ? "Зачёт уже набран. "
+                : "Это уже A — дальше только удержать. "}
           {nearestAhead
             ? `Чтобы подняться ${grouped ? courseWord : "в таблице"}, нужно ещё ${fmtScore(nearestAhead.total - me.total)}.`
             : courseRank === 1
               ? `Вы первый ${grouped ? courseWord : "в таблице"}.`
               : ""}
         </p>
-        <PendingTheory labs={me.labs} total={me.total} max={source.maxTotal} />
+        <PendingTheory
+          labs={me.labs}
+          total={me.total}
+          max={source.maxTotal}
+          passFail={source.passFail}
+        />
         {ranked.length > 1 ? (
           <Button variant="outline" size="sm" onClick={onCompare}>
             <GitCompareArrowsIcon data-icon="inline-start" />

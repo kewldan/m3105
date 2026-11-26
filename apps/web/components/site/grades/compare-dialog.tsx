@@ -179,6 +179,7 @@ function Side({
   you,
   average,
   letters,
+  passFail,
 }: {
   name: string;
   group: string;
@@ -192,6 +193,7 @@ function Side({
   average?: boolean;
   /** No letter grade for a sum over several subjects. */
   letters: boolean;
+  passFail: boolean;
 }) {
   return (
     <div
@@ -227,7 +229,9 @@ function Side({
         <span className="text-2xl font-semibold tabular-nums tracking-tight">
           {fmtScore(total)}
         </span>
-        {letters ? <LetterChip total={total} max={max} /> : null}
+        {letters ? (
+          <LetterChip total={total} max={max} passFail={passFail} />
+        ) : null}
       </div>
       <span className="text-xs text-muted-foreground">
         {rank
@@ -565,6 +569,7 @@ function Comparison({
           courseSize={size}
           align="start"
           letters={letters}
+          passFail={source.passFail}
         />
         <div
           className={cn(
@@ -594,6 +599,7 @@ function Comparison({
           align="end"
           average={other.average}
           letters={letters}
+          passFail={source.passFail}
         />
         <div className="col-span-3 pt-2">
           <PairBars

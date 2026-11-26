@@ -10,7 +10,7 @@ import (
 )
 
 const gradeSourceCols = `g.id, g.subject_id, g.title, g.spreadsheet_id, g.tab_pattern, g.name_column, g.id_column,
-	g.group_column, g.total_column, g.max_total, g.columns, g.scheme, g.sync_hours, g.enabled, g.members_only, g.synced_at, g.sync_error,
+	g.group_column, g.total_column, g.max_total, g.columns, g.scheme, g.sync_hours, g.enabled, g.members_only, g.pass_fail, g.synced_at, g.sync_error,
 	g.rows_count, g.created_at, g.updated_at, s.slug AS subject_slug, s.name AS subject_name,
 	s.color AS subject_color, s.icon AS subject_icon,
 	(SELECT count(*) FROM grade_rows r JOIN users u ON u.isu = r.isu WHERE r.source_id = g.id AND r.isu <> '')::int AS linked_count`
@@ -32,10 +32,10 @@ func (s *Store) GetGradeSource(ctx context.Context, id int64) (models.GradeSourc
 func (s *Store) CreateGradeSource(ctx context.Context, in *models.GradeSourceInput) (models.GradeSource, error) {
 	var id int64
 	err := s.db.QueryRow(ctx, `INSERT INTO grade_sources (subject_id, title, spreadsheet_id, tab_pattern, name_column,
-		id_column, group_column, total_column, max_total, columns, sync_hours, enabled, members_only, scheme)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+		id_column, group_column, total_column, max_total, columns, sync_hours, enabled, members_only, scheme, pass_fail)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
 		in.SubjectID, in.Title, in.SpreadsheetID, in.TabPattern, in.NameColumn, in.IDColumn, in.GroupColumn,
-		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly, in.Scheme).Scan(&id)
+		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly, in.Scheme, in.PassFail).Scan(&id)
 	if err != nil {
 		return models.GradeSource{}, wrap(err)
 	}
@@ -47,10 +47,10 @@ func (s *Store) CreateGradeSource(ctx context.Context, in *models.GradeSourceInp
 func (s *Store) UpdateGradeSource(ctx context.Context, id int64, in *models.GradeSourceInput) (models.GradeSource, error) {
 	if err := s.exec(ctx, `UPDATE grade_sources SET subject_id = $2, title = $3, spreadsheet_id = $4, tab_pattern = $5,
 		name_column = $6, id_column = $7, group_column = $8, total_column = $9, max_total = $10, columns = $11,
-		sync_hours = $12, enabled = $13, members_only = $14, scheme = $15, synced_at = NULL, updated_at = now()
+		sync_hours = $12, enabled = $13, members_only = $14, scheme = $15, pass_fail = $16, synced_at = NULL, updated_at = now()
 		WHERE id = $1`,
 		id, in.SubjectID, in.Title, in.SpreadsheetID, in.TabPattern, in.NameColumn, in.IDColumn, in.GroupColumn,
-		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly, in.Scheme); err != nil {
+		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly, in.Scheme, in.PassFail); err != nil {
 		return models.GradeSource{}, err
 	}
 	return s.GetGradeSource(ctx, id)

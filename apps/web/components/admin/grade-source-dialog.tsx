@@ -82,6 +82,7 @@ const schema = z.object({
   syncHours: z.string().regex(/^\d+$/, "Целое число"),
   enabled: z.boolean(),
   membersOnly: z.boolean(),
+  passFail: z.boolean(),
   columns: z.string().superRefine((v, ctx) => {
     const res = parseColumns(v);
     if (typeof res === "string") ctx.addIssue({ code: "custom", message: res });
@@ -115,6 +116,7 @@ const EMPTY: FormValues = {
   syncHours: "3",
   enabled: true,
   membersOnly: false,
+  passFail: false,
   columns: columnsToText([
     ...[1, 2, 3, 4, 5].map((n) => ({
       key: `lab${n}`,
@@ -180,6 +182,7 @@ export function GradeSourceDialog({
             syncHours: String(source.syncHours),
             enabled: source.enabled,
             membersOnly: source.membersOnly,
+            passFail: source.passFail,
             columns: columnsToText(source.columns),
             labTheory: source.scheme.theory,
             labPlus: source.scheme.plus,
@@ -210,6 +213,7 @@ export function GradeSourceDialog({
       syncHours: Number(values.syncHours),
       enabled: values.enabled,
       membersOnly: values.membersOnly,
+      passFail: values.passFail,
       columns,
       scheme: schemeFromValues(values),
     };
@@ -466,6 +470,29 @@ export function GradeSourceDialog({
                   {field.value
                     ? "Только тем, кто есть в таблице"
                     : "Всем подтверждённым студентам"}
+                </Label>
+              </div>
+            </FormField>
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="passFail"
+          render={({ field }) => (
+            <FormField
+              label="Итог"
+              htmlFor="gs-pass-fail"
+              description="Зачётный предмет: вместо букв A–E на сайте и в боте — «зачёт» от 60% максимума."
+              className="sm:col-span-2"
+            >
+              <div className="flex h-9 items-center gap-2">
+                <Switch
+                  id="gs-pass-fail"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+                <Label htmlFor="gs-pass-fail" className="font-normal">
+                  {field.value ? "Зачёт / незачёт" : "Оценка A–E"}
                 </Label>
               </div>
             </FormField>

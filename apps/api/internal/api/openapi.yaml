@@ -1125,12 +1125,13 @@ components:
           items: { $ref: "#/components/schemas/GradeColumn" }
         syncedAt: { oneOf: [{ $ref: "#/components/schemas/DateTime" }, { type: "null" }] }
         membersOnly: { type: boolean, description: "Таблица одной группы (английский): места внутри неё, без учебных групп" }
+        passFail: { type: boolean, description: "Зачётный предмет: буквенных оценок нет, от 60% максимума — зачёт" }
         stream:
           type: integer
           description: >-
             Только у сводного рейтинга потока (id = −номер потока): столбцы — итоги по предметам, итог — их сумма,
             строки — студенты потока, `labs` пустые
-      required: [id, title, subjectSlug, subjectName, subjectColor, subjectIcon, maxTotal, columns, syncedAt, membersOnly]
+      required: [id, title, subjectSlug, subjectName, subjectColor, subjectIcon, maxTotal, columns, syncedAt, membersOnly, passFail]
 
     GradeEntry:
       type: object

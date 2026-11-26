@@ -323,7 +323,7 @@ func gradesMessage(site string, lines []gradeLine, linked bool) string {
 	var sb strings.Builder
 	sb.WriteString("🎓 <b>Твои баллы</b>\n")
 	for _, l := range lines {
-		fmt.Fprintf(&sb, "\n<b>%s</b> — %s из %s (%s)\n", esc(l.Source.Label()), fmtScore(l.Row.Total), fmtScore(l.Source.MaxTotal), models.Letter(l.Row.Total, l.Source.MaxTotal))
+		fmt.Fprintf(&sb, "\n<b>%s</b> — %s из %s (%s)\n", esc(l.Source.Label()), fmtScore(l.Row.Total), fmtScore(l.Source.MaxTotal), models.Mark(l.Row.Total, l.Source.MaxTotal, l.Source.PassFail))
 		fmt.Fprintf(&sb, "Место: %d из %d в группе, %d из %d на курсе\n", l.Row.GroupRank, l.Row.GroupSize, l.Row.CourseRank, l.Row.CourseSize)
 		var parts []string
 		for _, col := range l.Source.Columns {

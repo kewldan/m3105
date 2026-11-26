@@ -40,12 +40,14 @@ type GradeSource struct {
 	SyncHours     int           `db:"sync_hours" json:"syncHours"`
 	Enabled       bool          `db:"enabled" json:"enabled"`
 	// MembersOnly: only students whose ISU is in the sheet see the source.
-	MembersOnly bool       `db:"members_only" json:"membersOnly"`
-	SyncedAt    *time.Time `db:"synced_at" json:"syncedAt"`
-	SyncError   string     `db:"sync_error" json:"syncError"`
-	RowsCount   int        `db:"rows_count" json:"rowsCount"`
-	CreatedAt   time.Time  `db:"created_at" json:"createdAt"`
-	UpdatedAt   time.Time  `db:"updated_at" json:"updatedAt"`
+	MembersOnly bool `db:"members_only" json:"membersOnly"`
+	// PassFail: the subject ends in a pass, not a letter grade.
+	PassFail  bool       `db:"pass_fail" json:"passFail"`
+	SyncedAt  *time.Time `db:"synced_at" json:"syncedAt"`
+	SyncError string     `db:"sync_error" json:"syncError"`
+	RowsCount int        `db:"rows_count" json:"rowsCount"`
+	CreatedAt time.Time  `db:"created_at" json:"createdAt"`
+	UpdatedAt time.Time  `db:"updated_at" json:"updatedAt"`
 
 	SubjectSlug  string `db:"subject_slug" json:"subjectSlug"`
 	SubjectName  string `db:"subject_name" json:"subjectName"`
@@ -80,6 +82,7 @@ type GradeSourceInput struct {
 	SyncHours   int           `json:"syncHours"`
 	Enabled     bool          `json:"enabled"`
 	MembersOnly bool          `json:"membersOnly"`
+	PassFail    bool          `json:"passFail"`
 
 	// SpreadsheetID is filled by Validate from Spreadsheet.
 	SpreadsheetID string `json:"-"`
@@ -208,6 +211,8 @@ type GradeSourceSummary struct {
 	SyncedAt     *time.Time    `json:"syncedAt"`
 	// MembersOnly: one small group's sheet; places are counted within it only.
 	MembersOnly bool `json:"membersOnly"`
+	// PassFail: no letter grades, 60% of the maximum is a pass.
+	PassFail bool `json:"passFail"`
 	// Stream is set on a stream's combined rating: the sum of totals over
 	// several subjects, shown only to that stream's students.
 	Stream int `json:"stream,omitempty"`
@@ -223,6 +228,7 @@ func (s GradeSource) Summary() GradeSourceSummary {
 		ID: s.ID, Title: s.Label(), SubjectSlug: s.SubjectSlug, SubjectName: s.SubjectName,
 		SubjectColor: s.SubjectColor, SubjectIcon: s.SubjectIcon, MaxTotal: s.MaxTotal,
 		Columns: cols, SyncedAt: s.SyncedAt, MembersOnly: s.MembersOnly,
+		PassFail: s.PassFail,
 	}
 }
 
@@ -290,6 +296,19 @@ func ShortName(full string) string {
 		f = f[:2]
 	}
 	return strings.Join(f, " ")
+}
+
+// Mark is the result word for a total: the letter grade, or for a pass-fail
+// subject «зачёт» from 60% up and «пока не зачёт» below.
+func Mark(total, maxTotal float64, passFail bool) string {
+	l := Letter(total, maxTotal)
+	if !passFail {
+		return l
+	}
+	if l == "F" {
+		return "пока не зачёт"
+	}
+	return "зачёт"
 }
 
 // Letter is the ITMO letter grade for a score scaled to 100 points.

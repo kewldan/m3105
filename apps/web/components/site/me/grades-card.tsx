@@ -31,7 +31,7 @@ function PlaceChip({ place, label }: { place: Place; label: string }) {
 }
 
 function GradeRow({ g }: { g: MyGrade }) {
-  const next = toNextLetter(g.total, g.source.maxTotal);
+  const next = toNextLetter(g.total, g.source.maxTotal, g.source.passFail);
   return (
     <li className="flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-start">
       <ScoreRing
@@ -49,7 +49,11 @@ function GradeRow({ g }: { g: MyGrade }) {
             icon={g.source.subjectIcon}
             size="md"
           />
-          <LetterChip total={g.total} max={g.source.maxTotal} />
+          <LetterChip
+            total={g.total}
+            max={g.source.maxTotal}
+            passFail={g.source.passFail}
+          />
           {next ? (
             <span className="text-xs text-muted-foreground">
               до {next.letter} — {fmtScore(next.points)}
@@ -67,7 +71,12 @@ function GradeRow({ g }: { g: MyGrade }) {
           )}
           <PlaceChip place={g.site} label="на сайте" />
         </div>
-        <PendingTheory labs={g.labs} total={g.total} max={g.source.maxTotal} />
+        <PendingTheory
+          labs={g.labs}
+          total={g.total}
+          max={g.source.maxTotal}
+          passFail={g.source.passFail}
+        />
         <LabStrip
           columns={g.source.columns}
           parts={g.parts}

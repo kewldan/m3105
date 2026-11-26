@@ -15,7 +15,7 @@ import {
   fmtScore,
   labStats,
   labTotals,
-  letterFor,
+  markFor,
 } from "@/lib/grades";
 import { subjectColor } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
@@ -92,17 +92,19 @@ export function PendingTheory({
   labs,
   total,
   max,
+  passFail = false,
   className,
 }: {
   labs: GradeLabs;
   total: number;
   max: number;
+  passFail?: boolean;
   className?: string;
 }) {
   const t = labTotals(labs);
   if (t.accepted === 0) return null;
-  const now = letterFor(total, max);
-  const then = letterFor(total + t.pending, max);
+  const now = markFor(total, max, passFail);
+  const then = markFor(total + t.pending, max, passFail);
   return (
     <p
       className={cn(

@@ -42,7 +42,11 @@ type GradeSource struct {
 	// MembersOnly: only students whose ISU is in the sheet see the source.
 	MembersOnly bool `db:"members_only" json:"membersOnly"`
 	// PassFail: the subject ends in a pass, not a letter grade.
-	PassFail  bool       `db:"pass_fail" json:"passFail"`
+	PassFail bool `db:"pass_fail" json:"passFail"`
+	// ParentID: the source this one is part of. Its sheet is read with its
+	// own headers when the parent syncs, the rows and the columns it adds go
+	// to the parent, and the site shows only the parent.
+	ParentID  *int64     `db:"parent_id" json:"parentId,omitempty"`
 	SyncedAt  *time.Time `db:"synced_at" json:"syncedAt"`
 	SyncError string     `db:"sync_error" json:"syncError"`
 	RowsCount int        `db:"rows_count" json:"rowsCount"`
@@ -83,6 +87,8 @@ type GradeSourceInput struct {
 	Enabled     bool          `json:"enabled"`
 	MembersOnly bool          `json:"membersOnly"`
 	PassFail    bool          `json:"passFail"`
+	// ParentID makes the source a part of another one of the same subject.
+	ParentID *int64 `json:"parentId"`
 
 	// SpreadsheetID is filled by Validate from Spreadsheet.
 	SpreadsheetID string `json:"-"`
@@ -104,6 +110,9 @@ func (in *GradeSourceInput) Validate() error {
 	in.IDColumn = strings.TrimSpace(in.IDColumn)
 	in.GroupColumn = strings.TrimSpace(in.GroupColumn)
 	in.TotalColumn = strings.TrimSpace(in.TotalColumn)
+	if in.ParentID != nil && *in.ParentID <= 0 {
+		in.ParentID = nil
+	}
 	if in.SubjectID <= 0 {
 		ve.Add("subjectId", "Выберите предмет")
 	}

@@ -79,6 +79,11 @@ export default function GradesPage() {
     }
   }
 
+  const parentLabel = (id: number) => {
+    const p = data?.find((s) => s.id === id);
+    return p ? p.title || p.subjectName : `#${id}`;
+  };
+
   const columns: Column<GradeSource>[] = [
     {
       id: "name",
@@ -91,6 +96,11 @@ export default function GradesPage() {
             <div className="truncate font-medium">
               {r.title || r.subjectName}
             </div>
+            {r.parentId ? (
+              <div className="truncate text-xs text-muted-foreground">
+                входит в «{parentLabel(r.parentId)}»
+              </div>
+            ) : null}
             <a
               href={`https://docs.google.com/spreadsheets/d/${r.spreadsheetId}`}
               target="_blank"
@@ -114,6 +124,10 @@ export default function GradesPage() {
             <Badge variant="outline" className="font-normal">
               выключен
             </Badge>
+          ) : r.parentId ? (
+            <span className="text-sm text-muted-foreground">
+              вместе с основным
+            </span>
           ) : r.syncedAt ? (
             <span className="text-sm">
               {fmtRelative(r.syncedAt)}
@@ -215,6 +229,7 @@ export default function GradesPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         source={editing}
+        sources={data ?? []}
         subjects={subjects ?? []}
         onSaved={(saved) => void sync(saved)}
       />

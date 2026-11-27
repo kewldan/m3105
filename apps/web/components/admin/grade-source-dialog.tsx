@@ -12,6 +12,7 @@ import {
   FormGrid,
   FormSection,
 } from "@/components/admin/form-field";
+import { SelectField } from "@/components/admin/select-field";
 import { SubjectCombobox } from "@/components/admin/subject-combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,6 +84,7 @@ const schema = z.object({
   enabled: z.boolean(),
   membersOnly: z.boolean(),
   passFail: z.boolean(),
+  parentId: z.string(),
   columns: z.string().superRefine((v, ctx) => {
     const res = parseColumns(v);
     if (typeof res === "string") ctx.addIssue({ code: "custom", message: res });
@@ -99,6 +101,8 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+
+const NO_PARENT = "none";
 
 // Значения под таблицу баллов по программированию: вкладка на группу,
 // пять лаб по 12 баллов и экзамен на 40; у лабы блок «- + D 12»: плюсик
@@ -117,6 +121,7 @@ const EMPTY: FormValues = {
   enabled: true,
   membersOnly: false,
   passFail: false,
+  parentId: NO_PARENT,
   columns: columnsToText([
     ...[1, 2, 3, 4, 5].map((n) => ({
       key: `lab${n}`,
@@ -150,12 +155,15 @@ export function GradeSourceDialog({
   open,
   onOpenChange,
   source,
+  sources,
   subjects,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   source: GradeSource | null;
+  /** All sources: a sheet may be a part of another one of its subject. */
+  sources: GradeSource[];
   subjects: Subject[];
   onSaved: (saved: GradeSource) => void;
 }) {
@@ -183,6 +191,7 @@ export function GradeSourceDialog({
             enabled: source.enabled,
             membersOnly: source.membersOnly,
             passFail: source.passFail,
+            parentId: source.parentId ? String(source.parentId) : NO_PARENT,
             columns: columnsToText(source.columns),
             labTheory: source.scheme.theory,
             labPlus: source.scheme.plus,
@@ -214,6 +223,7 @@ export function GradeSourceDialog({
       enabled: values.enabled,
       membersOnly: values.membersOnly,
       passFail: values.passFail,
+      parentId: values.parentId === NO_PARENT ? null : Number(values.parentId),
       columns,
       scheme: schemeFromValues(values),
     };
@@ -232,6 +242,17 @@ export function GradeSourceDialog({
   }
 
   const errors = form.formState.errors;
+  const subjectId = form.watch("subjectId");
+  const hasParts =
+    source != null && sources.some((s) => s.parentId === source.id);
+  const parentOptions = [
+    { value: NO_PARENT, label: "Нет — отдельная вкладка на сайте" },
+    ...sources
+      .filter(
+        (s) => s.subjectId === subjectId && s.id !== source?.id && !s.parentId,
+      )
+      .map((s) => ({ value: String(s.id), label: s.title || s.subjectName })),
+  ];
 
   return (
     <EntityDialog
@@ -277,6 +298,28 @@ export function GradeSourceDialog({
           />
         </FormField>
       </FormGrid>
+      {hasParts ? null : (
+        <Controller
+          control={form.control}
+          name="parentId"
+          render={({ field }) => (
+            <FormField
+              label="Входит в источник"
+              htmlFor="gs-parent"
+              description="Ещё одна таблица того же предмета (другие группы или новые столбцы для тех же студентов): читается со своими заголовками, а на сайте показывается внутри выбранного источника."
+              error={errors.parentId?.message}
+            >
+              <SelectField
+                id="gs-parent"
+                value={field.value}
+                onChange={field.onChange}
+                options={parentOptions}
+                invalid={!!errors.parentId}
+              />
+            </FormField>
+          )}
+        />
+      )}
       <FormField
         label="Таблица"
         htmlFor="gs-sheet"

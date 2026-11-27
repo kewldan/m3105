@@ -340,3 +340,84 @@ func TestStreamRating(t *testing.T) {
 		t.Fatalf("own row: %v", second)
 	}
 }
+
+// Таблицы одного предмета у разных преподавателей — один источник: часть
+// читается со своими заголовками, её строки и новые столбцы идут родителю.
+func TestGradeSourceParts(t *testing.T) {
+	setFakeTab("11", ",ФИО,Итог,ИСУ\n"+
+		`1,Родителев Роман Ильич,30,210001`+"\n"+
+		`2,Общий Олег Петрович,40,210002`+"\n")
+	setFakeTab("12", "ИСУ ID,ФИО,Бонус,Итого\n"+
+		`210003,Частев Чеслав Ильич,2,50`+"\n"+
+		`210002,Общий Олег Петрович,3,99`+"\n")
+
+	admin := newClient(t).bearer(testAPIToken)
+	sheet := "1RPnkkIYz1yWKvegiurVcmc-UIvRXBZZ7OqjRtw_gI9E"
+	var subjects []int64
+	for _, name := range []string{"ИСРПО части", "Другой предмет"} {
+		subj := admin.do("POST", "/api/v1/admin/subjects", map[string]any{"name": name, "color": "blue"}, 201)
+		id := int64(subj["id"].(float64))
+		subjects = append(subjects, id)
+		t.Cleanup(func() { admin.do("DELETE", fmt.Sprintf("/api/v1/admin/subjects/%d", id), nil, 200) })
+	}
+	parent := admin.do("POST", "/api/v1/admin/grade-sources", map[string]any{"subjectId": subjects[0], "spreadsheet": sheet,
+		"tabPattern": "^M3105$", "syncHours": 3, "enabled": true, "nameColumn": "ФИО", "idColumn": "ИСУ", "totalColumn": "Итог"}, 201)
+	parentID := int64(parent["id"].(float64))
+	part := map[string]any{"subjectId": subjects[1], "spreadsheet": sheet, "tabPattern": "^M3104$", "syncHours": 3,
+		"enabled": true, "nameColumn": "ФИО", "idColumn": "ИСУ ID", "totalColumn": "Итого", "parentId": parentID,
+		"columns": []map[string]any{{"key": "bonus", "label": "Бонус", "header": "Бонус", "max": 5}}}
+	if res := admin.do("POST", "/api/v1/admin/grade-sources", part, 422); res["fields"].(map[string]any)["parentId"] == nil {
+		t.Fatalf("a part of another subject: %v", res)
+	}
+	part["subjectId"] = subjects[0]
+	created := admin.do("POST", "/api/v1/admin/grade-sources", part, 201)
+	partID := int64(created["id"].(float64))
+	if created["parentId"] != float64(parentID) {
+		t.Fatalf("parentId not saved: %v", created)
+	}
+	// Источник с частями сам частью стать не может.
+	parent["parentId"] = partID
+	parent["spreadsheet"] = sheet
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/grade-sources/%d", parentID), parent, 422)
+
+	// Синк части синкает родителя целиком.
+	res := admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", partID), nil, 200)
+	if res["rows"] != float64(3) {
+		t.Fatalf("sync result: %v", res)
+	}
+	page := newClient(t).do("GET", fmt.Sprintf("/api/v1/grades?source=%d", parentID), nil, 200)
+	for _, s := range page["sources"].([]any) {
+		if int64(s.(map[string]any)["id"].(float64)) == partID {
+			t.Fatal("a part must not be shown as a source of its own")
+		}
+	}
+	cols := page["source"].(map[string]any)["columns"].([]any)
+	if len(cols) != 1 || cols[0].(map[string]any)["key"] != "bonus" {
+		t.Fatalf("columns of the part: %v", cols)
+	}
+	byName := map[string]map[string]any{}
+	for _, r := range page["rows"].([]any) {
+		byName[r.(map[string]any)["name"].(string)] = r.(map[string]any)
+	}
+	if len(byName) != 3 {
+		t.Fatalf("rows: %v", page["rows"])
+	}
+	both := byName["Общий Олег"]
+	if both["total"] != float64(40) || both["parts"].(map[string]any)["bonus"] != float64(3) {
+		t.Fatalf("a student in both sheets keeps the parent's total and gets the part's column: %v", both)
+	}
+	if r := byName["Частев Чеслав"]; r["group"] != "М3104" || r["total"] != float64(50) {
+		t.Fatalf("a student only in the part: %v", r)
+	}
+	if _, ok := byName["Родителев Роман"]["parts"].(map[string]any)["bonus"]; ok {
+		t.Fatalf("no column in the parent's sheet, no part: %v", byName["Родителев Роман"])
+	}
+
+	// Отвязанная часть снова источник сам по себе и синкается отдельно.
+	delete(created, "parentId")
+	created["spreadsheet"] = sheet
+	admin.do("PUT", fmt.Sprintf("/api/v1/admin/grade-sources/%d", partID), created, 200)
+	if res := admin.do("POST", fmt.Sprintf("/api/v1/admin/grade-sources/%d/sync", parentID), nil, 200); res["rows"] != float64(2) {
+		t.Fatalf("parent without its part: %v", res)
+	}
+}

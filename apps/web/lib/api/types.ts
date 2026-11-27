@@ -611,6 +611,8 @@ export type GradeSource = {
   enabled: boolean;
   membersOnly: boolean;
   passFail: boolean;
+  /** The source this one is part of: its sheet syncs into that one. */
+  parentId?: number;
   syncedAt: string | null;
   syncError: string;
   rowsCount: number;
@@ -641,6 +643,8 @@ export type GradeSourceInput = {
   enabled: boolean;
   membersOnly: boolean;
   passFail: boolean;
+  /** Another source of the same subject this sheet adds to; null — none. */
+  parentId: number | null;
 };
 
 export type GradeSyncResult = {

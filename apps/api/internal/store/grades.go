@@ -2,25 +2,58 @@ package store
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/kewldan/edu3105/apps/api/internal/httpx"
 	"github.com/kewldan/edu3105/apps/api/internal/models"
 )
 
-const gradeSourceCols = `g.id, g.subject_id, g.title, g.spreadsheet_id, g.tab_pattern, g.name_column, g.id_column,
-	g.group_column, g.total_column, g.max_total, g.columns, g.scheme, g.sync_hours, g.enabled, g.members_only, g.pass_fail, g.synced_at, g.sync_error,
+const gradeSourceColsTpl = `g.id, g.subject_id, g.title, g.spreadsheet_id, g.tab_pattern, g.name_column, g.id_column,
+	g.group_column, g.total_column, g.max_total, {columns}, g.scheme, g.sync_hours, g.enabled, g.members_only, g.pass_fail,
+	g.parent_id, g.synced_at, g.sync_error,
 	g.rows_count, g.created_at, g.updated_at, s.slug AS subject_slug, s.name AS subject_name,
 	s.color AS subject_color, s.icon AS subject_icon,
 	(SELECT count(*) FROM grade_rows r JOIN users u ON u.isu = r.isu WHERE r.source_id = g.id AND r.isu <> '')::int AS linked_count`
 
+// familyColumns are the columns of source g as the site shows them: its own
+// and then those its enabled parts add, a key already taken counting once.
+const familyColumns = `(g.columns || COALESCE((SELECT jsonb_agg(x.c ORDER BY x.pos, x.n) FROM (
+		SELECT DISTINCT ON (e.c->>'key') e.c, ch.id AS pos, e.n
+		FROM grade_sources ch CROSS JOIN LATERAL jsonb_array_elements(ch.columns) WITH ORDINALITY AS e(c, n)
+		WHERE ch.parent_id = g.id AND ch.enabled
+			AND NOT g.columns @> jsonb_build_array(jsonb_build_object('key', e.c->'key'))
+		ORDER BY e.c->>'key', ch.id, e.n) x), '[]'::jsonb)) AS columns`
+
+var (
+	// gradeSourceCols keep the source's own columns: settings and sync.
+	gradeSourceCols = strings.Replace(gradeSourceColsTpl, "{columns}", "g.columns", 1)
+	// gradeShownSourceCols add the columns of its parts: the site and the bot.
+	gradeShownSourceCols = strings.Replace(gradeSourceColsTpl, "{columns}", familyColumns, 1)
+)
+
 const gradeSourceFrom = ` FROM grade_sources g JOIN subjects s ON s.id = g.subject_id`
 
-// ListGradeSources returns sources in subject order; onlyEnabled hides switched-off ones.
-func (s *Store) ListGradeSources(ctx context.Context, onlyEnabled bool) ([]models.GradeSource, error) {
+// ListGradeSources returns every source with its own settings (admin).
+func (s *Store) ListGradeSources(ctx context.Context) ([]models.GradeSource, error) {
 	return many[models.GradeSource](ctx, s.db, `SELECT `+gradeSourceCols+gradeSourceFrom+`
-		WHERE g.enabled OR NOT $1 ORDER BY s.position, s.name, g.id`, onlyEnabled)
+		ORDER BY s.position, s.name, COALESCE(g.parent_id, g.id), g.parent_id NULLS FIRST, g.id`)
+}
+
+// ListShownGradeSources returns what the site and the bot show: enabled
+// sources that are not a part of another, with the columns of their parts.
+func (s *Store) ListShownGradeSources(ctx context.Context) ([]models.GradeSource, error) {
+	return many[models.GradeSource](ctx, s.db, `SELECT `+gradeShownSourceCols+gradeSourceFrom+`
+		WHERE g.enabled AND g.parent_id IS NULL ORDER BY s.position, s.name, g.id`)
+}
+
+// ListGradeSourceParts returns the enabled sources that are parts of parentID.
+func (s *Store) ListGradeSourceParts(ctx context.Context, parentID int64) ([]models.GradeSource, error) {
+	return many[models.GradeSource](ctx, s.db, `SELECT `+gradeSourceCols+gradeSourceFrom+`
+		WHERE g.parent_id = $1 AND g.enabled ORDER BY g.id`, parentID)
 }
 
 // GetGradeSource fetches one source.
@@ -28,37 +61,116 @@ func (s *Store) GetGradeSource(ctx context.Context, id int64) (models.GradeSourc
 	return one[models.GradeSource](ctx, s.db, `SELECT `+gradeSourceCols+gradeSourceFrom+` WHERE g.id = $1`, id)
 }
 
+// CheckGradeParent tells whether source id may be a part of in.ParentID:
+// the parent is of the same subject and is not a part itself, and the source
+// has no parts of its own — one level, so the site has one place to look.
+func (s *Store) CheckGradeParent(ctx context.Context, id int64, in *models.GradeSourceInput) error {
+	if in.ParentID == nil {
+		return nil
+	}
+	ve := httpx.NewValidation()
+	var subjectID int64
+	var grand *int64
+	err := s.db.QueryRow(ctx, `SELECT subject_id, parent_id FROM grade_sources WHERE id = $1`, *in.ParentID).Scan(&subjectID, &grand)
+	var hasParts bool
+	if id > 0 {
+		if e := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM grade_sources WHERE parent_id = $1)`, id).Scan(&hasParts); e != nil {
+			return wrap(e)
+		}
+	}
+	switch {
+	case errors.Is(err, pgx.ErrNoRows) || *in.ParentID == id:
+		ve.Add("parentId", "Нет такого источника")
+	case err != nil:
+		return wrap(err)
+	case subjectID != in.SubjectID:
+		ve.Add("parentId", "Источник другого предмета")
+	case grand != nil:
+		ve.Add("parentId", "Он сам входит в другой источник")
+	case hasParts:
+		ve.Add("parentId", "В этот источник уже входят другие")
+	}
+	if !ve.Empty() {
+		return ve
+	}
+	return nil
+}
+
 // CreateGradeSource inserts a source; it syncs on the next scheduler tick.
 func (s *Store) CreateGradeSource(ctx context.Context, in *models.GradeSourceInput) (models.GradeSource, error) {
 	var id int64
 	err := s.db.QueryRow(ctx, `INSERT INTO grade_sources (subject_id, title, spreadsheet_id, tab_pattern, name_column,
-		id_column, group_column, total_column, max_total, columns, sync_hours, enabled, members_only, scheme, pass_fail)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+		id_column, group_column, total_column, max_total, columns, sync_hours, enabled, members_only, scheme, pass_fail, parent_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
 		in.SubjectID, in.Title, in.SpreadsheetID, in.TabPattern, in.NameColumn, in.IDColumn, in.GroupColumn,
-		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly, in.Scheme, in.PassFail).Scan(&id)
+		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly, in.Scheme, in.PassFail,
+		in.ParentID).Scan(&id)
 	if err != nil {
 		return models.GradeSource{}, wrap(err)
+	}
+	if in.ParentID != nil {
+		if err := s.exec(ctx, `UPDATE grade_sources SET synced_at = NULL WHERE id = $1`, *in.ParentID); err != nil {
+			return models.GradeSource{}, err
+		}
 	}
 	return s.GetGradeSource(ctx, id)
 }
 
 // UpdateGradeSource replaces a source's settings. A new table or new columns
-// mean the old rows are stale, so the source is due for a sync right away.
+// mean the old rows are stale, so the source is due for a sync right away —
+// and so is its parent, before and after: a part has no rows of its own,
+// they live in the parent.
 func (s *Store) UpdateGradeSource(ctx context.Context, id int64, in *models.GradeSourceInput) (models.GradeSource, error) {
-	if err := s.exec(ctx, `UPDATE grade_sources SET subject_id = $2, title = $3, spreadsheet_id = $4, tab_pattern = $5,
-		name_column = $6, id_column = $7, group_column = $8, total_column = $9, max_total = $10, columns = $11,
-		sync_hours = $12, enabled = $13, members_only = $14, scheme = $15, pass_fail = $16, synced_at = NULL, updated_at = now()
-		WHERE id = $1`,
-		id, in.SubjectID, in.Title, in.SpreadsheetID, in.TabPattern, in.NameColumn, in.IDColumn, in.GroupColumn,
-		in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly, in.Scheme, in.PassFail); err != nil {
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var old *int64
+		if err := tx.QueryRow(ctx, `SELECT parent_id FROM grade_sources WHERE id = $1 FOR UPDATE`, id).Scan(&old); err != nil {
+			return wrap(err)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE grade_sources SET subject_id = $2, title = $3, spreadsheet_id = $4, tab_pattern = $5,
+			name_column = $6, id_column = $7, group_column = $8, total_column = $9, max_total = $10, columns = $11,
+			sync_hours = $12, enabled = $13, members_only = $14, scheme = $15, pass_fail = $16, parent_id = $17,
+			synced_at = NULL, updated_at = now()
+			WHERE id = $1`,
+			id, in.SubjectID, in.Title, in.SpreadsheetID, in.TabPattern, in.NameColumn, in.IDColumn, in.GroupColumn,
+			in.TotalColumn, in.MaxTotal, in.Columns, in.SyncHours, in.Enabled, in.MembersOnly, in.Scheme, in.PassFail,
+			in.ParentID); err != nil {
+			return wrap(err)
+		}
+		if in.ParentID != nil {
+			if _, err := tx.Exec(ctx, `DELETE FROM grade_rows WHERE source_id = $1`, id); err != nil {
+				return wrap(err)
+			}
+			if _, err := tx.Exec(ctx, `UPDATE grade_sources SET rows_count = 0 WHERE id = $1`, id); err != nil {
+				return wrap(err)
+			}
+		}
+		_, err := tx.Exec(ctx, `UPDATE grade_sources SET synced_at = NULL WHERE id = ANY($1)`, []*int64{old, in.ParentID})
+		return wrap(err)
+	})
+	if err != nil {
 		return models.GradeSource{}, err
 	}
 	return s.GetGradeSource(ctx, id)
 }
 
-// DeleteGradeSource removes a source with its rows.
+// DeleteGradeSource removes a source with its rows. Its parts become
+// sources of their own and sync on the next tick; its parent resyncs
+// without its rows.
 func (s *Store) DeleteGradeSource(ctx context.Context, id int64) error {
-	return s.exec(ctx, `DELETE FROM grade_sources WHERE id = $1`, id)
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `UPDATE grade_sources SET synced_at = NULL
+			WHERE parent_id = $1 OR id = (SELECT parent_id FROM grade_sources WHERE id = $1)`, id); err != nil {
+			return wrap(err)
+		}
+		tag, err := tx.Exec(ctx, `DELETE FROM grade_sources WHERE id = $1`, id)
+		if err != nil {
+			return wrap(err)
+		}
+		if tag.RowsAffected() == 0 {
+			return httpx.ErrNotFound
+		}
+		return nil
+	})
 }
 
 // ListDueGradeSources returns enabled sources whose last successful sync is
@@ -67,7 +179,7 @@ func (s *Store) DeleteGradeSource(ctx context.Context, id int64) error {
 // end): then the grade changes get their time almost to the minute.
 func (s *Store) ListDueGradeSources(ctx context.Context, now time.Time, live time.Duration) ([]models.GradeSource, error) {
 	return many[models.GradeSource](ctx, s.db, `SELECT `+gradeSourceCols+gradeSourceFrom+`
-		WHERE g.enabled AND (g.synced_at IS NULL OR g.synced_at + g.sync_hours * interval '1 hour' <= $1
+		WHERE g.enabled AND g.parent_id IS NULL AND (g.synced_at IS NULL OR g.synced_at + g.sync_hours * interval '1 hour' <= $1
 			OR g.synced_at + make_interval(secs => $2) <= $1 AND EXISTS (
 				SELECT 1 FROM practice_sessions ps WHERE ps.subject_id = g.subject_id AND ps.canceled_at IS NULL
 					AND ps.starts_at - interval '10 minutes' <= $1
@@ -269,7 +381,7 @@ type GradeChange struct {
 // ListGradeChanges returns changed rows of linked accounts with a subscribed bot chat.
 func (s *Store) ListGradeChanges(ctx context.Context) ([]GradeChange, error) {
 	return many[GradeChange](ctx, s.db, `SELECT c.chat_id, r.source_id, r.row_key, g.title, sb.name AS subject_name,
-		g.max_total, g.columns, g.scheme, r.total, r.parts, r.details, r.notified_total, r.notified_parts,
+		g.max_total, `+familyColumns+`, g.scheme, r.total, r.parts, r.details, r.notified_total, r.notified_parts,
 		r.notified_details
 		FROM grade_rows r
 		JOIN grade_sources g ON g.id = r.source_id AND g.enabled

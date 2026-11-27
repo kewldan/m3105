@@ -37,7 +37,7 @@ func (h *Handler) myGrades(ctx context.Context, isu string) ([]models.MyGrade, e
 	if err != nil || len(rows) == 0 {
 		return out, err
 	}
-	sources, err := h.store.ListGradeSources(ctx, true)
+	sources, err := h.store.ListShownGradeSources(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (h *Handler) getGrades(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, err)
 		return
 	}
-	all, err := h.store.ListGradeSources(ctx, true)
+	all, err := h.store.ListShownGradeSources(ctx)
 	if err != nil {
 		httpx.Fail(w, err)
 		return
@@ -207,10 +207,20 @@ func (h *Handler) mountGradeSources(r chi.Router) {
 		httpx.JSON(w, http.StatusOK, res)
 	})
 	mount[models.GradeSource, models.GradeSourceInput](h, r, crud[models.GradeSource, models.GradeSourceInput]{
-		list:   func(ctx context.Context, _ *http.Request) (any, error) { return st.ListGradeSources(ctx, false) },
-		get:    st.GetGradeSource,
-		create: st.CreateGradeSource,
-		update: st.UpdateGradeSource,
-		del:    st.DeleteGradeSource,
+		list: func(ctx context.Context, _ *http.Request) (any, error) { return st.ListGradeSources(ctx) },
+		get:  st.GetGradeSource,
+		create: func(ctx context.Context, in *models.GradeSourceInput) (models.GradeSource, error) {
+			if err := st.CheckGradeParent(ctx, 0, in); err != nil {
+				return models.GradeSource{}, err
+			}
+			return st.CreateGradeSource(ctx, in)
+		},
+		update: func(ctx context.Context, id int64, in *models.GradeSourceInput) (models.GradeSource, error) {
+			if err := st.CheckGradeParent(ctx, id, in); err != nil {
+				return models.GradeSource{}, err
+			}
+			return st.UpdateGradeSource(ctx, id, in)
+		},
+		del: st.DeleteGradeSource,
 	})
 }

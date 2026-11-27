@@ -86,8 +86,16 @@ func (s *Syncer) syncDue(ctx context.Context) {
 }
 
 // Sync downloads every matching tab and replaces the source's rows. On error
-// the old rows stay and the message is stored for the admin panel.
+// the old rows stay and the message is stored for the admin panel. A part of
+// another source syncs as that source: its rows live there.
 func (s *Syncer) Sync(ctx context.Context, src models.GradeSource) (models.GradeSyncResult, error) {
+	if src.ParentID != nil {
+		parent, err := s.store.GetGradeSource(ctx, *src.ParentID)
+		if err != nil {
+			return models.GradeSyncResult{}, fmt.Errorf("источник, в который входит этот: %w", err)
+		}
+		src = parent
+	}
 	res, err := s.sync(ctx, src)
 	s.mu.Lock()
 	if err != nil {
@@ -110,17 +118,75 @@ func (s *Syncer) Sync(ctx context.Context, src models.GradeSource) (models.Grade
 
 func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.GradeSyncResult, error) {
 	res := models.GradeSyncResult{Tabs: []string{}, Skipped: []string{}, Warnings: []string{}}
+	rows, maxes, err := s.readSheet(ctx, src, &res)
+	if err != nil {
+		return res, err
+	}
+	if len(rows) == 0 {
+		return res, fmt.Errorf("не нашлось ни одной строки: проверьте заголовок %q", src.NameColumn)
+	}
+	// Части источника — другие таблицы того же предмета со своими заголовками:
+	// другие группы (ИСРПО у разных преподавателей) или новые столбцы для тех же
+	// студентов (бонусы с практик одной группы).
+	parts, err := s.store.ListGradeSourceParts(ctx, src.ID)
+	if err != nil {
+		return res, err
+	}
+	partMaxes := make([]map[string]float64, len(parts))
+	for i, part := range parts {
+		partRows, m, err := s.readSheet(ctx, part, &res)
+		if err != nil {
+			return res, fmt.Errorf("таблица «%s»: %w", part.Label(), err)
+		}
+		if len(partRows) == 0 {
+			return res, fmt.Errorf("таблица «%s»: не нашлось ни одной строки, проверьте заголовок %q", part.Label(), part.NameColumn)
+		}
+		rows = MergeRows(rows, partRows)
+		partMaxes[i] = m
+	}
+
+	if err := s.store.ReplaceGradeRows(ctx, src, rows); err != nil {
+		return res, err
+	}
+	res.Rows = len(rows)
+	if res.Warnings = CheckScheme(src, rows); len(res.Warnings) > 0 {
+		s.log.Warn("grade scheme disagrees with the sheet", "source", src.ID, "labs", res.Warnings)
+	}
+	for i, one := range append([]models.GradeSource{src}, parts...) {
+		m := maxes
+		if i > 0 {
+			m = partMaxes[i-1]
+		}
+		if changed := changedMax(one.Columns, m); len(changed) > 0 {
+			if err := s.store.SetGradeColumnMax(ctx, one.ID, changed); err != nil {
+				return res, err
+			}
+			s.log.Info("column max from sheet", "source", one.ID, "changed", changed)
+		}
+	}
+	linked, err := s.LinkByName(ctx)
+	if err != nil {
+		s.log.Warn("link by name", "err", err)
+	}
+	res.Linked = linked
+	return res, nil
+}
+
+// readSheet downloads the matching tabs of one spreadsheet and parses them
+// with src's headers. A student on two tabs counts once, by the first.
+// Read and skipped tabs go to res; maxes are the column maxima of the sheet.
+func (s *Syncer) readSheet(ctx context.Context, src models.GradeSource, res *models.GradeSyncResult) ([]models.GradeRow, map[string]float64, error) {
 	var pattern *regexp.Regexp
 	if src.TabPattern != "" {
 		p, err := regexp.Compile(src.TabPattern)
 		if err != nil {
-			return res, fmt.Errorf("регулярка вкладок: %w", err)
+			return nil, nil, fmt.Errorf("регулярка вкладок: %w", err)
 		}
 		pattern = p
 	}
 	tabs, title, err := s.fetcher.Tabs(ctx, src.SpreadsheetID)
 	if err != nil {
-		return res, fmt.Errorf("список вкладок: %w", err)
+		return nil, nil, fmt.Errorf("список вкладок: %w", err)
 	}
 	// Вкладки качаются параллельно (на курсе их два десятка, по одной — секунды
 	// на каждую), а складываются по порядку, чтобы дубли решались одинаково.
@@ -160,7 +226,7 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 		}
 		if students == nil {
 			if students, err = s.store.ListStudents(ctx); err != nil {
-				return res, fmt.Errorf("список курса: %w", err)
+				return nil, nil, fmt.Errorf("список курса: %w", err)
 			}
 		}
 		FillFromCourse(results[i].rows, students)
@@ -178,7 +244,7 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 			continue
 		}
 		if r.err != nil {
-			return res, fmt.Errorf("вкладка %q: %w", tab.Name, r.err)
+			return nil, nil, fmt.Errorf("вкладка %q: %w", tab.Name, r.err)
 		}
 		res.Tabs = append(res.Tabs, tab.Name)
 		for k, v := range r.max {
@@ -195,28 +261,38 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 			rows = append(rows, row)
 		}
 	}
-	if len(rows) == 0 {
-		return res, fmt.Errorf("не нашлось ни одной строки: проверьте заголовок %q", src.NameColumn)
+	return rows, maxes, nil
+}
+
+// MergeRows adds the rows of another sheet of the same source. A student
+// already there keeps the name, group and total and gets the columns the
+// other sheet adds (the first sheet wins a column both have); a new student
+// is appended as is.
+func MergeRows(rows, more []models.GradeRow) []models.GradeRow {
+	at := make(map[string]int, len(rows))
+	for i, r := range rows {
+		at[r.RowKey] = i
 	}
-	if err := s.store.ReplaceGradeRows(ctx, src, rows); err != nil {
-		return res, err
-	}
-	res.Rows = len(rows)
-	if res.Warnings = CheckScheme(src, rows); len(res.Warnings) > 0 {
-		s.log.Warn("grade scheme disagrees with the sheet", "source", src.ID, "labs", res.Warnings)
-	}
-	if changed := changedMax(src.Columns, maxes); len(changed) > 0 {
-		if err := s.store.SetGradeColumnMax(ctx, src.ID, changed); err != nil {
-			return res, err
+	for _, r := range more {
+		i, ok := at[r.RowKey]
+		if !ok {
+			at[r.RowKey] = len(rows)
+			rows = append(rows, r)
+			continue
 		}
-		s.log.Info("column max from sheet", "source", src.ID, "changed", changed)
+		dst := &rows[i]
+		for k, v := range r.Parts {
+			if _, has := dst.Parts[k]; !has {
+				dst.Parts[k] = v
+			}
+		}
+		for k, v := range r.Details {
+			if _, has := dst.Details[k]; !has {
+				dst.Details[k] = v
+			}
+		}
 	}
-	linked, err := s.LinkByName(ctx)
-	if err != nil {
-		s.log.Warn("link by name", "err", err)
-	}
-	res.Linked = linked
-	return res, nil
+	return rows
 }
 
 // changedMax keeps the sheet maxima that differ from the configured ones.

@@ -420,7 +420,7 @@ func (b *Bot) grades(ctx context.Context, chatID, telegramID int64) error {
 	if err != nil {
 		return err
 	}
-	sources, err := b.store.ListGradeSources(ctx, true)
+	sources, err := b.store.ListShownGradeSources(ctx)
 	if err != nil {
 		return err
 	}

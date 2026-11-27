@@ -67,31 +67,69 @@ func sectionGroup(row []string) string {
 	return found
 }
 
-// findHeader looks for a column title in the header row and then in the rows
-// above it, nearest first: sheets often put a group title ("Total for the
-// semester") a row or two above the row with the names of the columns.
-func findHeader(records [][]string, head int, want string) int {
-	for i := head; i >= 0; i-- {
-		if j := findColumn(records[i], want); j >= 0 {
+// header is where the titles of a tab are: the row with the name column,
+// the rows above it and, when the titles are split over two rows, the row
+// under it.
+type header struct {
+	records [][]string
+	// head is the row with the name column, -1 when the tab has none.
+	head int
+	// sub is the second title row, -1 when there is none.
+	sub int
+}
+
+// find looks for a column title in the header row and then in the rows above
+// it, nearest first: sheets often put a group title ("Total for the
+// semester") a row or two above the row with the names of the columns. Only
+// then the row under it is tried: two-row titles with merged cells keep
+// «ФИО» in the upper row and «Сумма» with the task numbers in the lower one.
+func (h header) find(want string) int {
+	for i := h.head; i >= 0; i-- {
+		if j := findColumn(h.records[i], want); j >= 0 {
 			return j
 		}
+	}
+	if h.sub >= 0 {
+		return findColumn(h.records[h.sub], want)
 	}
 	return -1
 }
 
-// headerRow returns the index of the row with the name column (and the total
-// column at or above it), or -1.
-func headerRow(records [][]string, src models.GradeSource) int {
-	if columnNumberRe.MatchString(src.NameColumn) {
-		return -1
+// subHeader tells whether the row under the header continues it: no name,
+// not a section row, and some text that is not a number.
+func subHeader(row []string, nameCol int) bool {
+	if (nameCol < len(row) && strings.TrimSpace(row[nameCol]) != "") || sectionGroup(row) != "" {
+		return false
 	}
-	for i := 0; i < len(records) && i < headerScan; i++ {
-		if findColumn(records[i], src.NameColumn) >= 0 &&
-			(src.TotalColumn == "" || findHeader(records, i, src.TotalColumn) >= 0) {
-			return i
+	for _, c := range row {
+		if c = strings.TrimSpace(c); c != "" && ParseNumber(c) == nil && c != "--" && c != "-" {
+			return true
 		}
 	}
-	return -1
+	return false
+}
+
+// findHeader locates the row with the name column (and the total column at
+// or above it, or in the second title row).
+func findHeader(records [][]string, src models.GradeSource) header {
+	h := header{records: records, head: -1, sub: -1}
+	if columnNumberRe.MatchString(src.NameColumn) {
+		return h
+	}
+	for i := 0; i < len(records) && i < headerScan; i++ {
+		nameCol := findColumn(records[i], src.NameColumn)
+		if nameCol < 0 {
+			continue
+		}
+		c := header{records: records, head: i, sub: -1}
+		if i+1 < len(records) && subHeader(records[i+1], nameCol) {
+			c.sub = i + 1
+		}
+		if src.TotalColumn == "" || c.find(src.TotalColumn) >= 0 {
+			return c
+		}
+	}
+	return h
 }
 
 // maxMarkRe matches the cell that marks the row with the most each column
@@ -120,18 +158,18 @@ func isMaxRow(rec []string, idCol int) bool {
 // the sheet is the one place that stays right. Columns missing on the tab or
 // empty in that row are left out; nil means the tab has no such row.
 func ParseMax(records [][]string, src models.GradeSource) map[string]float64 {
-	head := headerRow(records, src)
-	if head < 0 {
+	h := findHeader(records, src)
+	if h.head < 0 {
 		return nil
 	}
-	idCol := findHeader(records, head, src.IDColumn)
+	idCol := h.find(src.IDColumn)
 	for i, rec := range records {
-		if i == head || !isMaxRow(rec, idCol) {
+		if i == h.head || !isMaxRow(rec, idCol) {
 			continue
 		}
 		out := map[string]float64{}
 		for _, c := range src.Columns {
-			j := findHeader(records, head, c.Header)
+			j := h.find(c.Header)
 			if j < 0 || j >= len(rec) {
 				continue
 			}
@@ -145,16 +183,16 @@ func ParseMax(records [][]string, src models.GradeSource) map[string]float64 {
 }
 
 // ParseTab turns a tab into rows. The header row is the one with the name
-// column; other titles may sit above it. The group of a row comes from the
-// group column, else from the latest section row ("M3105" alone in a row),
-// else from the tab name. Without a total column the total is the sum of the
-// breakdown.
-func ParseTab(records [][]string, src models.GradeSource, tabName string) ([]models.GradeRow, error) {
-	head := headerRow(records, src)
-	if head < 0 {
+// column; other titles may sit above it or in the row under it. The group of
+// a row comes from the group column, else from the latest section row
+// ("M3105" alone in a row), else it is tabGroup (see TabGroup). Without a
+// total column the total is the sum of the breakdown.
+func ParseTab(records [][]string, src models.GradeSource, tabGroup string) ([]models.GradeRow, error) {
+	h := findHeader(records, src)
+	if h.head < 0 {
 		return nil, ErrNoHeader
 	}
-	col := func(want string) int { return findHeader(records, head, want) }
+	head, col := h.head, h.find
 	nameCol, totalCol := col(src.NameColumn), col(src.TotalColumn)
 	idCol, groupCol := col(src.IDColumn), col(src.GroupColumn)
 	if src.GroupColumn != "" && groupCol < 0 {
@@ -190,7 +228,7 @@ func ParseTab(records [][]string, src models.GradeSource, tabName string) ([]mod
 		if idCol >= 0 && isu == "" {
 			continue
 		}
-		g := tabName
+		g := tabGroup
 		switch {
 		case groupCol >= 0:
 			g = cell(rec, groupCol)

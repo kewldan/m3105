@@ -118,7 +118,7 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 		}
 		pattern = p
 	}
-	tabs, err := s.fetcher.Tabs(ctx, src.SpreadsheetID)
+	tabs, title, err := s.fetcher.Tabs(ctx, src.SpreadsheetID)
 	if err != nil {
 		return res, fmt.Errorf("список вкладок: %w", err)
 	}
@@ -144,13 +144,27 @@ func (s *Syncer) sync(ctx context.Context, src models.GradeSource) (models.Grade
 			defer func() { <-sem }()
 			records, err := s.fetcher.CSV(ctx, src.SpreadsheetID, tab.GID)
 			if err == nil {
-				results[i].rows, err = ParseTab(records, src, tab.Name)
+				results[i].rows, err = ParseTab(records, src, TabGroup(tab.Name, title))
 				results[i].max = ParseMax(records, src)
 			}
 			results[i].err = err
 		}()
 	}
 	wg.Wait()
+
+	// Без столбца ИСУ номер и полное имя берутся из списка курса.
+	var students []models.Student
+	for i := range results {
+		if !slices.ContainsFunc(results[i].rows, func(r models.GradeRow) bool { return r.ISU == "" }) {
+			continue
+		}
+		if students == nil {
+			if students, err = s.store.ListStudents(ctx); err != nil {
+				return res, fmt.Errorf("список курса: %w", err)
+			}
+		}
+		FillFromCourse(results[i].rows, students)
+	}
 
 	var rows []models.GradeRow
 	seen := map[string]bool{}

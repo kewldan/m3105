@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -307,32 +308,42 @@ func ShortName(full string) string {
 	return strings.Join(f, " ")
 }
 
-// Mark is the result word for a total: the letter grade, or for a pass-fail
-// subject «зачёт» from 60% up and «пока не зачёт» below.
+// Mark is the result for a total: the letter with the five-point grade
+// («D3», below 60% «пока ниже E3»: mid-term most rows are there, a bare «2»
+// only scares), or for a pass-fail subject «зачёт» from 60% up and «пока не
+// зачёт» below.
 func Mark(total, maxTotal float64, passFail bool) string {
 	l := Letter(total, maxTotal)
-	if !passFail {
-		return l
+	if passFail {
+		if l == "F" {
+			return "пока не зачёт"
+		}
+		return "зачёт"
 	}
 	if l == "F" {
-		return "пока не зачёт"
+		return "пока ниже E3"
 	}
-	return "зачёт"
+	return l + fivePoint[l]
 }
 
-// Letter is the ITMO letter grade for a score scaled to 100 points.
+var fivePoint = map[string]string{"A": "5", "B": "4", "C": "4", "D": "3", "E": "3"}
+
+// Letter is the ITMO letter grade for a score scaled to 100 points: A above
+// 90, B above 83, C above 74, D above 67, E from 60.
 func Letter(total, maxTotal float64) string {
 	if maxTotal <= 0 {
 		maxTotal = 100
 	}
-	switch p := total / maxTotal * 100; {
-	case p >= 91:
+	// Rounding keeps 18.9 of 21 at exactly 90%, not a hair above it.
+	p := math.Round(total/maxTotal*100*1e6) / 1e6
+	switch {
+	case p > 90:
 		return "A"
-	case p >= 84:
+	case p > 83:
 		return "B"
-	case p >= 74:
+	case p > 74:
 		return "C"
-	case p >= 68:
+	case p > 67:
 		return "D"
 	case p >= 60:
 		return "E"

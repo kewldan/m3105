@@ -2,7 +2,8 @@ import { LETTER_TONE, LETTERS, letterFor, passed } from "@/lib/grades";
 import { cn } from "@/lib/utils";
 
 /**
- * ITMO letter grade for a total, with the word in the tooltip. Below E it
+ * ITMO grade for a total: the letter with the five-point grade beside it
+ * («D3»), the word in the tooltip. Below E it
  * keeps its place empty: mid-term almost everyone is there, an «F» on every
  * row only adds noise. A pass-fail subject shows «зачёт» from 60% instead.
  */
@@ -38,8 +39,7 @@ export function LetterChip({
   if (letter === "F") {
     return <span className={cn("h-6 min-w-6", className)} aria-hidden />;
   }
-  const label =
-    LETTERS.find((l) => l.letter === letter)?.label ?? "пока не зачёт";
+  const l = LETTERS.find((x) => x.letter === letter);
   return (
     <span
       className={cn(
@@ -47,9 +47,10 @@ export function LetterChip({
         LETTER_TONE[letter],
         className,
       )}
-      title={`${letter} — ${label}`}
+      title={l ? `${letter} / ${l.grade} — ${l.label}` : letter}
     >
       {letter}
+      {l ? <span className="ml-px opacity-60">{l.grade}</span> : null}
     </span>
   );
 }

@@ -6,13 +6,17 @@ import type {
 } from "@/lib/api/types";
 import { plural } from "@/lib/format";
 
-/** ITMO letter grades: the lowest score (out of 100) for each letter. */
+/**
+ * ITMO grading scale, out of 100: the letter, its five-point grade and the
+ * lower bound. A–D need strictly more than `min` (90,5 is already A), E
+ * starts at 60 inclusive.
+ */
 export const LETTERS = [
-  { letter: "A", min: 91, label: "отлично" },
-  { letter: "B", min: 84, label: "очень хорошо" },
-  { letter: "C", min: 74, label: "хорошо" },
-  { letter: "D", min: 68, label: "удовлетворительно" },
-  { letter: "E", min: 60, label: "посредственно" },
+  { letter: "A", grade: 5, min: 90, strict: true, label: "отлично" },
+  { letter: "B", grade: 4, min: 83, strict: true, label: "хорошо" },
+  { letter: "C", grade: 4, min: 74, strict: true, label: "хорошо" },
+  { letter: "D", grade: 3, min: 67, strict: true, label: "удовлетворительно" },
+  { letter: "E", grade: 3, min: 60, strict: false, label: "удовлетворительно" },
 ] as const;
 
 export type Letter = (typeof LETTERS)[number]["letter"] | "F";
@@ -20,12 +24,24 @@ export type Letter = (typeof LETTERS)[number]["letter"] | "F";
 /** Percent of the maximum, 0–100. */
 export function percent(total: number, max: number): number {
   if (max <= 0) return 0;
-  return Math.max(0, Math.min(100, (total / max) * 100));
+  // Rounding keeps 18,9 of 21 at exactly 90%, not a hair above it.
+  const p = Math.round((total / max) * 100 * 1e6) / 1e6;
+  return Math.max(0, Math.min(100, p));
+}
+
+function reaches(p: number, l: { min: number; strict: boolean }): boolean {
+  return l.strict ? p > l.min : p >= l.min;
 }
 
 export function letterFor(total: number, max: number): Letter {
   const p = percent(total, max);
-  return LETTERS.find((l) => p >= l.min)?.letter ?? "F";
+  return LETTERS.find((l) => reaches(p, l))?.letter ?? "F";
+}
+
+/** «D3»: the letter with its five-point grade; F has none. */
+export function withGrade(letter: Letter): string {
+  const l = LETTERS.find((x) => x.letter === letter);
+  return l ? `${l.letter}${l.grade}` : letter;
 }
 
 /** Pass-fail subjects (English, ИСРПО): no letters, 60% of the maximum is a pass. */
@@ -35,15 +51,17 @@ export function passed(total: number, max: number): boolean {
   return percent(total, max) >= PASS_MIN;
 }
 
-/** The letter, or for a pass-fail subject «зачёт» / «незачёт». */
+/** «D3», or for a pass-fail subject «зачёт» / «незачёт». */
 export function markFor(total: number, max: number, passFail: boolean): string {
-  if (!passFail) return letterFor(total, max);
+  if (!passFail) return withGrade(letterFor(total, max));
   return passed(total, max) ? "зачёт" : "незачёт";
 }
 
 /**
- * Points left to the next letter, or null at A. For a pass-fail subject the
- * only step is the pass: `letter` is then «зачёта» («до зачёта»).
+ * Points left to the next mark («C4»), or null at A. A strict bound needs a
+ * hundredth more than the bound itself: scores come with two decimals. For a
+ * pass-fail subject the only step is the pass: `letter` is then «зачёта»
+ * («до зачёта»).
  */
 export function toNextLetter(
   total: number,
@@ -53,14 +71,15 @@ export function toNextLetter(
   const p = percent(total, max);
   const next = passFail
     ? p < PASS_MIN
-      ? { letter: "зачёта", min: PASS_MIN }
+      ? { letter: "зачёта", min: PASS_MIN, strict: false }
       : undefined
-    : [...LETTERS].reverse().find((l) => p < l.min);
+    : [...LETTERS]
+        .reverse()
+        .filter((l) => !reaches(p, l))
+        .map((l) => ({ ...l, letter: withGrade(l.letter) }))[0];
   if (!next) return null;
-  return {
-    letter: next.letter,
-    points: Math.max(0, (next.min / 100) * max - total),
-  };
+  const points = (next.min / 100) * max - total + (next.strict ? 0.01 : 0);
+  return { letter: next.letter, points: Math.max(0.01, points) };
 }
 
 /** Thresholds drawn on the distribution: letters, or the single pass line. */

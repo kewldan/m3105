@@ -24,3 +24,17 @@ export function groupNumber(name: string): number | null {
 export function groupHue(n: number): number {
   return Math.round((n * 137.508 + 20) % 360);
 }
+
+export type GroupTrack = "itpro" | "ds";
+
+export const TRACK_LABEL: Record<GroupTrack, string> = {
+  itpro: "ТОП ИТ ПРО",
+  ds: "ТОП ДС",
+};
+
+/** Track of a group by its number: 1–5 «ТОП ИТ ПРО», 6–10 «ТОП ДС». */
+export function groupTrack(n: number): GroupTrack | null {
+  if (n >= 1 && n <= 5) return "itpro";
+  if (n >= 6 && n <= 10) return "ds";
+  return null;
+}

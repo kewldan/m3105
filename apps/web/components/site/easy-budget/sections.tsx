@@ -498,7 +498,7 @@ export function Heatmap() {
             </div>
             {HEAT_SEATS.map((k, col) => {
               const v = grid[row][col];
-              const likely = k >= 14 && k <= 22 && N >= 15 && N <= 35;
+              const likely = k >= 16 && k <= 24 && N >= 10 && N <= 30;
               return (
                 <div
                   key={k}

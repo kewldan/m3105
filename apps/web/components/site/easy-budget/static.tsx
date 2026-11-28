@@ -1,7 +1,20 @@
 import katex from "katex";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import { DIRECTION_YEARS, DIRECTIONS, PAIRS } from "@/lib/easy-budget/model";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  COHORTS,
+  DIRECTION_YEARS,
+  DIRECTIONS,
+  PAIRS,
+} from "@/lib/easy-budget/model";
 import { cn } from "@/lib/utils";
 
 /** Формула KaTeX, отрендеренная на сервере: клиенту не нужен сам KaTeX. */
@@ -71,13 +84,17 @@ export function Dumbbells() {
 }
 
 const KCP: [number, string, string][] = [
-  [132, "общие", "var(--primary)"],
-  [18, "особая", "color-mix(in oklch, var(--primary) 70%, var(--card))"],
-  [18, "отдельная", "color-mix(in oklch, var(--primary) 50%, var(--card))"],
-  [7, "целевые", "color-mix(in oklch, var(--primary) 30%, var(--card))"],
+  [145, "олимпиадники (БВИ)", "var(--primary)"],
+  [
+    21,
+    "отдельная квота",
+    "color-mix(in oklch, var(--primary) 70%, var(--card))",
+  ],
+  [18, "особая квота", "color-mix(in oklch, var(--primary) 50%, var(--card))"],
+  [4, "целевая квота", "color-mix(in oklch, var(--primary) 30%, var(--card))"],
 ];
 
-/** Откуда 175 бюджетных мест. */
+/** Из кого состоят 188 бюджетников набора 2026. */
 export function KcpStack() {
   return (
     <div className="space-y-2">
@@ -112,30 +129,92 @@ export function KcpStack() {
   );
 }
 
-/** 132 общих места против 152 олимпиадников. */
-export function OlympBars() {
-  const rows: [string, number, CSSProperties][] = [
-    ["Места", 132, { background: "var(--primary)" }],
-    ["Олимпиадники", 152, { background: YOU }],
-  ];
+export const CONTRACT =
+  "color-mix(in oklch, var(--muted-foreground) 35%, var(--card))";
+
+/** Бюджет и контракт по наборам: кто будет конкурировать за вакансии. */
+export function CohortBars() {
+  const max = Math.max(...COHORTS.map((c) => c.budget + c.contract));
   return (
-    <div className="grid gap-1.5">
-      {rows.map(([name, v, style]) => (
+    <div className="grid gap-2">
+      {COHORTS.map((c) => (
         <div
-          key={name}
-          className="grid grid-cols-[7em_minmax(0,1fr)_3em] items-center gap-2.5 text-sm"
+          key={c.year}
+          className="grid grid-cols-[3em_minmax(0,1fr)] items-center gap-3 text-sm"
         >
-          <span>{name}</span>
-          <div className="relative h-4 overflow-hidden rounded-sm bg-muted">
-            <i
-              className="absolute inset-y-0 left-0"
-              style={{ ...style, width: `${(v / 152) * 100}%` }}
-            />
+          <b className="tabular-nums">{c.year}</b>
+          <div
+            className="flex h-6 overflow-hidden rounded-sm text-xs font-semibold tabular-nums"
+            style={{ width: `${((c.budget + c.contract) / max) * 100}%` }}
+          >
+            <div
+              className="flex items-center justify-center bg-primary text-primary-foreground"
+              style={{ flex: c.budget }}
+              title={`бюджет: ${c.budget}`}
+            >
+              {c.budgetApprox ? "≈" : ""}
+              {c.budget}
+            </div>
+            <div
+              className="flex items-center justify-center text-foreground"
+              style={{ flex: c.contract, background: CONTRACT }}
+              title={`контракт: ${c.contract}`}
+            >
+              {c.contractPartial ? "≥" : ""}
+              {c.contract}
+            </div>
           </div>
-          <span className="text-right tabular-nums">{v}</span>
         </div>
       ))}
     </div>
+  );
+}
+
+/** Наборы 09.03.02 по приказам о зачислении и места на 2-м курсе через год. */
+export function CohortTable() {
+  const pctOf = (k: number, b: number) =>
+    `${((k / b) * 100).toFixed(1).replace(".", ",")}%`;
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Набор</TableHead>
+          <TableHead className="text-right">БВИ</TableHead>
+          <TableHead className="text-right">
+            Квоты: отд. / особ. / цел.
+          </TableHead>
+          <TableHead className="text-right">По ЕГЭ</TableHead>
+          <TableHead className="text-right">Бюджет</TableHead>
+          <TableHead className="text-right">Контракт</TableHead>
+          <TableHead className="text-right">Мест в июле</TableHead>
+          <TableHead className="text-right">Отсев</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody className="tabular-nums">
+        {COHORTS.map((c) => (
+          <TableRow key={c.year}>
+            <TableCell className="font-semibold">{c.year}</TableCell>
+            <TableCell className="text-right">{c.bvi}</TableCell>
+            <TableCell className="text-right">
+              {c.separate} / {c.special ?? "—"} / {c.target}
+            </TableCell>
+            <TableCell className="text-right">0</TableCell>
+            <TableCell className="text-right">
+              {c.budgetApprox ? "≈" : ""}
+              {c.budget}
+            </TableCell>
+            <TableCell className="text-right">
+              {c.contractPartial ? "≥" : ""}
+              {c.contract}
+            </TableCell>
+            <TableCell className="text-right">{c.july ?? "—"}</TableCell>
+            <TableCell className="text-right">
+              {c.july != null ? pctOf(c.july, c.budget) : "—"}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 

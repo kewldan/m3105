@@ -4,7 +4,7 @@
  */
 
 export type Params = {
-  /** Бюджетников на курсе (КЦП). */
+  /** Бюджетников на курсе: набор 2026 по приказам о зачислении. */
   B: number;
   /** Отсев бюджетников за 1-й курс: среднее и разброс. */
   dMu: number;
@@ -13,7 +13,7 @@ export type Params = {
   lamL: number;
   /** Добавка к августовской волне. */
   lamA: number;
-  /** Контрактная когорта. */
+  /** Контрактников на курсе: набор 2026 по приказам о зачислении. */
   Mc: number;
   /** Доля допущенных к конкурсу и её концентрация. */
   peMu: number;
@@ -26,21 +26,21 @@ export type ScenarioKey = "opt" | "base" | "pes";
 export const SCENARIO_KEYS: ScenarioKey[] = ["opt", "base", "pes"];
 
 const BASE: Params = {
-  B: 175,
-  dMu: 0.108,
+  B: 188,
+  dMu: 0.105,
   dSd: 0.015,
   lamL: 0.7,
   lamA: 1,
-  Mc: 205,
-  peMu: 0.12,
+  Mc: 328,
+  peMu: 0.06,
   peK: 40,
   rv: 4.48,
 };
 
 export const SCENARIOS: Record<ScenarioKey, Params> = {
-  opt: { ...BASE, dMu: 0.118, lamL: 0.2, Mc: 180, peMu: 0.09 },
+  opt: { ...BASE, dMu: 0.125, lamL: 0.2, peMu: 0.045 },
   base: { ...BASE },
-  pes: { ...BASE, dMu: 0.08, lamL: 2, Mc: 230, peMu: 0.16 },
+  pes: { ...BASE, dMu: 0.09, lamL: 2, peMu: 0.085 },
 };
 
 export const WEIGHTS: Record<ScenarioKey, number> = {
@@ -101,16 +101,16 @@ export const LAB_SLIDERS: LabSlider[] = [
   {
     key: "Mc",
     label: "Контрактная когорта, M_c",
-    min: 150,
-    max: 260,
+    min: 250,
+    max: 400,
     step: 5,
     format: (v) => String(v),
   },
   {
     key: "peMu",
     label: "Доля допущенных, μ_e",
-    min: 0.05,
-    max: 0.2,
+    min: 0.02,
+    max: 0.14,
     step: 0.005,
     format: (v) => `${fmt(v * 100)}%`,
   },
@@ -166,6 +166,75 @@ export const DIRECTIONS: [string, (number | null)[], boolean][] = [
   ["09.03.01 ИВТ", [2, 5, 1, 1], false],
 ];
 export const DIRECTION_YEARS = [2023, 2024, 2025, 2026];
+
+export type Cohort = {
+  year: number;
+  /** Зачислено на бюджет без вступительных испытаний. */
+  bvi: number;
+  /** Квоты: отдельная, особая (null — приказа нет в архиве), целевая. */
+  separate: number;
+  special: number | null;
+  target: number;
+  /** Бюджетников всего; approx — особая квота оценена. */
+  budget: number;
+  budgetApprox?: boolean;
+  /** Контрактников (граждане РФ); partial — в архиве не все приказы. */
+  contract: number;
+  contractPartial?: boolean;
+  /** Вакантных мест на 2-м курсе в июле следующего года. */
+  july: number | null;
+};
+
+/**
+ * Наборы 09.03.02 по приказам о зачислении: 2026 — abit.itmo.ru,
+ * 2023–2025 — снимки веб-архива. По ЕГЭ на бюджет не зачисляли никого,
+ * основа у всех — «бюджет» или «контракт», группы «за счёт ИТМО» нет.
+ */
+export const COHORTS: Cohort[] = [
+  {
+    year: 2023,
+    bvi: 131,
+    separate: 13,
+    special: null,
+    target: 9,
+    budget: 160,
+    budgetApprox: true,
+    contract: 242,
+    contractPartial: true,
+    july: 20,
+  },
+  {
+    year: 2024,
+    bvi: 129,
+    separate: 10,
+    special: 6,
+    target: 21,
+    budget: 166,
+    contract: 301,
+    contractPartial: true,
+    july: 19,
+  },
+  {
+    year: 2025,
+    bvi: 161,
+    separate: 16,
+    special: 13,
+    target: 7,
+    budget: 197,
+    contract: 289,
+    july: 18,
+  },
+  {
+    year: 2026,
+    bvi: 145,
+    separate: 21,
+    special: 18,
+    target: 4,
+    budget: 188,
+    contract: 328,
+    july: null,
+  },
+];
 
 // ---------- генераторы ----------
 
@@ -348,8 +417,8 @@ const TORNADO: [string, keyof Params, number, number][] = [
   ["Отсев бюджетников", "dMu", 0.09, 0.125],
   ["Места не платникам", "lamL", 2.5, 0],
   ["Добавка к августу", "lamA", 0, 2.5],
-  ["Контрактная когорта", "Mc", 235, 175],
-  ["Доля допущенных", "peMu", 0.16, 0.08],
+  ["Контрактная когорта", "Mc", 360, 300],
+  ["Доля допущенных", "peMu", 0.085, 0.04],
   ["Сила конкурентов", "rv", 4.6, 4.35],
 ];
 
